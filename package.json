@@ -54,7 +54,7 @@
     "@types/micromatch": "^4.0.9",
     "@types/node": "^22.10.10",
     "@types/shell-escape": "^0.2.3",
-    "jest": "^29.7.0",
+    "jest": "^30.0.0",
     "mikey-pro": "^7.5.3",
     "ts-jest": "^29.2.5",
     "ts-node": "^10.9.2",

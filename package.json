@@ -52,7 +52,7 @@
     "@types/cli-progress": "^3.11.6",
     "@types/jest": "^30.0.0",
     "@types/micromatch": "^4.0.9",
-    "@types/node": "^22.10.10",
+    "@types/node": "^24.0.3",
     "@types/shell-escape": "^0.2.3",
     "jest": "^30.0.0",
     "mikey-pro": "^7.5.3",

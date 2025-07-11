@@ -34,7 +34,7 @@
     "find-up": "^7.0.0",
     "globby": "^14.0.2",
     "isbinaryfile": "^5.0.4",
-    "koa": "^2.15.3",
+    "koa": "^3.0.0",
     "micromatch": "^4.0.8",
     "mongodb": "^6.12.0",
     "mongoose": "^8.9.5",

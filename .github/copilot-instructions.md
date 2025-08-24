@@ -53,7 +53,7 @@ node dist/index.js --measure-impact --dry-run  # Show impact analysis
 ```
 
 **TIMING EXPECTATIONS**:
-- **Basic dependency analysis**: 0.4s (small projects) to 15s (large projects). NEVER CANCEL.
+- **Basic dependency analysis**: 0.4s (small projects) to 15s (large projects). NEVER CANCEL. Set timeout to 30+ minutes.
 - **Impact analysis** (with `--measure-impact`): Add 30-60s extra. NEVER CANCEL. Set timeout to 90+ minutes.
 - **Interactive mode**: Prompts for confirmation before removing dependencies.
 
@@ -149,7 +149,7 @@ The tool has built-in protection for common build tools and frameworks. See `src
 ## Troubleshooting
 
 ### Tests Not Working
-This is expected. The test infrastructure exists but test files are empty (`test/__tests__/unit.test.ts` and `test/__tests__/e2e.test.ts`). Jest configuration files referenced in package.json (`jest.config.e2e.ts`, `jest.config.unit.ts`) are missing.
+This is expected. The test infrastructure exists but test files are empty (`test/__tests__/unit.test.ts` and `test/__tests__/e2e.test.ts`). Jest configuration files referenced in package.json (`jest.config.e2e.ts`, `jest.config.unit.ts`) are missing. The GitHub Actions CI workflow will also fail on the test step due to this.
 
 ### ESLint Warnings
 The codebase has many ESLint warnings (165+ warnings). This is normal - the linting passes but reports style and safety warnings that don't prevent functionality.

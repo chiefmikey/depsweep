@@ -86,15 +86,7 @@ async function main(): Promise<void> {
     process.on('SIGINT', cleanup);
     process.on('SIGTERM', cleanup);
 
-    const packageJsonPath = await findClosestPackageJson(process.cwd());
-
-    const projectDirectory = path.dirname(packageJsonPath);
-    const context = await getPackageContext(packageJsonPath);
-
-    const packageJsonString =
-      (await fs.readFile(packageJsonPath, 'utf8')) || '{}';
-    const packageJson = JSON.parse(packageJsonString);
-
+    // Set up CLI first to handle help/version without requiring package.json
     const program = new Command();
 
     // Configure program output and prevent exit
@@ -105,39 +97,66 @@ async function main(): Promise<void> {
     program.exitOverride();
 
     // Configure the CLI program
-    program
-      .name(CLI_STRINGS.CLI_NAME)
-      .usage('[options]')
-      .description(CLI_STRINGS.CLI_DESCRIPTION)
+    program.name(CLI_STRINGS.CLI_NAME);
+    program.usage('[options]');
+    program.description(CLI_STRINGS.CLI_DESCRIPTION);
 
-      .option('-v, --verbose', 'display detailed usage information')
-      .option('-a, --aggressive', 'allow removal of protected dependencies')
-      .option('-s, --safe <deps>', 'dependencies that will not be removed')
-      .option('-i, --ignore <paths>', 'patterns to ignore during scanning')
-      .option('-m, --measure-impact', 'measure unused dependency impact')
-      .option('-d, --dry-run', 'run without making changes')
-      .option('-n, --no-progress', 'disable the progress bar')
-      .version(packageJson.version, '--version', 'display installed version')
-      .addHelpText('after', CLI_STRINGS.EXAMPLE_TEXT);
+    program.option('-v, --verbose', 'display detailed usage information');
+    program.option('-a, --aggressive', 'allow removal of protected dependencies');
+    program.option('-s, --safe <deps>', 'dependencies that will not be removed');
+    program.option('-i, --ignore <paths>', 'patterns to ignore during scanning');
+    program.option('-m, --measure-impact', 'measure unused dependency impact');
+    program.option('-d, --dry-run', 'run without making changes');
+    program.option('-n, --no-progress', 'disable the progress bar');
+    program.version('0.0.0', '--version', 'display installed version'); // Temporary version
+    
+    // Handle help and version first, before requiring package.json
+    if (process.argv.includes('--help')) {
+      const helpText = program.helpInformation();
+      process.stdout.write(`${helpText}\n`);
+      process.stdout.write(`\nExample:\n  $ depsweep -v --measure-impact\n`);
+      return;
+    }
+
+    if (process.argv.includes('--version')) {
+      // Try to get version from package.json, but fall back to a default
+      try {
+        const packageJsonPath = await findClosestPackageJson(process.cwd());
+        const packageJsonString = (await fs.readFile(packageJsonPath, 'utf8')) || '{}';
+        const packageJson = JSON.parse(packageJsonString);
+        process.stdout.write(`${packageJson.version}\n`);
+      } catch {
+        // If we can't find package.json, use the built-in version
+        process.stdout.write('0.6.3\n'); // This should match the version in the main package.json
+      }
+      return;
+    }
+
+    // Now find package.json for normal operation
+    const packageJsonPath = await findClosestPackageJson(process.cwd());
+    const projectDirectory = path.dirname(packageJsonPath);
+    const context = await getPackageContext(packageJsonPath);
+
+    const packageJsonString =
+      (await fs.readFile(packageJsonPath, 'utf8')) || '{}';
+    const packageJson = JSON.parse(packageJsonString);
+
+    // Update version with actual package.json version
+    program.version(packageJson.version, '--version', 'display installed version');
+    
+    // Parse arguments now that everything is set up
+    program.parse(process.argv);
+    
+    // Add help text if the method exists
+    if (typeof program.addHelpText === 'function') {
+      program.addHelpText('after', CLI_STRINGS.EXAMPLE_TEXT);
+    }
 
     program.exitOverride(() => {
       // Don't throw or exit - just let the help display
     });
 
-    // Show help immediately if --help flag is present
-    if (process.argv.includes('--help')) {
-      const helpText = program.helpInformation();
-      process.stdout.write(`${helpText}\n`);
-      process.exit(0); // Exit after displaying help
-    }
-
-    program.parse(process.argv);
-
     const options = program.opts();
-    if (options.help) {
-      program.outputHelp();
-      return;
-    }
 
     console.log(chalk.cyan(MESSAGES.title));
     logNewlines();
@@ -286,6 +305,12 @@ async function main(): Promise<void> {
       depInfoMap,
       dependencies,
     );
+
+    // Filter out safe dependencies if --safe option is provided
+    if (options.safe) {
+      const safeDeps = Array.isArray(options.safe) ? options.safe : [options.safe];
+      unusedDependencies = unusedDependencies.filter(dep => !safeDeps.includes(dep));
+    }
 
     // Sort unused dependencies alphabetically
     unusedDependencies.sort(customSort);

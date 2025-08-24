@@ -348,8 +348,7 @@ export async function findClosestPackageJson(
     cwd: startDirectory,
   });
   if (!packageJsonPath) {
-    console.error(chalk.red(MESSAGES.noPackageJson));
-    process.exit(1);
+    throw new Error(MESSAGES.noPackageJson);
   }
 
   // Check if this is part of a monorepo

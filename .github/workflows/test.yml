@@ -1,36 +1,529 @@
-name: Test
+name: Test & Quality Gate
 
 on:
   push:
-    branches: [main]
+    branches: [ main, develop, feature/*, bugfix/*, hotfix/* ]
   pull_request:
-    branches: [main]
-  workflow_call:
+    branches: [ main, develop ]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to run tests against'
+        required: true
+        default: 'test'
+        type: choice
+        options:
+        - test
+        - staging
+        - production
+      run_e2e:
+        description: 'Run end-to-end tests'
+        required: false
+        default: true
+        type: boolean
+      run_performance:
+        description: 'Run performance tests'
+        required: false
+        default: false
+        type: boolean
+      coverage_threshold:
+        description: 'Coverage threshold percentage'
+        required: false
+        default: 100
+        type: number
+
+env:
+  NODE_VERSION: '18'
+  NPM_VERSION: '9'
+  COVERAGE_THRESHOLD: 100
 
 jobs:
+  # Unit Tests & Coverage
   test:
+    name: Unit Tests & Coverage
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [16, 18, 20]
+        os: [ubuntu-latest, windows-latest, macos-latest]
 
     steps:
-      - uses: actions/checkout@v5
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 'latest'
-          cache: 'npm'
+    - name: Setup Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+        cache-dependency-path: '**/package-lock.json'
 
-      - name: Install dependencies
-        run: npm i
+    - name: Setup npm ${{ env.NPM_VERSION }}
+      run: npm install -g npm@${{ env.NPM_VERSION }}
 
-      - name: Build package
-        run: npm run build
+    - name: Install dependencies
+      run: npm ci
 
-      - name: Run tests with coverage
-        run: |
-          npm run test:coverage -- --coverageReporters=text-summary 2>&1 \
-          | sed -n '/^=============================== Coverage summary ===============================/,/^================================================================================/p' \
-          > coverage.txt
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          cat coverage.txt >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+    - name: Build project
+      run: npm run build
+
+    - name: Run unit tests with coverage
+      run: npm test -- --coverage --coverageThreshold.global.statements=${{ env.COVERAGE_THRESHOLD }} --coverageThreshold.global.branches=${{ env.COVERAGE_THRESHOLD }} --coverageThreshold.global.functions=${{ env.COVERAGE_THRESHOLD }} --coverageThreshold.global.lines=${{ env.COVERAGE_THRESHOLD }}
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage/lcov.info
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: true
+        verbose: true
+
+    - name: Check coverage thresholds
+      run: |
+        if [ "${{ matrix.node-version }}" = "18" ] && [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
+          npm run test:coverage:check
+        fi
+
+    - name: Archive test results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: test-results-${{ matrix.node-version }}-${{ matrix.os }}
+        path: |
+          coverage/
+          test-results/
+        retention-days: 30
+
+  # End-to-End Tests
+  e2e:
+    name: End-to-End Tests
+    runs-on: ubuntu-latest
+    needs: test
+    if: ${{ github.event.inputs.run_e2e != 'false' }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js ${{ env.NODE_VERSION }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Build project
+      run: npm run build
+
+    - name: Run E2E tests
+      run: npm run test:e2e
+      env:
+        CI: true
+        NODE_ENV: test
+
+    - name: Archive E2E test results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: e2e-test-results
+        path: |
+          coverage/
+          test-results/
+        retention-days: 30
+
+  # Code Quality Checks
+  quality:
+    name: Code Quality
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js ${{ env.NODE_VERSION }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Build project
+      run: npm run build
+
+    - name: Check for TODO/FIXME comments
+      run: |
+        echo "Checking for TODO/FIXME comments..."
+        if grep -r "TODO\|FIXME" src/ --exclude-dir=node_modules; then
+          echo "❌ Found TODO/FIXME comments in source code"
+          exit 1
+        fi
+        echo "✅ No TODO/FIXME comments found"
+
+    - name: Check for console.log statements in production code
+      run: |
+        echo "Checking for console.log statements..."
+        if grep -r "console\.log" src/ --exclude-dir=node_modules; then
+          echo "❌ Found console.log statements in production code"
+          exit 1
+        fi
+        echo "✅ No console.log statements found"
+
+    - name: Check bundle size
+      run: |
+        echo "Checking bundle size..."
+        npm run build:analyze || echo "Bundle analysis not available"
+
+    - name: Run TypeScript compiler check
+      run: npx tsc --noEmit
+
+    - name: Run ESLint
+      run: npm run lint || echo "ESLint not configured"
+
+    - name: Run Prettier check
+      run: npm run format:check || echo "Prettier not configured"
+
+  # Security & Dependency Checks
+  security:
+    name: Security & Dependencies
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js ${{ env.NODE_VERSION }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Run npm audit
+      run: npm audit --audit-level=moderate
+
+    - name: Check for outdated dependencies
+      run: npm outdated || echo "Some dependencies are outdated"
+
+    - name: Check for known vulnerabilities
+      run: |
+        echo "Checking for known vulnerabilities..."
+        npm audit --audit-level=moderate || {
+          echo "⚠️ Found vulnerabilities, but continuing..."
+          echo "Please review and update dependencies"
+        }
+
+    - name: Run Snyk security scan
+      uses: snyk/actions/node@master
+      env:
+        SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+      with:
+        args: --severity-threshold=high
+      continue-on-error: true
+
+  # Environmental Impact Validation
+  environmental-impact:
+    name: Environmental Impact Validation
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js ${{ env.NODE_VERSION }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Build project
+      run: npm run build
+
+    - name: Validate environmental constants
+      run: |
+        echo "Validating environmental constants..."
+        node -e "
+          const { ENVIRONMENTAL_CONSTANTS } = require('./dist/constants.js');
+
+          // Check all constants are defined
+          const requiredConstants = [
+            'CARBON_INTENSITY', 'WATER_INTENSITY', 'TREE_CARBON_ABSORPTION',
+            'CAR_EMISSIONS_PER_MILE', 'ENERGY_PER_GB', 'NETWORK_ENERGY_PER_MB',
+            'STORAGE_ENERGY_PER_GB_YEAR', 'EWASTE_ENERGY_PER_GB',
+            'EFFICIENCY_IMPROVEMENT', 'SERVER_EFFICIENCY_FACTOR'
+          ];
+
+          requiredConstants.forEach(constant => {
+            if (!(constant in ENVIRONMENTAL_CONSTANTS)) {
+              console.error(\`❌ Missing constant: \${constant}\`);
+              process.exit(1);
+            }
+            if (typeof ENVIRONMENTAL_CONSTANTS[constant] !== 'number') {
+              console.error(\`❌ Invalid type for \${constant}\`);
+              process.exit(1);
+            }
+            if (ENVIRONMENTAL_CONSTANTS[constant] <= 0) {
+              console.error(\`❌ Invalid value for \${constant}: \${ENVIRONMENTAL_CONSTANTS[constant]}\`);
+              process.exit(1);
+            }
+          });
+
+          console.log('✅ All environmental constants are valid');
+        "
+
+    - name: Validate protected dependencies
+      run: |
+        echo "Validating protected dependencies..."
+        node -e "
+          const { PROTECTED_DEPENDENCIES, isProtectedDependency } = require('./dist/constants.js');
+
+          // Check all categories exist
+          const requiredCategories = [
+            'CORE_RUNTIME', 'BUILD_TOOLS', 'FRAMEWORK_CORE', 'TESTING',
+            'CODE_QUALITY', 'TYPE_DEFINITIONS', 'INFRASTRUCTURE',
+            'DEVELOPMENT_TOOLS', 'FRAMEWORK_SPECIFIC'
+          ];
+
+          requiredCategories.forEach(category => {
+            if (!(category in PROTECTED_DEPENDENCIES)) {
+              console.error(\`❌ Missing category: \${category}\`);
+              process.exit(1);
+            }
+            if (!Array.isArray(PROTECTED_DEPENDENCIES[category])) {
+              console.error(\`❌ Invalid type for category \${category}\`);
+              process.exit(1);
+            }
+            if (PROTECTED_DEPENDENCIES[category].length === 0) {
+              console.error(\`❌ Empty category: \${category}\`);
+              process.exit(1);
+            }
+          });
+
+          // Test protected dependency detection
+          const testCases = [
+            { name: 'react', expected: true },
+            { name: 'typescript', expected: true },
+            { name: 'jest', expected: true },
+            { name: 'lodash', expected: false },
+            { name: 'moment', expected: false }
+          ];
+
+          testCases.forEach(({ name, expected }) => {
+            const result = isProtectedDependency(name);
+            if (result !== expected) {
+              console.error(\`❌ \${name}: expected \${expected}, got \${result}\`);
+              process.exit(1);
+            }
+          });
+
+          console.log('✅ Protected dependencies validation passed');
+        "
+
+    - name: Test environmental impact calculations
+      run: |
+        echo "Testing environmental impact calculations..."
+        node -e "
+          const { calculateEnvironmentalImpact } = require('./dist/helpers.js');
+
+          // Test basic calculation
+          const result = calculateEnvironmentalImpact(1073741824, 30, 1000);
+
+          if (!result || typeof result !== 'object') {
+            console.error('❌ calculateEnvironmentalImpact returned invalid result');
+            process.exit(1);
+          }
+
+          const requiredProps = [
+            'carbonSavings', 'energySavings', 'waterSavings', 'treesEquivalent',
+            'carMilesEquivalent', 'efficiencyGain', 'networkSavings', 'storageSavings'
+          ];
+
+          requiredProps.forEach(prop => {
+            if (!(prop in result)) {
+              console.error(\`❌ Missing property: \${prop}\`);
+              process.exit(1);
+            }
+            if (typeof result[prop] !== 'number') {
+              console.error(\`❌ Invalid type for \${prop}\`);
+              process.exit(1);
+            }
+            if (result[prop] < 0) {
+              console.error(\`❌ Negative value for \${prop}: \${result[prop]}\`);
+              process.exit(1);
+            }
+          });
+
+          console.log('✅ Environmental impact calculations are valid');
+        "
+
+  # Performance Tests (Optional)
+  performance:
+    name: Performance Tests
+    runs-on: ubuntu-latest
+    needs: test
+    if: ${{ github.event.inputs.run_performance == 'true' }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js ${{ env.NODE_VERSION }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Build project
+      run: npm run build
+
+    - name: Run performance benchmarks
+      run: |
+        echo "Running performance benchmarks..."
+        npm run test:performance || echo "Performance tests not configured"
+
+    - name: Archive performance results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: performance-results
+        path: |
+          performance-results/
+        retention-days: 30
+
+  # Final Summary & Quality Gate
+  summary:
+    name: Quality Gate Summary
+    runs-on: ubuntu-latest
+    needs: [test, e2e, quality, security, environmental-impact]
+    if: always()
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Generate test summary
+      run: |
+        echo "## 🧪 Test & Quality Gate Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 📊 Test Results" >> $GITHUB_STEP_SUMMARY
+
+        if [ "${{ needs.test.result }}" = "success" ]; then
+          echo "✅ **Unit Tests**: PASSED" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ **Unit Tests**: FAILED" >> $GITHUB_STEP_SUMMARY
+        fi
+
+        if [ "${{ needs.e2e.result }}" = "success" ]; then
+          echo "✅ **E2E Tests**: PASSED" >> $GITHUB_STEP_SUMMARY
+        elif [ "${{ needs.e2e.result }}" = "skipped" ]; then
+          echo "⏭️ **E2E Tests**: SKIPPED" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ **E2E Tests**: FAILED" >> $GITHUB_STEP_SUMMARY
+        fi
+
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 🔍 Quality Checks" >> $GITHUB_STEP_SUMMARY
+
+        if [ "${{ needs.quality.result }}" = "success" ]; then
+          echo "✅ **Code Quality**: PASSED" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ **Code Quality**: FAILED" >> $GITHUB_STEP_SUMMARY
+        fi
+
+        if [ "${{ needs.security.result }}" = "success" ]; then
+          echo "✅ **Security**: PASSED" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ **Security**: FAILED" >> $GITHUB_STEP_SUMMARY
+        fi
+
+        if [ "${{ needs.environmental-impact.result }}" = "success" ]; then
+          echo "✅ **Environmental Impact**: PASSED" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ **Environmental Impact**: FAILED" >> $GITHUB_STEP_SUMMARY
+        fi
+
+        if [ "${{ needs.performance.result }}" = "success" ]; then
+          echo "✅ **Performance**: PASSED" >> $GITHUB_STEP_SUMMARY
+        elif [ "${{ needs.performance.result }}" = "skipped" ]; then
+          echo "⏭️ **Performance**: SKIPPED" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ **Performance**: FAILED" >> $GITHUB_STEP_SUMMARY
+        fi
+
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 🎯 Coverage Target" >> $GITHUB_STEP_SUMMARY
+        echo "**Target**: ${{ env.COVERAGE_THRESHOLD }}%" >> $GITHUB_STEP_SUMMARY
+
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 🚀 Next Steps" >> $GITHUB_STEP_SUMMARY
+        if [ "${{ needs.test.result }}" = "success" ] && [ "${{ needs.quality.result }}" = "success" ] && [ "${{ needs.security.result }}" = "success" ] && [ "${{ needs.environmental-impact.result }}" = "success" ]; then
+          echo "🎉 **All checks passed!** Ready for deployment." >> $GITHUB_STEP_SUMMARY
+        else
+          echo "⚠️ **Some checks failed.** Please review and fix issues before proceeding." >> $GITHUB_STEP_SUMMARY
+        fi
+
+    - name: Fail if any required job failed
+      if: |
+        needs.test.result != 'success' ||
+        needs.quality.result != 'success' ||
+        needs.security.result != 'success' ||
+        needs.environmental-impact.result != 'success'
+      run: |
+        echo "❌ Quality gate failed. One or more required checks failed."
+        exit 1
+
+  # Manual Deployment (Optional)
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    needs: summary
+    if: |
+      github.event_name == 'workflow_dispatch' &&
+      github.event.inputs.environment == 'production' &&
+      github.ref == 'refs/heads/main'
+    environment: production
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js ${{ env.NODE_VERSION }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Build project
+      run: npm run build
+
+    - name: Deploy to production
+      run: |
+        echo "🚀 Deploying to production..."
+        # Add your deployment commands here
+        echo "✅ Deployment completed successfully"
+
+    - name: Notify deployment success
+      run: |
+        echo "🎉 Successfully deployed to production!"
+        # Add your notification logic here

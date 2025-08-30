@@ -35,3 +35,33 @@ export interface DependencyInfo {
   requiredByPackages: Set<string>;
   hasSubDependencyUsage: boolean;
 }
+
+// New environmental impact interfaces
+export interface EnvironmentalImpact {
+  carbonSavings: number; // kg CO2e
+  energySavings: number; // kWh
+  waterSavings: number; // liters
+  treesEquivalent: number;
+  carMilesEquivalent: number;
+  efficiencyGain: number; // percentage
+  networkSavings: number; // kWh
+  storageSavings: number; // kWh
+}
+
+export interface ImpactMetrics {
+  installTime: number;
+  diskSpace: number;
+  errors?: string[];
+  environmentalImpact?: EnvironmentalImpact;
+}
+
+export interface EnvironmentalReport {
+  totalImpact: EnvironmentalImpact;
+  perPackageImpact: Record<string, EnvironmentalImpact>;
+  timeframes: {
+    daily: EnvironmentalImpact;
+    monthly: EnvironmentalImpact;
+    yearly?: EnvironmentalImpact;
+  };
+  recommendations: string[];
+}

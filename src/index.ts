@@ -18,6 +18,9 @@ import {
   FILE_PATTERNS,
   MESSAGES,
   PACKAGE_MANAGERS,
+  PROTECTED_DEPENDENCIES,
+  isProtectedDependency,
+  getProtectionReason,
 } from './constants.js';
 import {
   isTypePackageUsed,
@@ -31,7 +34,14 @@ import {
   formatSize,
   formatTime,
   formatNumber,
+  // New environmental impact functions
+  calculateEnvironmentalImpact,
+  calculateCumulativeEnvironmentalImpact,
+  displayEnvironmentalImpactTable,
+  generateEnvironmentalRecommendations,
+  displayEnvironmentalHeroMessage,
 } from './helpers.js';
+import type { EnvironmentalImpact } from './interfaces.js';
 import {
   getSourceFiles,
   findClosestPackageJson,
@@ -175,6 +185,26 @@ async function main(): Promise<void> {
 
     const safeUnused: string[] = [];
 
+    // Add user-specified safe dependencies to safeUnused
+    if (options.safe) {
+      // Parse comma-separated safe dependencies
+      const safeDeps =
+        typeof options.safe === 'string'
+          ? options.safe
+              .split(',')
+              .map((dep) => dep.trim())
+              .filter((dep) => dep.length > 0)
+          : Array.isArray(options.safe)
+            ? options.safe
+            : [];
+
+      for (const safeDep of safeDeps) {
+        if (!safeUnused.includes(safeDep)) {
+          safeUnused.push(safeDep);
+        }
+      }
+    }
+
     // Update totalAnalysisSteps to include subdependencies and files
     const totalAnalysisSteps = dependencies.length * sourceFiles.length;
     let analysisStepsProcessed = 0;
@@ -292,6 +322,26 @@ async function main(): Promise<void> {
 
     // Sort safeUnused dependencies alphabetically
     safeUnused.sort(customSort);
+
+    // 🛡️ SAFETY SYSTEM: Separate truly unused from protected dependencies
+    // Protected dependencies are critical packages that should never be removed
+    const protectedUnused: string[] = [];
+    const trulyUnused: string[] = [];
+
+    for (const dep of unusedDependencies) {
+      if (isProtectedDependency(dep) && !options.aggressive) {
+        // If aggressive flag is set, treat protected dependencies as removable
+        protectedUnused.push(dep);
+        safeUnused.push(dep); // Add to safeUnused for display
+      } else {
+        // Either not protected, or aggressive flag allows removal
+        trulyUnused.push(dep);
+      }
+    }
+
+    // Update unusedDependencies to only include truly unused (non-protected)
+    // When aggressive flag is set, this includes protected dependencies
+    unusedDependencies = trulyUnused;
 
     // Show results and handle package removal
     if (unusedDependencies.length === 0 && safeUnused.length === 0) {
@@ -421,6 +471,40 @@ async function main(): Promise<void> {
 
         displayImpactTable(impactData, totalInstallTime, totalDiskSpace);
 
+        // Calculate environmental impact for each package
+        const environmentalImpacts: EnvironmentalImpact[] = [];
+        for (const result of installResults) {
+          const environmentImpact = calculateEnvironmentalImpact(
+            result.space,
+            result.time,
+            parentInfo?.downloads || null,
+          );
+          environmentalImpacts.push(environmentImpact);
+        }
+
+        // Calculate cumulative environmental impact
+        const totalEnvironmentalImpact =
+          calculateCumulativeEnvironmentalImpact(environmentalImpacts);
+
+        // Display environmental impact report
+        logNewlines();
+        console.log(chalk.green.bold(MESSAGES.environmentalImpact));
+        displayEnvironmentalImpactTable(
+          totalEnvironmentalImpact,
+          '🌍 Total Environmental Impact',
+        );
+
+        // Display per-package environmental impact
+        if (unusedDependencies.length > 1) {
+          logNewlines();
+          console.log(chalk.blue.bold('📦 Per-Package Environmental Impact:'));
+          for (const [index, dep] of unusedDependencies.entries()) {
+            const impact = environmentalImpacts[index];
+            console.log(chalk.blue(`\n${dep}:`));
+            displayEnvironmentalImpactTable(impact, `Package: ${dep}`);
+          }
+        }
+
         if (parentInfo) {
           const yearlyData = await getYearlyDownloads(parentInfo.name);
           const stats = calculateImpactStats(
@@ -486,6 +570,23 @@ async function main(): Promise<void> {
           }
 
           console.log(impactTable.toString());
+
+          // Add environmental impact recommendations and hero message
+          if (totalEnvironmentalImpact) {
+            logNewlines();
+            console.log(
+              chalk.green.bold('💡 Environmental Impact Recommendations:'),
+            );
+            const recommendations = generateEnvironmentalRecommendations(
+              totalEnvironmentalImpact,
+              unusedDependencies.length,
+            );
+            for (const rec of recommendations)
+              console.log(chalk.green(`  ${rec}`));
+
+            logNewlines();
+            displayEnvironmentalHeroMessage(totalEnvironmentalImpact);
+          }
 
           logNewlines();
           console.log(

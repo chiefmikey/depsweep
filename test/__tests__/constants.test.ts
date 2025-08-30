@@ -185,7 +185,7 @@ describe("Constants and Helper Functions", () => {
     it("should contain development tools", () => {
       expect(PROTECTED_DEPENDENCIES.DEV_UTILITIES).toContain("rimraf");
       expect(PROTECTED_DEPENDENCIES.DEV_UTILITIES).toContain("del");
-      expect(PROTECTED_DEPENDENCIES.DEV_UTILITIES).toContain("glob");
+      expect(PROTECTED_DEPENDENCIES.DEV_UTILITIES).toContain("chalk");
     });
   });
 

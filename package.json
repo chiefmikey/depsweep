@@ -93,6 +93,7 @@
     "@types/shell-escape": "^0.2.3",
     "jest": "^30.1.1",
     "ts-jest": "^29.4.1",
+    "ts-node": "^10.9.2",
     "typescript": "^5.9.2"
   },
   "files": [

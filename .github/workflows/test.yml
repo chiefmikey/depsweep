@@ -74,7 +74,7 @@ jobs:
       run: npm test -- --coverage --coverageThreshold.global.statements=${{ env.COVERAGE_THRESHOLD }} --coverageThreshold.global.branches=${{ env.COVERAGE_THRESHOLD }} --coverageThreshold.global.functions=${{ env.COVERAGE_THRESHOLD }} --coverageThreshold.global.lines=${{ env.COVERAGE_THRESHOLD }}
 
     - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v4
+      uses: codecov/codecov-action@v5
       with:
         file: ./coverage/lcov.info
         flags: unittests

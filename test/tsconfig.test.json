@@ -9,6 +9,10 @@
     "dist"
   ],
   "compilerOptions": {
-    "declaration": false
+    "declaration": false,
+    "module": "ESNext",
+    "moduleResolution": "node",
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true
   }
 }

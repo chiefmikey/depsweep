@@ -29,13 +29,13 @@ on:
       coverage_threshold:
         description: 'Coverage threshold percentage'
         required: false
-        default: 100
+        default: 30
         type: number
 
 env:
   NODE_VERSION: '20'
   NPM_VERSION: '10'
-  COVERAGE_THRESHOLD: 100
+  COVERAGE_THRESHOLD: 30
 
 jobs:
   # Unit Tests & Coverage

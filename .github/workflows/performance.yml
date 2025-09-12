@@ -1,0 +1,75 @@
+name: Performance Benchmarks
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    - cron: '0 3 * * 0' # Weekly on Sunday at 3 AM
+
+jobs:
+  performance-test:
+    name: Performance Benchmarks
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [18, 20, 22]
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Build project
+      run: npm run build
+
+    - name: Run performance benchmarks
+      run: |
+        echo "Running performance benchmarks..."
+
+        # Small project benchmark
+        echo "Testing small project (25 dependencies)..."
+        time depsweep --dry-run --no-progress > /dev/null 2>&1
+
+        # Memory usage test
+        echo "Testing memory usage..."
+        node -e "
+          const { execSync } = require('child_process');
+          const start = process.memoryUsage();
+          execSync('depsweep --dry-run --no-progress', { stdio: 'pipe' });
+          const end = process.memoryUsage();
+          console.log('Memory usage:', {
+            rss: Math.round((end.rss - start.rss) / 1024 / 1024) + 'MB',
+            heapUsed: Math.round((end.heapUsed - start.heapUsed) / 1024 / 1024) + 'MB'
+          });
+        "
+
+    - name: Generate performance report
+      run: |
+        echo "# Performance Report" > performance-report.md
+        echo "Generated: $(date)" >> performance-report.md
+        echo "Node.js Version: $(node --version)" >> performance-report.md
+        echo "NPM Version: $(npm --version)" >> performance-report.md
+        echo "" >> performance-report.md
+        echo "## Memory Usage" >> performance-report.md
+        echo "- Peak RSS: \$(ps -o rss= -p \$\$) KB" >> performance-report.md
+        echo "- Peak Heap: \$(node -e 'console.log(process.memoryUsage().heapUsed)') bytes" >> performance-report.md
+
+    - name: Upload performance report
+      uses: actions/upload-artifact@v4
+      with:
+        name: performance-report-node-${{ matrix.node-version }}
+        path: performance-report.md
+
+
+

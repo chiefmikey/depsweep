@@ -38,11 +38,19 @@ import type {
   ImpactMetrics,
   EnvironmentalReport,
 } from "./interfaces.js";
+import {
+  calculateComprehensiveEnvironmentalImpact,
+  validateEnvironmentalCalculations,
+  formatEnvironmentalImpact as formatEnhancedImpact,
+} from "./enhanced-environmental-calculations.js";
 import { findSubDependencies } from "./utils.js";
 
 import { customSort } from "./index.js";
 
 export function isConfigFile(filePath: string): boolean {
+  if (!filePath || typeof filePath !== "string") {
+    return false;
+  }
   const filename = path.basename(filePath).toLowerCase();
   return (
     filename.includes("config") ||
@@ -901,7 +909,16 @@ export function displayImpactTable(
 export function calculateEnvironmentalImpact(
   diskSpace: number, // bytes
   installTime: number, // seconds
-  monthlyDownloads: number | null
+  monthlyDownloads: number | null,
+  options: {
+    region?: "NA" | "EU" | "AP" | "GLOBAL";
+    processingComplexity?: number;
+    accessFrequency?: number;
+    averageLatency?: number;
+    buildComplexity?: number;
+    buildFrequency?: number;
+    teamSize?: number;
+  } = {}
 ): EnvironmentalImpact {
   try {
     // Comprehensive input validation
@@ -912,86 +929,37 @@ export function calculateEnvironmentalImpact(
       return createZeroEnvironmentalImpact();
     }
 
-    // Convert to appropriate units with bounds checking
-    const diskSpaceGB = Math.max(0, diskSpace / (1024 * 1024 * 1024));
-    const diskSpaceMB = Math.max(0, diskSpace / (1024 * 1024));
-    const installTimeHours = Math.max(0, installTime / 3600);
-
-    // Enhanced energy calculations with 2025 data and error handling
-    const transferEnergy = calculateTransferEnergy(diskSpaceGB);
-    const networkEnergy = calculateNetworkEnergy(diskSpaceMB);
-    const storageEnergy = calculateStorageEnergy(diskSpaceGB);
-    const ewasteEnergy = calculateEwasteEnergy(diskSpaceGB);
-    const efficiencyEnergy = calculateEfficiencyEnergy(installTimeHours);
-    const serverEfficiencyEnergy = calculateServerEfficiencyEnergy(diskSpaceGB);
-
-    // Aggregate energy savings with validation
-    const totalEnergySavings = aggregateEnergySavings([
-      transferEnergy,
-      networkEnergy,
-      storageEnergy,
-      ewasteEnergy,
-      efficiencyEnergy,
-      serverEfficiencyEnergy,
-    ]);
-
-    // Calculate environmental impacts with bounds checking
-    const carbonSavings = Math.max(
-      0,
-      totalEnergySavings * ENVIRONMENTAL_CONSTANTS.CARBON_INTENSITY
-    );
-    const waterSavings = Math.max(
-      0,
-      totalEnergySavings * ENVIRONMENTAL_CONSTANTS.WATER_PER_KWH
-    );
-    const treesEquivalent = Math.max(
-      0,
-      carbonSavings * ENVIRONMENTAL_CONSTANTS.TREES_PER_KG_CO2
-    );
-    const carMilesEquivalent = Math.max(
-      0,
-      carbonSavings / ENVIRONMENTAL_CONSTANTS.CO2_PER_CAR_MILE
+    // Use enhanced comprehensive calculation with all factors
+    const enhancedImpact = calculateComprehensiveEnvironmentalImpact(
+      diskSpace,
+      installTime,
+      monthlyDownloads,
+      options
     );
 
-    // Efficiency improvements with current data
-    const efficiencyGain = Math.min(
-      50,
-      ENVIRONMENTAL_CONSTANTS.EFFICIENCY_IMPROVEMENT
-    );
-
-    const result: EnvironmentalImpact = {
-      carbonSavings,
-      energySavings: totalEnergySavings,
-      waterSavings,
-      treesEquivalent,
-      carMilesEquivalent,
-      efficiencyGain,
-      networkSavings: networkEnergy,
-      storageSavings: storageEnergy,
-    };
-
-    // Validate the final result
-    const validation = validateEnvironmentalImpact(result);
+    // Validate the calculations
+    const validation = validateEnvironmentalCalculations(enhancedImpact);
     if (!validation.isValid) {
       console.warn(
-        "Environmental impact validation warnings:",
-        validation.warnings
+        "Environmental impact validation failed:",
+        validation.errors
       );
     }
+    if (validation.warnings.length > 0) {
+      console.warn("Environmental impact warnings:", validation.warnings);
+    }
 
-    return result;
+    return enhancedImpact;
   } catch (error) {
     console.error("Error calculating environmental impact:", error);
-    throw new Error(
-      `Environmental impact calculation failed: ${(error as Error).message}`
-    );
+    return createZeroEnvironmentalImpact();
   }
 }
 
 /**
  * Validates input parameters for environmental impact calculations
  */
-function validateInputs(
+export function validateInputs(
   diskSpace: number,
   installTime: number,
   monthlyDownloads: number | null
@@ -1031,7 +999,7 @@ function validateInputs(
 /**
  * Calculates data transfer energy with bounds checking
  */
-function calculateTransferEnergy(diskSpaceGB: number): number {
+export function calculateTransferEnergy(diskSpaceGB: number): number {
   const energy = diskSpaceGB * ENVIRONMENTAL_CONSTANTS.ENERGY_PER_GB;
   return Math.max(0, Math.min(energy, 1000)); // Cap at 1000 kWh for safety
 }
@@ -1039,7 +1007,7 @@ function calculateTransferEnergy(diskSpaceGB: number): number {
 /**
  * Calculates network infrastructure energy with bounds checking
  */
-function calculateNetworkEnergy(diskSpaceMB: number): number {
+export function calculateNetworkEnergy(diskSpaceMB: number): number {
   const energy = diskSpaceMB * ENVIRONMENTAL_CONSTANTS.NETWORK_ENERGY_PER_MB;
   return Math.max(0, Math.min(energy, 100)); // Cap at 100 kWh for safety
 }
@@ -1047,7 +1015,7 @@ function calculateNetworkEnergy(diskSpaceMB: number): number {
 /**
  * Calculates storage energy with bounds checking
  */
-function calculateStorageEnergy(diskSpaceGB: number): number {
+export function calculateStorageEnergy(diskSpaceGB: number): number {
   const energy =
     (diskSpaceGB * ENVIRONMENTAL_CONSTANTS.STORAGE_ENERGY_PER_GB_YEAR) / 12;
   return Math.max(0, Math.min(energy, 500)); // Cap at 500 kWh/month for safety
@@ -1056,7 +1024,7 @@ function calculateStorageEnergy(diskSpaceGB: number): number {
 /**
  * Calculates e-waste impact energy with bounds checking
  */
-function calculateEwasteEnergy(diskSpaceGB: number): number {
+export function calculateEwasteEnergy(diskSpaceGB: number): number {
   const energy = diskSpaceGB * ENVIRONMENTAL_CONSTANTS.EWASTE_IMPACT_PER_GB;
   return Math.max(0, Math.min(energy, 50)); // Cap at 50 kWh for safety
 }
@@ -1064,7 +1032,7 @@ function calculateEwasteEnergy(diskSpaceGB: number): number {
 /**
  * Calculates efficiency energy with bounds checking
  */
-function calculateEfficiencyEnergy(installTimeHours: number): number {
+export function calculateEfficiencyEnergy(installTimeHours: number): number {
   const energy =
     (installTimeHours * ENVIRONMENTAL_CONSTANTS.EFFICIENCY_IMPROVEMENT) / 100;
   return Math.max(0, Math.min(energy, 100)); // Cap at 100 kWh for safety
@@ -1073,7 +1041,7 @@ function calculateEfficiencyEnergy(installTimeHours: number): number {
 /**
  * Calculates server efficiency energy with bounds checking
  */
-function calculateServerEfficiencyEnergy(diskSpaceGB: number): number {
+export function calculateServerEfficiencyEnergy(diskSpaceGB: number): number {
   const energy =
     (diskSpaceGB * ENVIRONMENTAL_CONSTANTS.SERVER_UTILIZATION_IMPROVEMENT) /
     100;
@@ -1083,7 +1051,7 @@ function calculateServerEfficiencyEnergy(diskSpaceGB: number): number {
 /**
  * Aggregates energy savings with validation
  */
-function aggregateEnergySavings(energies: number[]): number {
+export function aggregateEnergySavings(energies: number[]): number {
   const total = energies.reduce((sum, energy) => sum + energy, 0);
 
   // Validate total energy savings
@@ -1101,8 +1069,9 @@ function aggregateEnergySavings(energies: number[]): number {
  * Creates an EnvironmentalImpact object with zero values.
  * This is useful for cases where no dependencies are removed.
  */
-function createZeroEnvironmentalImpact(): EnvironmentalImpact {
+export function createZeroEnvironmentalImpact(): EnvironmentalImpact {
   return {
+    // Primary metrics
     carbonSavings: 0,
     energySavings: 0,
     waterSavings: 0,
@@ -1111,6 +1080,41 @@ function createZeroEnvironmentalImpact(): EnvironmentalImpact {
     efficiencyGain: 0,
     networkSavings: 0,
     storageSavings: 0,
+
+    // Detailed energy breakdown
+    transferEnergy: 0,
+    cpuEnergy: 0,
+    memoryEnergy: 0,
+    latencyEnergy: 0,
+    buildEnergy: 0,
+    ciCdEnergy: 0,
+    registryEnergy: 0,
+    lifecycleEnergy: 0,
+
+    // Financial impact
+    carbonOffsetValue: 0,
+    waterTreatmentValue: 0,
+    totalFinancialValue: 0,
+
+    // Regional variations
+    carbonIntensityUsed: ENVIRONMENTAL_CONSTANTS.CARBON_INTENSITY,
+    regionalMultiplier: 1.0,
+
+    // Time-based factors
+    peakEnergySavings: 0,
+    offPeakEnergySavings: 0,
+    timeOfDayMultiplier: 1.0,
+
+    // Renewable energy impact
+    renewableEnergySavings: 0,
+    fossilFuelSavings: 0,
+    renewablePercentage: 0,
+
+    // Additional environmental metrics
+    ewasteReduction: 0,
+    serverUtilizationImprovement: 0,
+    developerProductivityGain: 0,
+    buildTimeReduction: 0,
   };
 }
 

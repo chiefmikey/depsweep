@@ -1,17 +1,17 @@
 #!/usr/bin/env node
 /* eslint-disable unicorn/prefer-json-parse-buffer */
 
-import * as fs from 'node:fs/promises';
-import path from 'node:path';
-import { stdin as input, stdout as output } from 'node:process';
-import * as readline from 'node:readline/promises';
+import * as fs from "node:fs/promises";
+import path from "node:path";
+import { stdin as input, stdout as output } from "node:process";
+import * as readline from "node:readline/promises";
 
-import chalk from 'chalk';
-import cliProgress from 'cli-progress';
-import CliTable from 'cli-table3';
-import { Command } from 'commander';
-import { isBinaryFileSync } from 'isbinaryfile';
-import ora, { type Ora } from 'ora';
+import chalk from "chalk";
+import cliProgress from "cli-progress";
+import CliTable from "cli-table3";
+import { Command } from "commander";
+import { isBinaryFileSync } from "isbinaryfile";
+import ora, { type Ora } from "ora";
 
 import {
   CLI_STRINGS,
@@ -21,7 +21,7 @@ import {
   PROTECTED_DEPENDENCIES,
   isProtectedDependency,
   getProtectionReason,
-} from './constants.js';
+} from "./constants.js";
 import {
   isTypePackageUsed,
   safeExecSync,
@@ -40,8 +40,8 @@ import {
   displayEnvironmentalImpactTable,
   generateEnvironmentalRecommendations,
   displayEnvironmentalHeroMessage,
-} from './helpers.js';
-import type { EnvironmentalImpact } from './interfaces.js';
+} from "./helpers.js";
+import type { EnvironmentalImpact } from "./interfaces.js";
 import {
   getSourceFiles,
   findClosestPackageJson,
@@ -49,7 +49,11 @@ import {
   getPackageContext,
   processFilesInParallel,
   getDependencyInfo,
-} from './utils.js';
+} from "./utils.js";
+import {
+  PerformanceMonitor,
+  MemoryOptimizer,
+} from "./performance-optimizations.js";
 
 // Variables for active resources
 let activeSpinner: Ora | null = null;
@@ -67,7 +71,7 @@ function cleanup(): void {
     activeReadline.close();
   }
   // Only exit if not in test environment
-  if (process.env.NODE_ENV !== 'test') {
+  if (process.env.NODE_ENV !== "test") {
     process.exit(0);
   }
 }
@@ -84,17 +88,21 @@ function logNewlines(count = 1): void {
 
 // Custom sort function to handle scoped dependencies
 export function customSort(a: string, b: string): number {
-  const aNormalized = a.replace(/^@/, '');
-  const bNormalized = b.replace(/^@/, '');
-  return aNormalized.localeCompare(bNormalized, 'en', { sensitivity: 'base' });
+  const aNormalized = a.replace(/^@/, "");
+  const bNormalized = b.replace(/^@/, "");
+  return aNormalized.localeCompare(bNormalized, "en", { sensitivity: "base" });
 }
 
 // Main execution
 async function main(): Promise<void> {
+  const performanceMonitor = PerformanceMonitor.getInstance();
+  const memoryOptimizer = MemoryOptimizer.getInstance();
+
   try {
+    performanceMonitor.startTimer("totalExecution");
     // Add signal handlers at the start of main
-    process.on('SIGINT', cleanup);
-    process.on('SIGTERM', cleanup);
+    process.on("SIGINT", cleanup);
+    process.on("SIGTERM", cleanup);
 
     const packageJsonPath = await findClosestPackageJson(process.cwd());
 
@@ -102,7 +110,7 @@ async function main(): Promise<void> {
     const context = await getPackageContext(packageJsonPath);
 
     const packageJsonString =
-      (await fs.readFile(packageJsonPath, 'utf8')) || '{}';
+      (await fs.readFile(packageJsonPath, "utf8")) || "{}";
     const packageJson = JSON.parse(packageJsonString);
 
     const program = new Command();
@@ -117,25 +125,25 @@ async function main(): Promise<void> {
     // Configure the CLI program
     program
       .name(CLI_STRINGS.CLI_NAME)
-      .usage('[options]')
+      .usage("[options]")
       .description(CLI_STRINGS.CLI_DESCRIPTION)
 
-      .option('-v, --verbose', 'display detailed usage information')
-      .option('-a, --aggressive', 'allow removal of protected dependencies')
-      .option('-s, --safe <deps>', 'dependencies that will not be removed')
-      .option('-i, --ignore <paths>', 'patterns to ignore during scanning')
-      .option('-m, --measure-impact', 'measure unused dependency impact')
-      .option('-d, --dry-run', 'run without making changes')
-      .option('-n, --no-progress', 'disable the progress bar')
-      .version(packageJson.version, '--version', 'display installed version')
-      .addHelpText('after', CLI_STRINGS.EXAMPLE_TEXT);
+      .option("-v, --verbose", "display detailed usage information")
+      .option("-a, --aggressive", "allow removal of protected dependencies")
+      .option("-s, --safe <deps>", "dependencies that will not be removed")
+      .option("-i, --ignore <paths>", "patterns to ignore during scanning")
+      .option("-m, --measure-impact", "measure unused dependency impact")
+      .option("-d, --dry-run", "run without making changes")
+      .option("-n, --no-progress", "disable the progress bar")
+      .version(packageJson.version, "--version", "display installed version")
+      .addHelpText("after", CLI_STRINGS.EXAMPLE_TEXT);
 
     program.exitOverride(() => {
       // Don't throw or exit - just let the help display
     });
 
     // Show help immediately if --help flag is present
-    if (process.argv.includes('--help')) {
+    if (process.argv.includes("--help")) {
       const helpText = program.helpInformation();
       process.stdout.write(`${helpText}\n`);
       process.exit(0); // Exit after displaying help
@@ -153,12 +161,12 @@ async function main(): Promise<void> {
     logNewlines();
     console.log(chalk.blue(`Package.json found at: ${packageJsonPath}`));
 
-    process.on('uncaughtException', (error: Error): void => {
+    process.on("uncaughtException", (error: Error): void => {
       console.error(chalk.red(MESSAGES.fatalError), error);
       process.exit(1);
     });
 
-    process.on('unhandledRejection', (error: Error): void => {
+    process.on("unhandledRejection", (error: Error): void => {
       console.error(chalk.red(MESSAGES.fatalError), error);
       process.exit(1);
     });
@@ -169,7 +177,7 @@ async function main(): Promise<void> {
     // Filter out any file you don't want to count (e.g., binaries):
     const allFiles = await getSourceFiles(
       projectDirectory,
-      options.ignore || [],
+      options.ignore || []
     );
     const filteredFiles = [];
     for (const file of allFiles) {
@@ -189,14 +197,14 @@ async function main(): Promise<void> {
     if (options.safe) {
       // Parse comma-separated safe dependencies
       const safeDeps =
-        typeof options.safe === 'string'
+        typeof options.safe === "string"
           ? options.safe
-              .split(',')
+              .split(",")
               .map((dep) => dep.trim())
               .filter((dep) => dep.length > 0)
           : Array.isArray(options.safe)
-            ? options.safe
-            : [];
+          ? options.safe
+          : [];
 
       for (const safeDep of safeDeps) {
         if (!safeUnused.includes(safeDep)) {
@@ -224,7 +232,7 @@ async function main(): Promise<void> {
       progressBar.start(100, 0, {
         currentDeps: 0,
         totalDeps: dependencies.length,
-        dep: '',
+        dep: "",
       });
     }
 
@@ -242,7 +250,7 @@ async function main(): Promise<void> {
     const progressCallback = (
       filePath: string,
       sIndex?: number,
-      sCount?: number,
+      sCount?: number
     ) => {
       analysisStepsProcessed++;
       if (progressBar) {
@@ -252,7 +260,7 @@ async function main(): Promise<void> {
             currentDeps: totalDepsProcessed,
             totalDeps: dependencies.length,
             dep: currentDependency,
-          },
+          }
         );
       }
     };
@@ -264,7 +272,7 @@ async function main(): Promise<void> {
     >();
 
     // Create a variable to store the current dependency name
-    let currentDependency = '';
+    let currentDependency = "";
 
     // Analyze all dependencies
     for (const [index, dep] of dependencies.entries()) {
@@ -282,7 +290,7 @@ async function main(): Promise<void> {
         {
           onProgress: progressCallback,
           totalAnalysisSteps,
-        },
+        }
       );
 
       depInfoMap.set(dep, info);
@@ -294,9 +302,22 @@ async function main(): Promise<void> {
       progressBar.update(100, {
         currentDeps: dependencies.length,
         totalDeps: dependencies.length,
-        dep: chalk.green('✓'),
+        dep: chalk.green("✓"),
       });
       progressBar.stop();
+    }
+
+    // Log performance metrics if verbose mode
+    if (options.verbose) {
+      performanceMonitor.logSummary();
+      const memoryStats = memoryOptimizer.getMemoryStats();
+      console.log(
+        chalk.blue(
+          `\nMemory Usage: ${Math.round(
+            memoryStats.heapUsed / 1024 / 1024
+          )}MB / ${Math.round(memoryStats.heapTotal / 1024 / 1024)}MB`
+        )
+      );
     }
 
     logNewlines();
@@ -314,7 +335,7 @@ async function main(): Promise<void> {
     unusedDependencies = finalizeUnusedDependencies(
       unusedDependencies,
       depInfoMap,
-      dependencies,
+      dependencies
     );
 
     // Sort unused dependencies alphabetically
@@ -351,7 +372,7 @@ async function main(): Promise<void> {
       for (const dep of safeUnused) {
         const isSafeListed = options.safe?.includes(dep);
         console.log(
-          chalk.blue(`- ${dep} [${isSafeListed ? 'safe' : 'protected'}]`),
+          chalk.blue(`- ${dep} [${isSafeListed ? "safe" : "protected"}]`)
         );
       }
       logNewlines(2); // replaces console.log('\n\n')
@@ -364,7 +385,7 @@ async function main(): Promise<void> {
       for (const dep of safeUnused) {
         const isSafeListed = options.safe?.includes(dep);
         console.log(
-          chalk.blue(`- ${dep} [${isSafeListed ? 'safe' : 'protected'}]`),
+          chalk.blue(`- ${dep} [${isSafeListed ? "safe" : "protected"}]`)
         );
       }
       logNewlines();
@@ -372,10 +393,10 @@ async function main(): Promise<void> {
       // Display verbose output if requested
       if (options.verbose) {
         const table = new CliTable({
-          head: ['Dependency', 'Direct Usage', 'Required By'],
+          head: ["Dependency", "Direct Usage", "Required By"],
           wordWrap: true,
           colWidths: [25, 35, 20],
-          style: { head: ['cyan'], border: ['grey'] },
+          style: { head: ["cyan"], border: ["grey"] },
         });
 
         const sortedDependencies = [...dependencies].sort(customSort);
@@ -385,19 +406,19 @@ async function main(): Promise<void> {
             info.usedInFiles.length > 0
               ? info.usedInFiles
                   .map((f) => path.relative(projectDirectory, f))
-                  .join('\n')
-              : chalk.gray('-');
+                  .join("\n")
+              : chalk.gray("-");
 
           const requiredBy =
             info.requiredByPackages.size > 0
               ? [...info.requiredByPackages]
                   .map((requestDep) =>
                     unusedDependencies.includes(requestDep)
-                      ? `${requestDep} ${chalk.blue('(unused)')}`
-                      : requestDep,
+                      ? `${requestDep} ${chalk.blue("(unused)")}`
+                      : requestDep
                   )
-                  .join(', ')
-              : chalk.gray('-');
+                  .join(", ")
+              : chalk.gray("-");
 
           table.push([dep, fileUsage, requiredBy]);
         }
@@ -419,7 +440,7 @@ async function main(): Promise<void> {
 
         const measureSpinner = ora({
           text: MESSAGES.measuringImpact,
-          spinner: 'dots',
+          spinner: "dots",
         }).start();
         activeSpinner = measureSpinner;
 
@@ -447,14 +468,20 @@ async function main(): Promise<void> {
 
         measureSpinner.stop();
         console.log(
-          `${MESSAGES.measuringImpact} [${totalPackages}/${totalPackages}] ${chalk.green('✔')}`,
+          `${
+            MESSAGES.measuringImpact
+          } [${totalPackages}/${totalPackages}] ${chalk.green("✔")}`
         );
 
         const parentInfo = await getParentPackageDownloads(packageJsonPath);
 
         logNewlines();
         console.log(
-          `${chalk.bold('Unused Dependency Impact Report:')} ${chalk.yellow(parentInfo?.name)} ${chalk.blue(`(${parentInfo?.homepage || parentInfo?.repository?.url || ''})`)}`,
+          `${chalk.bold("Unused Dependency Impact Report:")} ${chalk.yellow(
+            parentInfo?.name
+          )} ${chalk.blue(
+            `(${parentInfo?.homepage || parentInfo?.repository?.url || ""})`
+          )}`
         );
 
         // Create a table for detailed results
@@ -477,7 +504,7 @@ async function main(): Promise<void> {
           const environmentImpact = calculateEnvironmentalImpact(
             result.space,
             result.time,
-            parentInfo?.downloads || null,
+            parentInfo?.downloads || null
           );
           environmentalImpacts.push(environmentImpact);
         }
@@ -491,13 +518,13 @@ async function main(): Promise<void> {
         console.log(chalk.green.bold(MESSAGES.environmentalImpact));
         displayEnvironmentalImpactTable(
           totalEnvironmentalImpact,
-          '🌍 Total Environmental Impact',
+          "🌍 Total Environmental Impact"
         );
 
         // Display per-package environmental impact
         if (unusedDependencies.length > 1) {
           logNewlines();
-          console.log(chalk.blue.bold('📦 Per-Package Environmental Impact:'));
+          console.log(chalk.blue.bold("📦 Per-Package Environmental Impact:"));
           for (const [index, dep] of unusedDependencies.entries()) {
             const impact = environmentalImpacts[index];
             console.log(chalk.blue(`\n${dep}:`));
@@ -511,19 +538,19 @@ async function main(): Promise<void> {
             totalDiskSpace,
             totalInstallTime,
             parentInfo.downloads,
-            yearlyData,
+            yearlyData
           );
 
           const impactTable = new CliTable({
-            head: ['Period', 'Downloads', 'Data Transfer', 'Install Time'],
+            head: ["Period", "Downloads", "Data Transfer", "Install Time"],
             colWidths: [18, 20, 20, 20],
             wordWrap: true,
-            style: { head: ['cyan'], border: ['grey'] },
+            style: { head: ["cyan"], border: ["grey"] },
           });
 
           if (stats.day) {
             impactTable.push([
-              'Day',
+              "Day",
               `~${formatNumber(stats.day.downloads)}`,
               formatSize(stats.day.diskSpace),
               formatTime(stats.day.installTime),
@@ -533,7 +560,7 @@ async function main(): Promise<void> {
           if (stats.monthly) {
             // Ensure monthly stats are only added when not a full year
             impactTable.push([
-              'Month',
+              "Month",
               formatNumber(stats.monthly.downloads),
               formatSize(stats.monthly.diskSpace),
               formatTime(stats.monthly.installTime),
@@ -546,7 +573,7 @@ async function main(): Promise<void> {
             stats.yearly.downloads > 0
           ) {
             impactTable.push([
-              'Last 12 months',
+              "Last 12 months",
               formatNumber(stats.yearly.downloads),
               formatSize(stats.yearly.diskSpace),
               formatTime(stats.yearly.installTime),
@@ -575,11 +602,11 @@ async function main(): Promise<void> {
           if (totalEnvironmentalImpact) {
             logNewlines();
             console.log(
-              chalk.green.bold('💡 Environmental Impact Recommendations:'),
+              chalk.green.bold("💡 Environmental Impact Recommendations:")
             );
             const recommendations = generateEnvironmentalRecommendations(
               totalEnvironmentalImpact,
-              unusedDependencies.length,
+              unusedDependencies.length
             );
             for (const rec of recommendations)
               console.log(chalk.green(`  ${rec}`));
@@ -591,13 +618,15 @@ async function main(): Promise<void> {
           logNewlines();
           console.log(
             `${chalk.yellow(
-              'Note:',
-            )} These results depend on your system's capabilities.\nTry a multi-architecture analysis at ${chalk.bold('https://github.com/chiefmikey/depsweep/analysis')}`,
+              "Note:"
+            )} These results depend on your system's capabilities.\nTry a multi-architecture analysis at ${chalk.bold(
+              "https://github.com/chiefmikey/depsweep/analysis"
+            )}`
           );
         } else {
           logNewlines();
           console.log(
-            chalk.yellow('Insufficient download data to calculate impact'),
+            chalk.yellow("Insufficient download data to calculate impact")
           );
         }
       }
@@ -605,8 +634,8 @@ async function main(): Promise<void> {
       if (!options.measureImpact) {
         console.log(
           chalk.blue(
-            'Run with the -m, --measure-impact flag to output a detailed impact analysis report',
-          ),
+            "Run with the -m, --measure-impact flag to output a detailed impact analysis report"
+          )
         );
       }
 
@@ -626,20 +655,20 @@ async function main(): Promise<void> {
       const packageManager = await detectPackageManager(projectDirectory);
 
       const answer = await rl.question(chalk.blue(MESSAGES.promptRemove));
-      if (answer.toLowerCase() === 'y') {
+      if (answer.toLowerCase() === "y") {
         // Build uninstall command
-        let uninstallCommand = '';
+        let uninstallCommand = "";
         switch (packageManager) {
           case PACKAGE_MANAGERS.NPM: {
-            uninstallCommand = `npm uninstall ${unusedDependencies.join(' ')}`;
+            uninstallCommand = `npm uninstall ${unusedDependencies.join(" ")}`;
             break;
           }
           case PACKAGE_MANAGERS.YARN: {
-            uninstallCommand = `yarn remove ${unusedDependencies.join(' ')}`;
+            uninstallCommand = `yarn remove ${unusedDependencies.join(" ")}`;
             break;
           }
           case PACKAGE_MANAGERS.PNPM: {
-            uninstallCommand = `pnpm remove ${unusedDependencies.join(' ')}`;
+            uninstallCommand = `pnpm remove ${unusedDependencies.join(" ")}`;
             break;
           }
           default: {
@@ -649,18 +678,18 @@ async function main(): Promise<void> {
 
         // Validate before using in execSync
         unusedDependencies = unusedDependencies.filter((dep) =>
-          isValidPackageName(dep),
+          isValidPackageName(dep)
         );
 
         if (unusedDependencies.length > 0) {
           try {
-            safeExecSync(uninstallCommand.split(' '), {
-              stdio: 'inherit',
+            safeExecSync(uninstallCommand.split(" "), {
+              stdio: "inherit",
               cwd: projectDirectory,
               timeout: 300_000,
             });
           } catch (error) {
-            console.error(chalk.red('Failed to uninstall packages:'), error);
+            console.error(chalk.red("Failed to uninstall packages:"), error);
             process.exit(1);
           }
         }
@@ -669,6 +698,18 @@ async function main(): Promise<void> {
       }
       rl.close();
       activeReadline = null;
+    }
+
+    // End total execution timer
+    performanceMonitor.endTimer("totalExecution");
+
+    // Log final performance summary
+    if (options.verbose) {
+      const totalTime =
+        performanceMonitor.getMetrics().get("totalExecution")?.totalTime || 0;
+      console.log(
+        chalk.blue(`\nTotal execution time: ${totalTime.toFixed(2)}ms`)
+      );
     }
   } catch (error) {
     cleanup();
@@ -682,18 +723,18 @@ async function init(): Promise<void> {
   try {
     // Handle exit signals at the top level
     const exitHandler = (signal: string): void => {
-      console.log(MESSAGES.signalCleanup.replace('{0}', signal));
+      console.log(MESSAGES.signalCleanup.replace("{0}", signal));
       cleanup();
       // Exit without error since this is an intentional exit
       process.exit(0);
     };
 
     // Handle both SIGINT (Ctrl+C) and SIGTERM
-    process.on('SIGINT', () => {
-      exitHandler('SIGINT');
+    process.on("SIGINT", () => {
+      exitHandler("SIGINT");
     });
-    process.on('SIGTERM', () => {
-      exitHandler('SIGTERM');
+    process.on("SIGTERM", () => {
+      exitHandler("SIGTERM");
     });
 
     await main();
@@ -704,10 +745,13 @@ async function init(): Promise<void> {
   }
 }
 
-init().catch((error) => {
-  console.error(chalk.red(MESSAGES.fatalError), error);
-  process.exit(1);
-});
+// Only run init when this file is executed directly (not imported)
+if (process.argv[1] && process.argv[1].endsWith("index.js")) {
+  init().catch((error) => {
+    console.error(chalk.red(MESSAGES.fatalError), error);
+    process.exit(1);
+  });
+}
 
 function finalizeUnusedDependencies(
   initialUnusedDeps: string[],
@@ -715,7 +759,7 @@ function finalizeUnusedDependencies(
     string,
     { usedInFiles: string[]; requiredByPackages: Set<string> }
   >,
-  allDeps: string[],
+  allDeps: string[]
 ): string[] {
   const unusedSet = new Set(initialUnusedDeps);
   let changed = true;
@@ -728,7 +772,7 @@ function finalizeUnusedDependencies(
         if (info) {
           // If every package requiring this dep is also unused, mark it unused
           const allRequirersUnused = [...info.requiredByPackages].every(
-            (package_) => unusedSet.has(package_),
+            (package_) => unusedSet.has(package_)
           );
           if (allRequirersUnused && info.usedInFiles.length === 0) {
             unusedSet.add(dep);

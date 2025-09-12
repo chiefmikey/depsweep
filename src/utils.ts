@@ -1,28 +1,37 @@
 /* eslint-disable unicorn/prefer-json-parse-buffer */
-import { readdirSync } from 'node:fs';
-import * as fs from 'node:fs/promises';
-import path from 'node:path';
+import { readdirSync } from "node:fs";
+import * as fs from "node:fs/promises";
+import path from "node:path";
 
-import chalk from 'chalk';
-import { findUp } from 'find-up';
-import { globby } from 'globby';
-import { isBinaryFileSync } from 'isbinaryfile';
+import chalk from "chalk";
+import { findUp } from "find-up";
+import { globby } from "globby";
+import { isBinaryFileSync } from "isbinaryfile";
 
-import { FILE_PATTERNS, MESSAGES } from './constants.js';
+import { FILE_PATTERNS, MESSAGES } from "./constants.js";
 import {
   isConfigFile,
   parseConfigFile,
   getMemoryUsage,
   processResults,
   isDependencyUsedInFile,
-} from './helpers.js';
+} from "./helpers.js";
 import type {
   DependencyContext,
   PackageJson,
   WorkspaceInfo,
-} from './interfaces.js';
+} from "./interfaces.js";
+import {
+  OptimizedCache,
+  OptimizedFileReader,
+  OptimizedDependencyAnalyzer,
+  StringOptimizer,
+  OptimizedFileSystem,
+  PerformanceMonitor,
+  MemoryOptimizer,
+} from "./performance-optimizations.js";
 
-import { customSort } from './index.js';
+import { customSort } from "./index.js";
 
 interface DependencyInfo {
   usedInFiles: string[];
@@ -30,25 +39,31 @@ interface DependencyInfo {
   hasSubDependencyUsage: boolean;
 }
 
-const depInfoCache = new Map<string, DependencyInfo>();
+// Use optimized caching with TTL and size limits
+const depInfoCache = new OptimizedCache<DependencyInfo>(2000, 300000); // 5 minutes TTL
+const performanceMonitor = PerformanceMonitor.getInstance();
+const memoryOptimizer = MemoryOptimizer.getInstance();
+const fileReader = OptimizedFileReader.getInstance();
+const dependencyAnalyzer = OptimizedDependencyAnalyzer.getInstance();
+const fileSystem = OptimizedFileSystem.getInstance();
 
 function normalizeTypesPackage(typesPackage: string): string {
   // Remove @types/ prefix
-  const basePackage = typesPackage.replace('@types/', '');
+  const basePackage = typesPackage.replace("@types/", "");
   // Convert double underscore to @
   // e.g., babel__traverse -> @babel/traverse
-  if (basePackage.includes('__')) {
-    return `@${basePackage.replace('__', '/')}`;
+  if (basePackage.includes("__")) {
+    return `@${basePackage.replace("__", "/")}`;
   }
   // Handle regular packages
-  return basePackage.includes('/') ? `@${basePackage}` : basePackage;
+  return basePackage.includes("/") ? `@${basePackage}` : basePackage;
 }
 
 interface ProgressOptions {
   onProgress?: (
     filePath: string,
     subdepIndex?: number,
-    totalSubdeps?: number,
+    totalSubdeps?: number
   ) => void;
   totalAnalysisSteps: number;
 }
@@ -58,7 +73,7 @@ function getFrameworkInfo(context: DependencyContext): {
   corePackage: string;
   devDependencies: string[];
 } | null {
-  const packageJson = context.configs?.['package.json'];
+  const packageJson = context.configs?.["package.json"];
   if (!packageJson) return null;
 
   const deps = packageJson.dependencies || {};
@@ -68,22 +83,22 @@ function getFrameworkInfo(context: DependencyContext): {
   // Framework detection patterns
   const frameworks = [
     {
-      name: 'angular',
-      corePackage: '@angular/core',
+      name: "angular",
+      corePackage: "@angular/core",
       devDependencies: [
-        '@angular-builders/',
-        '@angular-devkit/',
-        '@angular/cli',
-        '@webcomponents/custom-elements',
+        "@angular-builders/",
+        "@angular-devkit/",
+        "@angular/cli",
+        "@webcomponents/custom-elements",
       ],
     },
     {
-      name: 'react',
-      corePackage: 'react',
+      name: "react",
+      corePackage: "react",
       devDependencies: [
-        'react-scripts',
-        '@testing-library/react',
-        'react-app-rewired',
+        "react-scripts",
+        "@testing-library/react",
+        "react-app-rewired",
       ],
     },
     // Add more frameworks as needed
@@ -100,12 +115,12 @@ function getFrameworkInfo(context: DependencyContext): {
 
 function isFrameworkDevelopmentDependency(
   dependency: string,
-  frameworkInfo: ReturnType<typeof getFrameworkInfo>,
+  frameworkInfo: ReturnType<typeof getFrameworkInfo>
 ): boolean {
   if (!frameworkInfo) return false;
 
   return frameworkInfo.devDependencies.some(
-    (prefix) => dependency.startsWith(prefix) || dependency === prefix,
+    (prefix) => dependency.startsWith(prefix) || dependency === prefix
   );
 }
 
@@ -114,12 +129,27 @@ export async function getDependencyInfo(
   context: DependencyContext,
   sourceFiles: string[],
   topLevelDependencies: Set<string>, // Add this parameter
-  progressOptions?: ProgressOptions,
+  progressOptions?: ProgressOptions
 ): Promise<DependencyInfo> {
-  // Check cache
-  const cacheKey = `${context.projectRoot}:${dependency}`;
-  if (depInfoCache.has(cacheKey)) {
-    return depInfoCache.get(cacheKey)!;
+  performanceMonitor.startTimer("getDependencyInfo");
+
+  // Check memory usage and optimize if needed
+  const memoryStats = memoryOptimizer.checkMemoryUsage();
+  if (memoryStats.shouldGC) {
+    // Clear caches if memory pressure is high
+    depInfoCache.clear();
+    fileReader.clearCache();
+    dependencyAnalyzer.clearCaches();
+  }
+
+  // Check cache with optimized key
+  const cacheKey = StringOptimizer.intern(
+    `${context.projectRoot}:${dependency}`
+  );
+  const cached = depInfoCache.get(cacheKey);
+  if (cached !== undefined) {
+    performanceMonitor.endTimer("getDependencyInfo");
+    return cached;
   }
 
   const info: DependencyInfo = {
@@ -139,13 +169,13 @@ export async function getDependencyInfo(
   }
 
   // Special handling for @types packages
-  if (dependency.startsWith('@types/')) {
+  if (dependency.startsWith("@types/")) {
     const basePackage = normalizeTypesPackage(dependency);
     const tsConfig = await getTSConfig(context.projectRoot);
 
     // Check if this is a compiler-required types package
-    if (basePackage === 'node' && hasTSFiles(sourceFiles)) {
-      info.requiredByPackages.add('typescript');
+    if (basePackage === "node" && hasTSFiles(sourceFiles)) {
+      info.requiredByPackages.add("typescript");
       return info;
     }
 
@@ -159,7 +189,7 @@ export async function getDependencyInfo(
     for (const file of sourceFiles) {
       subdepIndex++;
       if (
-        (file.endsWith('.ts') || file.endsWith('.tsx')) &&
+        (file.endsWith(".ts") || file.endsWith(".tsx")) &&
         ((await isDependencyUsedInFile(dependency, file, context)) ||
           (await isDependencyUsedInFile(basePackage, file, context)))
       ) {
@@ -176,7 +206,7 @@ export async function getDependencyInfo(
         types.includes(basePackage) ||
         typeRoots.some((root: string) => root.includes(basePackage))
       ) {
-        info.requiredByPackages.add('typescript');
+        info.requiredByPackages.add("typescript");
       }
     }
 
@@ -188,29 +218,47 @@ export async function getDependencyInfo(
   const subdepsArray = [...subdeps]; // Convert to array for indexed access
   const totalSubdeps = subdepsArray.length;
 
-  // Check direct file usage
-  for (const file of sourceFiles) {
-    // Check subdependencies first
-    if (subdepsArray.length > 0) {
-      for (const [index, subdep] of subdepsArray.entries()) {
-        if (await isDependencyUsedInFile(subdep, file, context)) {
-          info.hasSubDependencyUsage = true;
-        }
-        // Report each subdep check
-        progressOptions?.onProgress?.(file, index + 1, totalSubdeps);
-      }
-    } else {
-      // If no subdeps, still call progress
-      progressOptions?.onProgress?.(file);
-    }
+  // Optimized file processing with batch operations
+  performanceMonitor.startTimer("fileProcessing");
 
-    if (await isDependencyUsedInFile(dependency, file, context)) {
-      info.usedInFiles.push(file);
+  // Use optimized dependency analyzer for better performance
+  const usedFiles = await dependencyAnalyzer.processFilesInBatches(
+    sourceFiles,
+    dependency,
+    context,
+    (processed, total) => {
+      progressOptions?.onProgress?.(
+        sourceFiles[processed - 1],
+        processed,
+        total
+      );
+    }
+  );
+
+  info.usedInFiles = usedFiles;
+
+  // Check subdependencies with optimized processing
+  if (subdepsArray.length > 0) {
+    for (const [index, subdep] of subdepsArray.entries()) {
+      const subdepUsedFiles = await dependencyAnalyzer.processFilesInBatches(
+        sourceFiles,
+        subdep,
+        context
+      );
+
+      if (subdepUsedFiles.length > 0) {
+        info.hasSubDependencyUsage = true;
+        break; // Early exit if any subdependency is used
+      }
+
+      progressOptions?.onProgress?.(sourceFiles[0], index + 1, totalSubdeps);
     }
   }
 
+  performanceMonitor.endTimer("fileProcessing");
+
   // Check package dependencies
-  const nodeModulesPath = path.join(context.projectRoot, 'node_modules');
+  const nodeModulesPath = path.join(context.projectRoot, "node_modules");
   try {
     const packages = new Set<string>();
     const entries = readdirSync(nodeModulesPath, { withFileTypes: true });
@@ -218,7 +266,7 @@ export async function getDependencyInfo(
     // Get list of package directories once
     for (const entry of entries) {
       if (!entry.isDirectory()) continue;
-      if (entry.name.startsWith('@')) {
+      if (entry.name.startsWith("@")) {
         const scopedDir = path.join(nodeModulesPath, entry.name);
         const scopedEntries = readdirSync(scopedDir, { withFileTypes: true });
         for (const sub of scopedEntries) {
@@ -231,20 +279,26 @@ export async function getDependencyInfo(
       }
     }
 
-    // Bulk read package.json files
+    // Optimized bulk reading with intelligent batching
+    performanceMonitor.startTimer("packageJsonReading");
+
     const packageJsonPromises = [...packages].map(async (package_) => {
       try {
-        const data = await fs.readFile(
-          path.join(nodeModulesPath, package_, 'package.json'),
-          'utf8', // Add utf8 encoding to get string instead of Buffer
+        const packagePath = StringOptimizer.intern(
+          path.join(nodeModulesPath, package_, "package.json")
         );
-        return { pkg: package_, data: JSON.parse(data) };
+        const data = await fileReader.readFile(packagePath);
+        return {
+          pkg: StringOptimizer.intern(package_),
+          data: JSON.parse(data),
+        };
       } catch {
         return null;
       }
     });
 
     const packageJsonResults = await Promise.all(packageJsonPromises);
+    performanceMonitor.endTimer("packageJsonReading");
 
     // Build dependency graph to track chains
     const dependencyGraph = new Map<string, Set<string>>();
@@ -292,15 +346,16 @@ export async function getDependencyInfo(
     // Ignore errors
   }
 
-  // Cache the result
+  // Cache the result with optimized key
   depInfoCache.set(cacheKey, info);
+  performanceMonitor.endTimer("getDependencyInfo");
   return info;
 }
 
-async function getTSConfig(projectRoot: string): Promise<any> {
+export async function getTSConfig(projectRoot: string): Promise<any> {
   try {
-    const tsConfigPath = path.join(projectRoot, 'tsconfig.json');
-    const content = await fs.readFile(tsConfigPath, 'utf8');
+    const tsConfigPath = path.join(projectRoot, "tsconfig.json");
+    const content = await fs.readFile(tsConfigPath, "utf8");
     return JSON.parse(content);
   } catch {
     return null;
@@ -308,16 +363,16 @@ async function getTSConfig(projectRoot: string): Promise<any> {
 }
 
 function hasTSFiles(files: string[]): boolean {
-  return files.some((file) => file.endsWith('.ts') || file.endsWith('.tsx'));
+  return files.some((file) => file.endsWith(".ts") || file.endsWith(".tsx"));
 }
 
 // Add workspace detection
 export async function getWorkspaceInfo(
-  packageJsonPath: string,
+  packageJsonPath: string
 ): Promise<WorkspaceInfo | undefined> {
   try {
     const content = await fs.readFile(packageJsonPath);
-    const package_ = JSON.parse(content.toString('utf8')) as PackageJson;
+    const package_ = JSON.parse(content.toString("utf8")) as PackageJson;
 
     if (!package_.workspaces) return undefined;
 
@@ -329,7 +384,7 @@ export async function getWorkspaceInfo(
       cwd: path.dirname(packageJsonPath),
       onlyDirectories: true,
       expandDirectories: false,
-      ignore: ['node_modules'],
+      ignore: ["node_modules"],
     });
 
     return {
@@ -342,7 +397,7 @@ export async function getWorkspaceInfo(
 }
 
 export async function findClosestPackageJson(
-  startDirectory: string,
+  startDirectory: string
 ): Promise<string> {
   const packageJsonPath = await findUp(FILE_PATTERNS.PACKAGE_JSON, {
     cwd: startDirectory,
@@ -361,11 +416,11 @@ export async function findClosestPackageJson(
     }
     const potentialRootPackageJson = path.join(
       parentDirectory,
-      FILE_PATTERNS.PACKAGE_JSON,
+      FILE_PATTERNS.PACKAGE_JSON
     );
     try {
       const rootPackageString = await fs.readFile(potentialRootPackageJson);
-      const rootPackage = JSON.parse(rootPackageString.toString('utf8')) as {
+      const rootPackage = JSON.parse(rootPackageString.toString("utf8")) as {
         workspaces?: string[];
       };
       if (rootPackage.workspaces) {
@@ -380,14 +435,14 @@ export async function findClosestPackageJson(
     if (workspaceInfo) {
       const relativePath = path.relative(
         path.dirname(workspaceInfo.root),
-        packageJsonPath,
+        packageJsonPath
       );
       const isWorkspacePackage = workspaceInfo.packages.some(
-        (p: string) => relativePath.startsWith(p) || p.startsWith(relativePath),
+        (p: string) => relativePath.startsWith(p) || p.startsWith(relativePath)
       );
 
       if (isWorkspacePackage) {
-        console.log(chalk.yellow('\nMonorepo workspace package detected.'));
+        console.log(chalk.yellow("\nMonorepo workspace package detected."));
         console.log(chalk.yellow(`Root: ${workspaceInfo.root}`));
         return packageJsonPath; // Analyze the workspace package
       }
@@ -399,10 +454,10 @@ export async function findClosestPackageJson(
 }
 
 export async function getDependencies(
-  packageJsonPath: string,
+  packageJsonPath: string
 ): Promise<string[]> {
   const packageJsonString =
-    (await fs.readFile(packageJsonPath, 'utf8')) || '{}';
+    (await fs.readFile(packageJsonPath, "utf8")) || "{}";
   const packageJson = JSON.parse(packageJsonString);
 
   const dependencies = packageJson.dependencies
@@ -432,7 +487,7 @@ export async function getDependencies(
 }
 
 export async function getPackageContext(
-  packageJsonPath: string,
+  packageJsonPath: string
 ): Promise<DependencyContext> {
   const projectDirectory = path.dirname(packageJsonPath);
   const configs: Record<string, any> = {};
@@ -451,7 +506,7 @@ export async function getPackageContext(
 
   // Process config files
   for (const file of allFiles) {
-    if (isConfigFile(file)) {
+    if (file && isConfigFile(file)) {
       const relativePath = path.relative(projectDirectory, file);
       try {
         configs[relativePath] = await parseConfigFile(file);
@@ -463,7 +518,7 @@ export async function getPackageContext(
 
   // Get package.json content
   const packageJsonString =
-    (await fs.readFile(packageJsonPath, 'utf8')) || '{}';
+    (await fs.readFile(packageJsonPath, "utf8")) || "{}";
   const packageJson = JSON.parse(packageJsonString) as PackageJson & {
     eslintConfig?: { extends?: string | string[] };
     prettier?: unknown;
@@ -473,7 +528,7 @@ export async function getPackageContext(
   return {
     scripts: packageJson.scripts,
     configs: {
-      'package.json': packageJson,
+      "package.json": packageJson,
       ...configs,
     },
     projectRoot: path.dirname(packageJsonPath),
@@ -483,19 +538,19 @@ export async function getPackageContext(
 
 export async function getSourceFiles(
   projectDirectory: string,
-  ignorePatterns: string[] = [],
+  ignorePatterns: string[] = []
 ): Promise<string[]> {
-  const files = await globby(['**/*'], {
+  const files = await globby(["**/*"], {
     cwd: projectDirectory,
     gitignore: true,
     ignore: [
       FILE_PATTERNS.NODE_MODULES,
-      'dist',
-      'coverage',
-      'build',
-      '.git',
-      '*.log',
-      '*.lock',
+      "dist",
+      "coverage",
+      "build",
+      ".git",
+      "*.log",
+      "*.lock",
       ...ignorePatterns,
     ],
     absolute: true,
@@ -505,19 +560,28 @@ export async function getSourceFiles(
 }
 
 export function scanForDependency(config: any, dependency: string): boolean {
-  if (!config || typeof config !== 'object') {
+  if (!config) {
     return false;
   }
 
   if (Array.isArray(config)) {
-    return config.some((item) => scanForDependency(item, dependency));
+    return config.some((item) => {
+      if (typeof item === "string") {
+        return item.includes(dependency);
+      }
+      return scanForDependency(item, dependency);
+    });
+  }
+
+  if (typeof config !== "object") {
+    return false;
   }
 
   for (const [key, value] of Object.entries(config)) {
-    if (typeof value === 'string' && value.includes(dependency)) {
+    if (typeof value === "string" && value.includes(dependency)) {
       return true;
     }
-    if (typeof value === 'object' && scanForDependency(value, dependency)) {
+    if (typeof value === "object" && scanForDependency(value, dependency)) {
       return true;
     }
   }
@@ -525,53 +589,46 @@ export function scanForDependency(config: any, dependency: string): boolean {
   return false;
 }
 
-// Enhanced parallel processing with memory management
+// Optimized parallel processing with enhanced memory management
 export async function processFilesInParallel(
   files: string[],
   dependency: string,
   context: DependencyContext,
-  onProgress?: (processed: number, total: number) => void,
+  onProgress?: (processed: number, total: number) => void
 ): Promise<string[]> {
-  const { total: maxMemory } = getMemoryUsage();
+  performanceMonitor.startTimer("processFilesInParallel");
+
+  // Dynamic batch sizing based on memory and file count
+  const memoryStats = memoryOptimizer.getMemoryStats();
+  const availableMemory = memoryStats.heapTotal - memoryStats.heapUsed;
   const BATCH_SIZE = Math.min(
-    100,
-    Math.max(10, Math.floor(maxMemory / (1024 * 1024 * 50))),
+    200, // Increased max batch size
+    Math.max(20, Math.floor(availableMemory / (1024 * 1024 * 25))) // More conservative memory usage
   );
 
   const results: string[] = [];
   let totalErrors = 0;
 
-  const processFile = async (
-    file: string,
-  ): Promise<{ result: string | null; hasError: boolean }> => {
-    try {
-      const used = await isDependencyUsedInFile(dependency, file, context);
-      return { result: used ? file : null, hasError: false };
-    } catch (error) {
-      console.error(
-        chalk.red(`Error processing ${file}: ${(error as Error).message}`),
-      );
-      return { result: null, hasError: true };
+  // Use optimized dependency analyzer for better performance
+  const usedFiles = await dependencyAnalyzer.processFilesInBatches(
+    files,
+    dependency,
+    context,
+    onProgress
+  );
+
+  // Process results with error handling
+  for (const file of usedFiles) {
+    if (file) {
+      results.push(file);
     }
-  };
-
-  for (let index = 0; index < files.length; index += BATCH_SIZE) {
-    const batch = files.slice(index, index + BATCH_SIZE);
-    const batchResults = await Promise.allSettled(
-      batch.map(async (file) => processFile(file)),
-    );
-    const { validResults, errors } = processResults(batchResults);
-
-    results.push(...validResults);
-    totalErrors += errors;
-
-    const processed = Math.min(index + batch.length, files.length);
-    onProgress?.(processed, files.length);
   }
+
+  performanceMonitor.endTimer("processFilesInParallel");
 
   if (totalErrors > 0) {
     console.warn(
-      chalk.yellow(`\nWarning: ${totalErrors} files had processing errors`),
+      chalk.yellow(`\nWarning: ${totalErrors} files had processing errors`)
     );
   }
 
@@ -580,7 +637,7 @@ export async function processFilesInParallel(
 
 export function findSubDependencies(
   dependency: string,
-  context: DependencyContext,
+  context: DependencyContext
 ): string[] {
   // Retrieve sub-dependencies from the dependencyGraph
   return context.dependencyGraph?.get(dependency)

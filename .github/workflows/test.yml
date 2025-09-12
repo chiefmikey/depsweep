@@ -29,13 +29,13 @@ on:
       coverage_threshold:
         description: 'Coverage threshold percentage'
         required: false
-        default: 30
+        default: 100
         type: number
 
 env:
   NODE_VERSION: '20'
   NPM_VERSION: '10'
-  COVERAGE_THRESHOLD: 30
+  COVERAGE_THRESHOLD: 100
 
 jobs:
   # Unit Tests & Coverage
@@ -71,7 +71,7 @@ jobs:
       run: npm run build
 
     - name: Run unit tests with coverage
-      run: npm test -- --coverage --coverageThreshold.global.statements=${{ env.COVERAGE_THRESHOLD }} --coverageThreshold.global.branches=${{ env.COVERAGE_THRESHOLD }} --coverageThreshold.global.functions=${{ env.COVERAGE_THRESHOLD }} --coverageThreshold.global.lines=${{ env.COVERAGE_THRESHOLD }}
+      run: npm test -- --coverage --coverageThreshold.global.statements=100 --coverageThreshold.global.branches=100 --coverageThreshold.global.functions=100 --coverageThreshold.global.lines=100
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v4
@@ -87,6 +87,10 @@ jobs:
         if [ "${{ matrix.node-version }}" = "18" ] && [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
           npm run test:coverage:check
         fi
+
+    - name: Generate detailed coverage report
+      if: matrix.node-version == '20' && matrix.os == 'ubuntu-latest'
+      run: npm run coverage:detailed
 
     - name: Archive test results
       uses: actions/upload-artifact@v4

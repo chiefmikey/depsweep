@@ -7,10 +7,65 @@ import type {
   EnvironmentalReport,
 } from "../../src/interfaces.js";
 
+// Helper function to create complete EnvironmentalImpact objects for testing
+function createTestEnvironmentalImpact(
+  overrides: Partial<EnvironmentalImpact> = {}
+): EnvironmentalImpact {
+  return {
+    // Primary metrics
+    carbonSavings: 0,
+    energySavings: 0,
+    waterSavings: 0,
+    treesEquivalent: 0,
+    carMilesEquivalent: 0,
+    efficiencyGain: 0,
+    networkSavings: 0,
+    storageSavings: 0,
+
+    // Detailed energy breakdown
+    transferEnergy: 0,
+    cpuEnergy: 0,
+    memoryEnergy: 0,
+    latencyEnergy: 0,
+    buildEnergy: 0,
+    ciCdEnergy: 0,
+    registryEnergy: 0,
+    lifecycleEnergy: 0,
+
+    // Financial impact
+    carbonOffsetValue: 0,
+    waterTreatmentValue: 0,
+    totalFinancialValue: 0,
+
+    // Regional variations
+    carbonIntensityUsed: 0.456,
+    regionalMultiplier: 1.0,
+
+    // Time-based factors
+    peakEnergySavings: 0,
+    offPeakEnergySavings: 0,
+    timeOfDayMultiplier: 1.0,
+
+    // Renewable energy impact
+    renewableEnergySavings: 0,
+    fossilFuelSavings: 0,
+    renewablePercentage: 0,
+
+    // Additional environmental metrics
+    ewasteReduction: 0,
+    serverUtilizationImprovement: 0,
+    developerProductivityGain: 0,
+    buildTimeReduction: 0,
+
+    // Apply overrides
+    ...overrides,
+  };
+}
+
 describe("Interface Definitions and Type Safety", () => {
   describe("EnvironmentalImpact Interface", () => {
     it("should have all required properties with correct types", () => {
-      const mockImpact: EnvironmentalImpact = {
+      const mockImpact = createTestEnvironmentalImpact({
         carbonSavings: 1.5,
         energySavings: 2.3,
         waterSavings: 15.7,
@@ -19,7 +74,7 @@ describe("Interface Definitions and Type Safety", () => {
         efficiencyGain: 15.0,
         networkSavings: 0.8,
         storageSavings: 1.2,
-      };
+      });
 
       expect(mockImpact).toBeDefined();
       expect(typeof mockImpact.carbonSavings).toBe("number");
@@ -33,16 +88,7 @@ describe("Interface Definitions and Type Safety", () => {
     });
 
     it("should allow zero values for all properties", () => {
-      const zeroImpact: EnvironmentalImpact = {
-        carbonSavings: 0,
-        energySavings: 0,
-        waterSavings: 0,
-        treesEquivalent: 0,
-        carMilesEquivalent: 0,
-        efficiencyGain: 0,
-        networkSavings: 0,
-        storageSavings: 0,
-      };
+      const zeroImpact = createTestEnvironmentalImpact();
 
       expect(zeroImpact.carbonSavings).toBe(0);
       expect(zeroImpact.energySavings).toBe(0);
@@ -55,7 +101,7 @@ describe("Interface Definitions and Type Safety", () => {
     });
 
     it("should allow large positive values", () => {
-      const largeImpact: EnvironmentalImpact = {
+      const largeImpact = createTestEnvironmentalImpact({
         carbonSavings: 1000.5,
         energySavings: 2500.75,
         waterSavings: 15000.25,
@@ -64,7 +110,7 @@ describe("Interface Definitions and Type Safety", () => {
         efficiencyGain: 99.9,
         networkSavings: 100.0,
         storageSavings: 200.0,
-      };
+      });
 
       expect(largeImpact.carbonSavings).toBe(1000.5);
       expect(largeImpact.energySavings).toBe(2500.75);
@@ -77,7 +123,7 @@ describe("Interface Definitions and Type Safety", () => {
     });
 
     it("should allow decimal precision", () => {
-      const preciseImpact: EnvironmentalImpact = {
+      const preciseImpact = createTestEnvironmentalImpact({
         carbonSavings: 0.001,
         energySavings: 0.002,
         waterSavings: 0.003,
@@ -86,7 +132,7 @@ describe("Interface Definitions and Type Safety", () => {
         efficiencyGain: 0.1,
         networkSavings: 0.0001,
         storageSavings: 0.0002,
-      };
+      });
 
       expect(preciseImpact.carbonSavings).toBe(0.001);
       expect(preciseImpact.energySavings).toBe(0.002);
@@ -100,7 +146,7 @@ describe("Interface Definitions and Type Safety", () => {
 
     it("should validate property constraints", () => {
       // All values should be non-negative
-      const validImpact: EnvironmentalImpact = {
+      const validImpact = createTestEnvironmentalImpact({
         carbonSavings: 0,
         energySavings: 0,
         waterSavings: 0,
@@ -109,7 +155,7 @@ describe("Interface Definitions and Type Safety", () => {
         efficiencyGain: 0,
         networkSavings: 0,
         storageSavings: 0,
-      };
+      });
 
       Object.values(validImpact).forEach((value) => {
         expect(value).toBeGreaterThanOrEqual(0);
@@ -147,7 +193,7 @@ describe("Interface Definitions and Type Safety", () => {
       const metricsWithImpact: ImpactMetrics = {
         installTime: 60,
         diskSpace: 5368709120,
-        environmentalImpact: {
+        environmentalImpact: createTestEnvironmentalImpact({
           carbonSavings: 2.5,
           energySavings: 5.0,
           waterSavings: 25.0,
@@ -156,7 +202,7 @@ describe("Interface Definitions and Type Safety", () => {
           efficiencyGain: 20.0,
           networkSavings: 1.5,
           storageSavings: 3.0,
-        },
+        }),
       };
 
       expect(metricsWithImpact.environmentalImpact).toBeDefined();
@@ -188,7 +234,7 @@ describe("Interface Definitions and Type Safety", () => {
   describe("EnvironmentalReport Interface", () => {
     it("should have all required properties with correct types", () => {
       const mockReport: EnvironmentalReport = {
-        totalImpact: {
+        totalImpact: createTestEnvironmentalImpact({
           carbonSavings: 5.0,
           energySavings: 10.0,
           waterSavings: 50.0,
@@ -197,9 +243,9 @@ describe("Interface Definitions and Type Safety", () => {
           efficiencyGain: 25.0,
           networkSavings: 2.0,
           storageSavings: 5.0,
-        },
+        }),
         perPackageImpact: {
-          lodash: {
+          lodash: createTestEnvironmentalImpact({
             carbonSavings: 1.0,
             energySavings: 2.0,
             waterSavings: 10.0,
@@ -208,8 +254,8 @@ describe("Interface Definitions and Type Safety", () => {
             efficiencyGain: 15.0,
             networkSavings: 0.5,
             storageSavings: 1.0,
-          },
-          moment: {
+          }),
+          moment: createTestEnvironmentalImpact({
             carbonSavings: 2.0,
             energySavings: 4.0,
             waterSavings: 20.0,
@@ -218,10 +264,10 @@ describe("Interface Definitions and Type Safety", () => {
             efficiencyGain: 20.0,
             networkSavings: 1.0,
             storageSavings: 2.0,
-          },
+          }),
         },
         timeframes: {
-          daily: {
+          daily: createTestEnvironmentalImpact({
             carbonSavings: 0.2,
             energySavings: 0.4,
             waterSavings: 2.0,
@@ -230,8 +276,8 @@ describe("Interface Definitions and Type Safety", () => {
             efficiencyGain: 25.0,
             networkSavings: 0.08,
             storageSavings: 0.2,
-          },
-          monthly: {
+          }),
+          monthly: createTestEnvironmentalImpact({
             carbonSavings: 5.0,
             energySavings: 10.0,
             waterSavings: 50.0,
@@ -240,7 +286,7 @@ describe("Interface Definitions and Type Safety", () => {
             efficiencyGain: 25.0,
             networkSavings: 2.0,
             storageSavings: 5.0,
-          },
+          }),
         },
         recommendations: [
           "Remove unused dependencies to reduce environmental impact",
@@ -374,7 +420,7 @@ describe("Interface Definitions and Type Safety", () => {
 
   describe("Interface Integration Tests", () => {
     it("should allow creating complete environmental report", () => {
-      const totalImpact: EnvironmentalImpact = {
+      const totalImpact = createTestEnvironmentalImpact({
         carbonSavings: 10.0,
         energySavings: 20.0,
         waterSavings: 100.0,
@@ -383,7 +429,7 @@ describe("Interface Definitions and Type Safety", () => {
         efficiencyGain: 30.0,
         networkSavings: 4.0,
         storageSavings: 10.0,
-      };
+      });
 
       const metrics: ImpactMetrics = {
         installTime: 120,
@@ -395,12 +441,21 @@ describe("Interface Definitions and Type Safety", () => {
         totalImpact,
         perPackageImpact: {
           lodash: { ...totalImpact, carbonSavings: 2.0 },
-          moment: { ...totalImpact, carbonSavings: 3.0 },
+          moment: createTestEnvironmentalImpact({
+            ...totalImpact,
+            carbonSavings: 3.0,
+          }),
         },
         timeframes: {
           daily: { ...totalImpact, carbonSavings: 0.33 },
-          monthly: { ...totalImpact, carbonSavings: 10.0 },
-          yearly: { ...totalImpact, carbonSavings: 120.0 },
+          monthly: createTestEnvironmentalImpact({
+            ...totalImpact,
+            carbonSavings: 10.0,
+          }),
+          yearly: createTestEnvironmentalImpact({
+            ...totalImpact,
+            carbonSavings: 120.0,
+          }),
         },
         recommendations: ["Remove unused dependencies", "Optimize bundle size"],
       };
@@ -412,7 +467,7 @@ describe("Interface Definitions and Type Safety", () => {
     });
 
     it("should validate nested environmental impact objects", () => {
-      const baseImpact: EnvironmentalImpact = {
+      const baseImpact = createTestEnvironmentalImpact({
         carbonSavings: 1.0,
         energySavings: 2.0,
         waterSavings: 10.0,
@@ -421,7 +476,7 @@ describe("Interface Definitions and Type Safety", () => {
         efficiencyGain: 15.0,
         networkSavings: 0.5,
         storageSavings: 1.0,
-      };
+      });
 
       const report: EnvironmentalReport = {
         totalImpact: baseImpact,
@@ -431,7 +486,10 @@ describe("Interface Definitions and Type Safety", () => {
         },
         timeframes: {
           daily: { ...baseImpact, carbonSavings: 0.033 },
-          monthly: { ...baseImpact, carbonSavings: 1.0 },
+          monthly: createTestEnvironmentalImpact({
+            ...baseImpact,
+            carbonSavings: 1.0,
+          }),
         },
         recommendations: ["Test recommendation"],
       };
@@ -452,7 +510,7 @@ describe("Interface Definitions and Type Safety", () => {
   describe("Type Safety and Validation", () => {
     it("should enforce correct property types", () => {
       // This test ensures TypeScript compilation works correctly
-      const validImpact: EnvironmentalImpact = {
+      const validImpact = createTestEnvironmentalImpact({
         carbonSavings: 1.0,
         energySavings: 2.0,
         waterSavings: 10.0,
@@ -461,7 +519,7 @@ describe("Interface Definitions and Type Safety", () => {
         efficiencyGain: 15.0,
         networkSavings: 0.5,
         storageSavings: 1.0,
-      };
+      });
 
       // All properties should be numbers
       Object.values(validImpact).forEach((value) => {

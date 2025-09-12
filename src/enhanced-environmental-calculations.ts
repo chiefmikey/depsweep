@@ -15,26 +15,30 @@ import type { EnvironmentalImpact } from "./interfaces.js";
  * Based on timezone and other factors
  */
 export function detectUserRegion(): "NA" | "EU" | "AP" | "GLOBAL" {
-  // Simple timezone-based detection (can be enhanced with IP geolocation)
-  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  try {
+    // Simple timezone-based detection (can be enhanced with IP geolocation)
+    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
-  if (
-    timezone.includes("America/") ||
-    timezone.includes("US/") ||
-    timezone.includes("Canada/")
-  ) {
-    return "NA";
-  } else if (timezone.includes("Europe/") || timezone.includes("Africa/")) {
-    return "EU";
-  } else if (
-    timezone.includes("Asia/") ||
-    timezone.includes("Australia/") ||
-    timezone.includes("Pacific/")
-  ) {
-    return "AP";
+    if (
+      timezone.includes("America/") ||
+      timezone.includes("US/") ||
+      timezone.includes("Canada/")
+    ) {
+      return "NA";
+    } else if (timezone.includes("Europe/") || timezone.includes("Africa/")) {
+      return "EU";
+    } else if (
+      timezone.includes("Asia/") ||
+      timezone.includes("Australia/") ||
+      timezone.includes("Pacific/")
+    ) {
+      return "AP";
+    }
+
+    return "GLOBAL";
+  } catch (error) {
+    return "NA"; // Default to NA if Intl fails
   }
-
-  return "GLOBAL";
 }
 
 /**
@@ -59,20 +63,28 @@ export function getRegionalCarbonIntensity(
  * Calculates time-of-day energy multiplier based on current time
  */
 export function getTimeOfDayMultiplier(): number {
-  const hour = new Date().getHours();
+  try {
+    const hour = new Date().getHours();
 
-  // Peak hours: 6-10 AM and 6-10 PM (weekdays)
-  // Off-peak hours: 10 PM - 6 AM and 10 AM - 6 PM (weekdays)
-  // Weekend: generally off-peak
-  const isWeekend = new Date().getDay() === 0 || new Date().getDay() === 6;
-  const isPeakHour = (hour >= 6 && hour < 10) || (hour >= 18 && hour < 22);
+    // Peak hours: 6-10 AM and 6-10 PM (weekdays)
+    // Off-peak hours: 10 PM - 6 AM and 10 AM - 6 PM (weekdays)
+    // Weekend: generally off-peak
+    const isWeekend = new Date().getDay() === 0 || new Date().getDay() === 6;
+    const isPeakHour = (hour >= 6 && hour < 10) || (hour >= 18 && hour < 22);
 
-  if (isWeekend) {
-    return ENVIRONMENTAL_CONSTANTS.OFF_PEAK_ENERGY_MULTIPLIER;
-  } else if (isPeakHour) {
-    return ENVIRONMENTAL_CONSTANTS.PEAK_ENERGY_MULTIPLIER;
-  } else {
-    return ENVIRONMENTAL_CONSTANTS.OFF_PEAK_ENERGY_MULTIPLIER;
+    if (isWeekend) {
+      return ENVIRONMENTAL_CONSTANTS.OFF_PEAK_ENERGY_MULTIPLIER;
+    } else if (isPeakHour) {
+      return ENVIRONMENTAL_CONSTANTS.PEAK_ENERGY_MULTIPLIER;
+    } else {
+      return ENVIRONMENTAL_CONSTANTS.OFF_PEAK_ENERGY_MULTIPLIER;
+    }
+  } catch (error) {
+    console.log(
+      "DEBUG: getTimeOfDayMultiplier error, defaulting to 1.0:",
+      error
+    );
+    return 1.0; // Default multiplier if Date fails
   }
 }
 
@@ -279,6 +291,19 @@ export function calculateComprehensiveEnvironmentalImpact(
   const region = options.region || detectUserRegion();
   const carbonIntensity = getRegionalCarbonIntensity(region);
   const timeOfDayMultiplier = getTimeOfDayMultiplier();
+
+  console.log(
+    "DEBUG: calculateComprehensiveEnvironmentalImpact region:",
+    region
+  );
+  console.log(
+    "DEBUG: calculateComprehensiveEnvironmentalImpact carbonIntensity:",
+    carbonIntensity
+  );
+  console.log(
+    "DEBUG: calculateComprehensiveEnvironmentalImpact timeOfDayMultiplier:",
+    timeOfDayMultiplier
+  );
 
   // Convert to appropriate units
   const diskSpaceGB = Math.max(0, diskSpace / (1024 * 1024 * 1024));

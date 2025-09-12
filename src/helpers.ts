@@ -930,6 +930,7 @@ export function calculateEnvironmentalImpact(
     }
 
     // Use enhanced comprehensive calculation with all factors
+
     const enhancedImpact = calculateComprehensiveEnvironmentalImpact(
       diskSpace,
       installTime,
@@ -951,6 +952,19 @@ export function calculateEnvironmentalImpact(
 
     return enhancedImpact;
   } catch (error) {
+    // Re-throw validation errors so they can be caught by tests
+    if (
+      error instanceof Error &&
+      error.message.includes("cannot be negative")
+    ) {
+      throw error;
+    }
+    if (error instanceof Error && error.message.includes("must be")) {
+      throw error;
+    }
+    if (error instanceof Error && error.message.includes("exceeds maximum")) {
+      throw error;
+    }
     console.error("Error calculating environmental impact:", error);
     return createZeroEnvironmentalImpact();
   }
@@ -1162,6 +1176,7 @@ export function calculateCumulativeEnvironmentalImpact(
 ): EnvironmentalImpact {
   return impacts.reduce(
     (total, impact) => ({
+      // Primary metrics
       carbonSavings: total.carbonSavings + impact.carbonSavings,
       energySavings: total.energySavings + impact.energySavings,
       waterSavings: total.waterSavings + impact.waterSavings,
@@ -1170,17 +1185,50 @@ export function calculateCumulativeEnvironmentalImpact(
       efficiencyGain: Math.max(total.efficiencyGain, impact.efficiencyGain),
       networkSavings: total.networkSavings + impact.networkSavings,
       storageSavings: total.storageSavings + impact.storageSavings,
+
+      // Detailed energy breakdown
+      transferEnergy: total.transferEnergy + impact.transferEnergy,
+      cpuEnergy: total.cpuEnergy + impact.cpuEnergy,
+      memoryEnergy: total.memoryEnergy + impact.memoryEnergy,
+      latencyEnergy: total.latencyEnergy + impact.latencyEnergy,
+      buildEnergy: total.buildEnergy + impact.buildEnergy,
+      ciCdEnergy: total.ciCdEnergy + impact.ciCdEnergy,
+      registryEnergy: total.registryEnergy + impact.registryEnergy,
+      lifecycleEnergy: total.lifecycleEnergy + impact.lifecycleEnergy,
+
+      // Financial impact
+      carbonOffsetValue: total.carbonOffsetValue + impact.carbonOffsetValue,
+      waterTreatmentValue:
+        total.waterTreatmentValue + impact.waterTreatmentValue,
+      totalFinancialValue:
+        total.totalFinancialValue + impact.totalFinancialValue,
+
+      // Regional variations (use the first impact's values as they should be consistent)
+      carbonIntensityUsed: total.carbonIntensityUsed,
+      regionalMultiplier: total.regionalMultiplier,
+
+      // Time-based factors
+      peakEnergySavings: total.peakEnergySavings + impact.peakEnergySavings,
+      offPeakEnergySavings:
+        total.offPeakEnergySavings + impact.offPeakEnergySavings,
+      timeOfDayMultiplier: total.timeOfDayMultiplier,
+
+      // Renewable energy impact
+      renewableEnergySavings:
+        total.renewableEnergySavings + impact.renewableEnergySavings,
+      fossilFuelSavings: total.fossilFuelSavings + impact.fossilFuelSavings,
+      renewablePercentage: total.renewablePercentage,
+
+      // Additional environmental metrics
+      ewasteReduction: total.ewasteReduction + impact.ewasteReduction,
+      serverUtilizationImprovement:
+        total.serverUtilizationImprovement +
+        impact.serverUtilizationImprovement,
+      developerProductivityGain:
+        total.developerProductivityGain + impact.developerProductivityGain,
+      buildTimeReduction: total.buildTimeReduction + impact.buildTimeReduction,
     }),
-    {
-      carbonSavings: 0,
-      energySavings: 0,
-      waterSavings: 0,
-      treesEquivalent: 0,
-      carMilesEquivalent: 0,
-      efficiencyGain: 0,
-      networkSavings: 0,
-      storageSavings: 0,
-    }
+    createZeroEnvironmentalImpact()
   );
 }
 

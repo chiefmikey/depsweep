@@ -1,0 +1,48 @@
+name: Status Badge
+
+on:
+  schedule:
+    - cron: '0 0 * * *'  # Daily at midnight
+  workflow_dispatch:
+
+jobs:
+  status-check:
+    name: Status Check
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Build project
+      run: npm run build
+
+    - name: Run tests
+      run: npm run test:coverage
+
+    - name: Check test status
+      id: test-status
+      run: |
+        if npm run test:coverage > /dev/null 2>&1; then
+          echo "status=passing" >> $GITHUB_OUTPUT
+          echo "color=green" >> $GITHUB_OUTPUT
+        else
+          echo "status=failing" >> $GITHUB_OUTPUT
+          echo "color=red" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Generate status badge
+      run: |
+        echo "## 📊 Project Status" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Tests**: ${{ steps.test-status.outputs.status }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Last Check**: $(date)" >> $GITHUB_STEP_SUMMARY

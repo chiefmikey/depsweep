@@ -2,6 +2,7 @@
 
 [![npm version](https://img.shields.io/npm/v/depsweep.svg)](https://www.npmjs.com/package/depsweep)
 [![Build Status](https://github.com/chiefmikey/depsweep/workflows/CI/badge.svg)](https://github.com/chiefmikey/depsweep/actions)
+[![PR Gate](https://github.com/chiefmikey/depsweep/workflows/PR%20Gate%20-%20Tests%20%26%20Quality/badge.svg)](https://github.com/chiefmikey/depsweep/actions/workflows/pr-gate.yml)
 [![Coverage](https://img.shields.io/codecov/c/github/chiefmikey/depsweep)](https://codecov.io/gh/chiefmikey/depsweep)
 [![Security](https://img.shields.io/badge/security-audited-brightgreen.svg)](https://github.com/chiefmikey/depsweep/security)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
@@ -215,18 +216,39 @@ DEPSWEEP_VERBOSE=false
 ## 🧪 Testing & Quality
 
 ### Test Coverage
-- **Unit Tests**: 229 tests covering all functionality
+- **Unit Tests**: 500+ tests covering all functionality
 - **Integration Tests**: End-to-end workflow validation
 - **Performance Tests**: Memory and CPU usage optimization
 - **Security Tests**: Vulnerability and safety validation
 - **Coverage Reporting**: Detailed analysis with file-by-file breakdown
 
 ### Quality Metrics
-- **Code Coverage**: 100% statement coverage (enterprise-grade requirement)
+- **Code Coverage**: 72%+ statement coverage (realistic enterprise target)
 - **Type Safety**: 100% TypeScript coverage
 - **Performance**: Sub-second analysis for most projects
 - **Reliability**: 99.9% uptime in production environments
 - **Coverage Analysis**: Detailed per-file coverage reporting with recommendations
+
+### PR Gate & CI/CD
+- **Automated PR Gate**: All pull requests must pass comprehensive checks
+- **Multi-stage Testing**: Quick tests for fast feedback, comprehensive tests for validation
+- **Quality Checks**: Code quality, security, and environmental impact validation
+- **Coverage Thresholds**: Minimum 70% coverage required for merge
+- **Status Badges**: Real-time status reporting for all workflows
+
+#### PR Gate Requirements
+All pull requests must pass:
+- ✅ **Quick Tests**: Core functionality validation (< 10 minutes)
+- ✅ **Comprehensive Tests**: Full test suite with coverage analysis
+- ✅ **Code Quality**: Linting, formatting, and TypeScript checks
+- ✅ **Security**: Dependency audit and vulnerability scanning
+- ✅ **Environmental Impact**: Constants and calculation validation
+
+#### Available Workflows
+- **PR Gate** (`pr-gate.yml`): Automated PR validation
+- **Test Runner** (`test-runner.yml`): On-demand test execution
+- **Full Test Suite** (`test.yml`): Comprehensive testing across platforms
+- **Status Badge** (`status-badge.yml`): Daily status monitoring
 
 ## 📚 Documentation
 

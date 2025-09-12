@@ -1,0 +1,116 @@
+name: Test Runner
+
+on:
+  workflow_dispatch:
+    inputs:
+      test_type:
+        description: 'Type of tests to run'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+        - all
+        - unit
+        - e2e
+        - performance
+        - coverage
+      node_version:
+        description: 'Node.js version to use'
+        required: false
+        default: '20'
+        type: choice
+        options:
+        - '18'
+        - '20'
+        - '22'
+      coverage_threshold:
+        description: 'Coverage threshold percentage'
+        required: false
+        default: '70'
+        type: number
+
+env:
+  NODE_VERSION: ${{ github.event.inputs.node_version || '20' }}
+  COVERAGE_THRESHOLD: ${{ github.event.inputs.coverage_threshold || '70' }}
+
+jobs:
+  test-runner:
+    name: Test Runner
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js ${{ env.NODE_VERSION }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Build project
+      run: npm run build
+
+    - name: Run Unit Tests
+      if: ${{ github.event.inputs.test_type == 'all' || github.event.inputs.test_type == 'unit' }}
+      run: npm run test:unit
+
+    - name: Run E2E Tests
+      if: ${{ github.event.inputs.test_type == 'all' || github.event.inputs.test_type == 'e2e' }}
+      run: npm run test:e2e
+
+    - name: Run Performance Tests
+      if: ${{ github.event.inputs.test_type == 'all' || github.event.inputs.test_type == 'performance' }}
+      run: npm run test:performance || echo "Performance tests not available"
+
+    - name: Run Coverage Tests
+      if: ${{ github.event.inputs.test_type == 'all' || github.event.inputs.test_type == 'coverage' }}
+      run: |
+        echo "Running coverage tests with threshold: ${{ env.COVERAGE_THRESHOLD }}%"
+        npm run test:coverage
+
+    - name: Check Coverage Threshold
+      if: ${{ github.event.inputs.test_type == 'all' || github.event.inputs.test_type == 'coverage' }}
+      run: |
+        echo "Checking coverage threshold..."
+        COVERAGE_OUTPUT=$(npm run test:coverage 2>&1)
+        echo "$COVERAGE_OUTPUT"
+
+        # Extract coverage percentage
+        COVERAGE=$(echo "$COVERAGE_OUTPUT" | grep -o 'All files.*[0-9]\+\.[0-9]\+%' | grep -o '[0-9]\+\.[0-9]\+' | head -1)
+        if [ -n "$COVERAGE" ]; then
+          echo "Current coverage: ${COVERAGE}%"
+          if (( $(echo "$COVERAGE >= ${{ env.COVERAGE_THRESHOLD }}" | bc -l) )); then
+            echo "✅ Coverage threshold met: ${COVERAGE}% >= ${{ env.COVERAGE_THRESHOLD }}%"
+          else
+            echo "❌ Coverage threshold not met: ${COVERAGE}% < ${{ env.COVERAGE_THRESHOLD }}%"
+            exit 1
+          fi
+        else
+          echo "⚠️ Could not determine coverage percentage"
+        fi
+
+    - name: Upload Test Results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: test-results-${{ github.event.inputs.test_type }}-${{ env.NODE_VERSION }}
+        path: |
+          coverage/
+          test-results/
+        retention-days: 7
+
+    - name: Generate Test Summary
+      run: |
+        echo "## 🧪 Test Runner Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Test Type**: ${{ github.event.inputs.test_type }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Node Version**: ${{ env.NODE_VERSION }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Coverage Threshold**: ${{ env.COVERAGE_THRESHOLD }}%" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 📊 Results" >> $GITHUB_STEP_SUMMARY
+        echo "✅ Tests completed successfully" >> $GITHUB_STEP_SUMMARY

@@ -1,86 +1,20 @@
 import { jest } from "@jest/globals";
 
-// Mock all dependencies
-jest.mock("node:fs/promises", () => ({
-  readFile: jest.fn(),
-  stat: jest.fn(),
-}));
-
-jest.mock("node:path", () => ({
-  join: jest.fn((...args: string[]) => args.join("/")),
-  dirname: jest.fn((path: string) => path.split("/").slice(0, -1).join("/")),
-  extname: jest.fn((path: string) => {
-    const ext = path.split(".").pop();
-    return ext ? `.${ext}` : "";
-  }),
-  basename: jest.fn((path: string) => path.split("/").pop() || ""),
-  relative: jest.fn((from: string, to: string) => to.replace(from, "")),
-}));
-
-jest.mock("@babel/parser", () => ({
-  parse: jest.fn(),
-}));
-
-jest.mock("@babel/traverse", () => ({
-  default: jest.fn(),
-}));
-
-jest.mock("isbinaryfile", () => ({
-  isBinaryFileSync: jest.fn(),
-}));
-
-jest.mock("micromatch", () => ({
-  isMatch: jest.fn(),
-}));
-
-jest.mock("node-fetch", () => jest.fn());
-
-jest.mock("shell-escape", () => jest.fn());
-
-jest.mock("globby", () => ({
-  globby: jest.fn(),
-}));
-
-jest.mock("find-up", () => ({
-  findUp: jest.fn(),
-}));
-
-jest.mock("node:child_process", () => ({
-  execSync: jest.fn(),
-}));
-
-jest.mock("chalk", () => {
-  const mockChalk = {
-    blue: jest.fn((text: string) => text),
-    bold: jest.fn((text: string) => text),
-    green: jest.fn((text: string) => text),
-    red: jest.fn((text: string) => text),
-    yellow: jest.fn((text: string) => text),
-    cyan: jest.fn((text: string) => text),
-    magenta: jest.fn((text: string) => text),
-    gray: jest.fn((text: string) => text),
-    white: jest.fn((text: string) => text),
-  };
-
-  // Add chaining support
-  (mockChalk.blue as any).bold = jest.fn((text: string) => text);
-  (mockChalk.green as any).bold = jest.fn((text: string) => text);
-  (mockChalk.red as any).bold = jest.fn((text: string) => text);
-  (mockChalk.yellow as any).bold = jest.fn((text: string) => text);
-  (mockChalk.cyan as any).bold = jest.fn((text: string) => text);
-  (mockChalk.magenta as any).bold = jest.fn((text: string) => text);
-  (mockChalk.gray as any).bold = jest.fn((text: string) => text);
-  (mockChalk.white as any).bold = jest.fn((text: string) => text);
-
-  return mockChalk;
+// Mock Intl and Date BEFORE any other imports
+Object.defineProperty(global, "Intl", {
+  value: {
+    DateTimeFormat: jest.fn(() => ({
+      resolvedOptions: () => ({ timeZone: "America/New_York" }),
+    })),
+  },
+  writable: true,
 });
 
-jest.mock("cli-table3", () => {
-  return jest.fn().mockImplementation(() => ({
-    push: jest.fn(),
-    toString: jest.fn(() => "table output"),
-  }));
-});
+// Mock Date for time-based calculations
+const mockDate = new Date("2024-01-15T14:30:00Z"); // Monday, 2:30 PM UTC
+jest.spyOn(global, "Date").mockImplementation(() => mockDate);
+
+// Move mocks to after imports to avoid module resolution issues
 
 // Mock process.exit to prevent tests from exiting
 const originalExit = process.exit;
@@ -167,12 +101,104 @@ import {
   getPackageContext,
 } from "../../src/utils.js";
 
-import type { DependencyContext } from "../../src/interfaces.js";
+import type {
+  DependencyContext,
+  EnvironmentalImpact,
+} from "../../src/interfaces.js";
+
+// Add mocks after imports to avoid module resolution issues
+jest.mock("chalk", () => {
+  const mockChalk = {
+    blue: jest.fn((text: string) => text),
+    bold: jest.fn((text: string) => text),
+    green: jest.fn((text: string) => text),
+    red: jest.fn((text: string) => text),
+    yellow: jest.fn((text: string) => text),
+    cyan: jest.fn((text: string) => text),
+    magenta: jest.fn((text: string) => text),
+    gray: jest.fn((text: string) => text),
+    white: jest.fn((text: string) => text),
+  };
+
+  // Add chaining support
+  (mockChalk.blue as any).bold = jest.fn((text: string) => text);
+  (mockChalk.green as any).bold = jest.fn((text: string) => text);
+  (mockChalk.red as any).bold = jest.fn((text: string) => text);
+  (mockChalk.yellow as any).bold = jest.fn((text: string) => text);
+  (mockChalk.cyan as any).bold = jest.fn((text: string) => text);
+  (mockChalk.magenta as any).bold = jest.fn((text: string) => text);
+  (mockChalk.gray as any).bold = jest.fn((text: string) => text);
+  (mockChalk.white as any).bold = jest.fn((text: string) => text);
+
+  return mockChalk;
+});
+
+jest.mock("cli-table3", () => {
+  return jest.fn().mockImplementation(() => ({
+    push: jest.fn(),
+    toString: jest.fn(() => "table output"),
+  }));
+});
 
 const mockFs = fs as jest.Mocked<typeof fs>;
 const mockPath = path as jest.Mocked<typeof path>;
 const mockFindUp = findUp as jest.MockedFunction<typeof findUp>;
 const mockGlobby = globby as any;
+
+// Helper function to create complete EnvironmentalImpact objects for testing
+function createTestEnvironmentalImpact(
+  overrides: Partial<EnvironmentalImpact> = {}
+): EnvironmentalImpact {
+  return {
+    // Primary metrics
+    carbonSavings: 0,
+    energySavings: 0,
+    waterSavings: 0,
+    treesEquivalent: 0,
+    carMilesEquivalent: 0,
+    efficiencyGain: 0,
+    networkSavings: 0,
+    storageSavings: 0,
+
+    // Detailed energy breakdown
+    transferEnergy: 0,
+    cpuEnergy: 0,
+    memoryEnergy: 0,
+    latencyEnergy: 0,
+    buildEnergy: 0,
+    ciCdEnergy: 0,
+    registryEnergy: 0,
+    lifecycleEnergy: 0,
+
+    // Financial impact
+    carbonOffsetValue: 0,
+    waterTreatmentValue: 0,
+    totalFinancialValue: 0,
+
+    // Regional variations
+    carbonIntensityUsed: 0.456,
+    regionalMultiplier: 1.0,
+
+    // Time-based factors
+    peakEnergySavings: 0,
+    offPeakEnergySavings: 0,
+    timeOfDayMultiplier: 1.0,
+
+    // Renewable energy impact
+    renewableEnergySavings: 0,
+    fossilFuelSavings: 0,
+    renewablePercentage: 0,
+
+    // Additional environmental metrics
+    ewasteReduction: 0,
+    serverUtilizationImprovement: 0,
+    developerProductivityGain: 0,
+    buildTimeReduction: 0,
+
+    // Apply overrides
+    ...overrides,
+  };
+}
 const mockExecSync = execSync as jest.MockedFunction<typeof execSync>;
 const mockChalk = chalk as jest.Mocked<typeof chalk>;
 const mockCliTable = CliTable as jest.MockedClass<typeof CliTable>;
@@ -429,8 +455,39 @@ describe("Comprehensive Coverage Tests", () => {
         expect(result.waterSavings).toBe(0);
       });
 
-      it("should handle very large values", () => {
+      it("should handle very large values", async () => {
+        // Test constants import directly
+        const constants = await import("../../src/constants.js");
+        console.log("Test constants:", {
+          CARBON_INTENSITY_NA:
+            constants.ENVIRONMENTAL_CONSTANTS.CARBON_INTENSITY_NA,
+          CARBON_INTENSITY_EU:
+            constants.ENVIRONMENTAL_CONSTANTS.CARBON_INTENSITY_EU,
+          CARBON_INTENSITY_AP:
+            constants.ENVIRONMENTAL_CONSTANTS.CARBON_INTENSITY_AP,
+        });
+
         const result = calculateEnvironmentalImpact(1000000000, 3600, 1000000);
+
+        console.log("Test result:", result);
+        console.log(
+          "carbonSavings:",
+          result.carbonSavings,
+          "isNaN:",
+          isNaN(result.carbonSavings)
+        );
+        console.log(
+          "energySavings:",
+          result.energySavings,
+          "isNaN:",
+          isNaN(result.energySavings)
+        );
+        console.log(
+          "waterSavings:",
+          result.waterSavings,
+          "isNaN:",
+          isNaN(result.waterSavings)
+        );
 
         expect(result.carbonSavings).toBeGreaterThan(0);
         expect(result.energySavings).toBeGreaterThan(0);
@@ -494,7 +551,7 @@ describe("Comprehensive Coverage Tests", () => {
 
     describe("formatEnvironmentalImpact", () => {
       it("should format large numbers correctly", () => {
-        const impact = {
+        const impact = createTestEnvironmentalImpact({
           carbonSavings: 123456.789,
           energySavings: 987654.321,
           waterSavings: 456789.123,
@@ -503,7 +560,7 @@ describe("Comprehensive Coverage Tests", () => {
           networkSavings: 2345.678,
           storageSavings: 3456.789,
           efficiencyGain: 4567.89,
-        };
+        });
 
         const result = formatEnvironmentalImpact(impact);
 
@@ -515,7 +572,7 @@ describe("Comprehensive Coverage Tests", () => {
 
     describe("generateEnvironmentalRecommendations", () => {
       it("should generate recommendations for high impact", () => {
-        const impact = {
+        const impact = createTestEnvironmentalImpact({
           carbonSavings: 1000,
           energySavings: 2000,
           waterSavings: 3000,
@@ -524,7 +581,7 @@ describe("Comprehensive Coverage Tests", () => {
           networkSavings: 300,
           storageSavings: 400,
           efficiencyGain: 500,
-        };
+        });
 
         const result = generateEnvironmentalRecommendations(impact, 10);
 
@@ -533,7 +590,7 @@ describe("Comprehensive Coverage Tests", () => {
       });
 
       it("should generate recommendations for low impact", () => {
-        const impact = {
+        const impact = createTestEnvironmentalImpact({
           carbonSavings: 1,
           energySavings: 2,
           waterSavings: 3,
@@ -542,7 +599,7 @@ describe("Comprehensive Coverage Tests", () => {
           networkSavings: 0.3,
           storageSavings: 0.4,
           efficiencyGain: 0.5,
-        };
+        });
 
         const result = generateEnvironmentalRecommendations(impact, 1);
 
@@ -553,7 +610,7 @@ describe("Comprehensive Coverage Tests", () => {
 
     describe("displayEnvironmentalImpactTable", () => {
       it("should display table without errors", () => {
-        const impact = {
+        const impact = createTestEnvironmentalImpact({
           carbonSavings: 100,
           energySavings: 200,
           waterSavings: 300,
@@ -562,7 +619,7 @@ describe("Comprehensive Coverage Tests", () => {
           networkSavings: 30,
           storageSavings: 40,
           efficiencyGain: 50,
-        };
+        });
 
         expect(() => displayEnvironmentalImpactTable(impact)).not.toThrow();
       });
@@ -641,7 +698,7 @@ describe("Comprehensive Coverage Tests", () => {
 
     describe("displayEnvironmentalHeroMessage", () => {
       it("should display hero message without errors", () => {
-        const impact = {
+        const impact = createTestEnvironmentalImpact({
           carbonSavings: 100,
           energySavings: 200,
           waterSavings: 300,
@@ -650,7 +707,7 @@ describe("Comprehensive Coverage Tests", () => {
           networkSavings: 30,
           storageSavings: 40,
           efficiencyGain: 50,
-        };
+        });
 
         expect(() => displayEnvironmentalHeroMessage(impact)).not.toThrow();
       });
@@ -1129,7 +1186,7 @@ describe("Comprehensive Coverage Tests", () => {
 
   describe("Integration Tests", () => {
     it("should handle complex environmental impact calculations", () => {
-      const impact1 = {
+      const impact1 = createTestEnvironmentalImpact({
         carbonSavings: 100,
         energySavings: 200,
         waterSavings: 300,
@@ -1138,9 +1195,9 @@ describe("Comprehensive Coverage Tests", () => {
         networkSavings: 30,
         storageSavings: 40,
         efficiencyGain: 50,
-      };
+      });
 
-      const impact2 = {
+      const impact2 = createTestEnvironmentalImpact({
         carbonSavings: 200,
         energySavings: 400,
         waterSavings: 600,
@@ -1149,7 +1206,7 @@ describe("Comprehensive Coverage Tests", () => {
         networkSavings: 60,
         storageSavings: 80,
         efficiencyGain: 100,
-      };
+      });
 
       const result = calculateCumulativeEnvironmentalImpact([impact1, impact2]);
 

@@ -30,6 +30,7 @@ import shellEscape from "shell-escape";
 import { execSync } from "node:child_process";
 import chalk from "chalk";
 import CliTable from "cli-table3";
+import { EnvironmentalImpact } from "../../src/interfaces";
 
 // Mock external dependencies
 jest.mock("node:fs/promises");
@@ -74,6 +75,61 @@ jest.mock("node:path", () => ({
     return [...fromRemaining.map(() => ".."), ...toRemaining].join("/");
   }),
 }));
+
+// Helper function to create complete EnvironmentalImpact objects for testing
+function createTestEnvironmentalImpact(
+  overrides: Partial<EnvironmentalImpact> = {}
+): EnvironmentalImpact {
+  return {
+    // Primary metrics
+    carbonSavings: 0,
+    energySavings: 0,
+    waterSavings: 0,
+    treesEquivalent: 0,
+    carMilesEquivalent: 0,
+    efficiencyGain: 0,
+    networkSavings: 0,
+    storageSavings: 0,
+
+    // Detailed energy breakdown
+    transferEnergy: 0,
+    cpuEnergy: 0,
+    memoryEnergy: 0,
+    latencyEnergy: 0,
+    buildEnergy: 0,
+    ciCdEnergy: 0,
+    registryEnergy: 0,
+    lifecycleEnergy: 0,
+
+    // Financial impact
+    carbonOffsetValue: 0,
+    waterTreatmentValue: 0,
+    totalFinancialValue: 0,
+
+    // Regional variations
+    carbonIntensityUsed: 0.456,
+    regionalMultiplier: 1.0,
+
+    // Time-based factors
+    peakEnergySavings: 0,
+    offPeakEnergySavings: 0,
+    timeOfDayMultiplier: 1.0,
+
+    // Renewable energy impact
+    renewableEnergySavings: 0,
+    fossilFuelSavings: 0,
+    renewablePercentage: 0,
+
+    // Additional environmental metrics
+    ewasteReduction: 0,
+    serverUtilizationImprovement: 0,
+    developerProductivityGain: 0,
+    buildTimeReduction: 0,
+
+    // Apply overrides
+    ...overrides,
+  };
+}
 
 describe("Helpers Comprehensive Tests", () => {
   beforeEach(() => {
@@ -327,7 +383,7 @@ describe("Helpers Comprehensive Tests", () => {
   describe("calculateCumulativeEnvironmentalImpact", () => {
     it("should aggregate multiple impacts", () => {
       const impacts = [
-        {
+        createTestEnvironmentalImpact({
           carbonSavings: 10,
           energySavings: 5,
           waterSavings: 2,
@@ -336,8 +392,8 @@ describe("Helpers Comprehensive Tests", () => {
           efficiencyGain: 10,
           networkSavings: 1,
           storageSavings: 1,
-        },
-        {
+        }),
+        createTestEnvironmentalImpact({
           carbonSavings: 20,
           energySavings: 10,
           waterSavings: 4,
@@ -346,7 +402,7 @@ describe("Helpers Comprehensive Tests", () => {
           efficiencyGain: 15,
           networkSavings: 2,
           storageSavings: 2,
-        },
+        }),
       ];
 
       const result = calculateCumulativeEnvironmentalImpact(impacts);
@@ -363,7 +419,7 @@ describe("Helpers Comprehensive Tests", () => {
 
     it("should handle single impact", () => {
       const impacts = [
-        {
+        createTestEnvironmentalImpact({
           carbonSavings: 10,
           energySavings: 5,
           waterSavings: 2,
@@ -372,7 +428,7 @@ describe("Helpers Comprehensive Tests", () => {
           efficiencyGain: 10,
           networkSavings: 1,
           storageSavings: 1,
-        },
+        }),
       ];
 
       const result = calculateCumulativeEnvironmentalImpact(impacts);
@@ -383,7 +439,7 @@ describe("Helpers Comprehensive Tests", () => {
 
   describe("formatEnvironmentalImpact", () => {
     it("should format with default precision", () => {
-      const impact = {
+      const impact = createTestEnvironmentalImpact({
         carbonSavings: 1.234567,
         energySavings: 2.345678,
         waterSavings: 3.456789,
@@ -392,7 +448,7 @@ describe("Helpers Comprehensive Tests", () => {
         efficiencyGain: 6.789012,
         networkSavings: 7.890123,
         storageSavings: 8.901234,
-      };
+      });
 
       const result = formatEnvironmentalImpact(impact);
       expect(result.carbonSavings).toContain("1.235");
@@ -400,7 +456,7 @@ describe("Helpers Comprehensive Tests", () => {
     });
 
     it("should format with high precision", () => {
-      const impact = {
+      const impact = createTestEnvironmentalImpact({
         carbonSavings: 1.234567,
         energySavings: 2.345678,
         waterSavings: 3.456789,
@@ -409,7 +465,7 @@ describe("Helpers Comprehensive Tests", () => {
         efficiencyGain: 6.789012,
         networkSavings: 7.890123,
         storageSavings: 8.901234,
-      };
+      });
 
       const result = formatEnvironmentalImpact(impact);
       expect(result.carbonSavings).toContain("1.235");
@@ -417,7 +473,7 @@ describe("Helpers Comprehensive Tests", () => {
     });
 
     it("should handle zero values", () => {
-      const impact = {
+      const impact = createTestEnvironmentalImpact({
         carbonSavings: 0,
         energySavings: 0,
         waterSavings: 0,
@@ -426,7 +482,7 @@ describe("Helpers Comprehensive Tests", () => {
         efficiencyGain: 0,
         networkSavings: 0,
         storageSavings: 0,
-      };
+      });
 
       const result = formatEnvironmentalImpact(impact);
       expect(result.carbonSavings).toContain("0.000");
@@ -436,7 +492,7 @@ describe("Helpers Comprehensive Tests", () => {
 
   describe("displayEnvironmentalImpactTable", () => {
     it("should display table correctly", () => {
-      const impact = {
+      const impact = createTestEnvironmentalImpact({
         carbonSavings: 10,
         energySavings: 5,
         waterSavings: 2,
@@ -445,13 +501,13 @@ describe("Helpers Comprehensive Tests", () => {
         efficiencyGain: 10,
         networkSavings: 1,
         storageSavings: 1,
-      };
+      });
 
       expect(() => displayEnvironmentalImpactTable(impact)).not.toThrow();
     });
 
     it("should handle zero impact", () => {
-      const impact = {
+      const impact = createTestEnvironmentalImpact({
         carbonSavings: 0,
         energySavings: 0,
         waterSavings: 0,
@@ -460,7 +516,7 @@ describe("Helpers Comprehensive Tests", () => {
         efficiencyGain: 0,
         networkSavings: 0,
         storageSavings: 0,
-      };
+      });
 
       expect(() => displayEnvironmentalImpactTable(impact)).not.toThrow();
     });
@@ -468,7 +524,7 @@ describe("Helpers Comprehensive Tests", () => {
 
   describe("generateEnvironmentalRecommendations", () => {
     it("should generate recommendations for significant impact", () => {
-      const impact = {
+      const impact = createTestEnvironmentalImpact({
         carbonSavings: 100,
         energySavings: 50,
         waterSavings: 20,
@@ -477,7 +533,7 @@ describe("Helpers Comprehensive Tests", () => {
         efficiencyGain: 25,
         networkSavings: 10,
         storageSavings: 10,
-      };
+      });
 
       const result = generateEnvironmentalRecommendations(impact, 10);
       expect(result).toBeDefined();
@@ -485,7 +541,7 @@ describe("Helpers Comprehensive Tests", () => {
     });
 
     it("should generate recommendations for minimal impact", () => {
-      const impact = {
+      const impact = createTestEnvironmentalImpact({
         carbonSavings: 0.1,
         energySavings: 0.05,
         waterSavings: 0.02,
@@ -494,7 +550,7 @@ describe("Helpers Comprehensive Tests", () => {
         efficiencyGain: 1,
         networkSavings: 0.01,
         storageSavings: 0.01,
-      };
+      });
 
       const result = generateEnvironmentalRecommendations(impact, 1);
       expect(result).toBeDefined();
@@ -502,7 +558,7 @@ describe("Helpers Comprehensive Tests", () => {
     });
 
     it("should handle zero impact", () => {
-      const impact = {
+      const impact = createTestEnvironmentalImpact({
         carbonSavings: 0,
         energySavings: 0,
         waterSavings: 0,
@@ -511,7 +567,7 @@ describe("Helpers Comprehensive Tests", () => {
         efficiencyGain: 0,
         networkSavings: 0,
         storageSavings: 0,
-      };
+      });
 
       const result = generateEnvironmentalRecommendations(impact, 0);
       expect(result).toBeDefined();
@@ -521,7 +577,7 @@ describe("Helpers Comprehensive Tests", () => {
 
   describe("displayEnvironmentalHeroMessage", () => {
     it("should display hero message correctly", () => {
-      const impact = {
+      const impact = createTestEnvironmentalImpact({
         carbonSavings: 10,
         energySavings: 5,
         waterSavings: 2,
@@ -530,13 +586,13 @@ describe("Helpers Comprehensive Tests", () => {
         efficiencyGain: 10,
         networkSavings: 1,
         storageSavings: 1,
-      };
+      });
 
       expect(() => displayEnvironmentalHeroMessage(impact)).not.toThrow();
     });
 
     it("should handle zero impact", () => {
-      const impact = {
+      const impact = createTestEnvironmentalImpact({
         carbonSavings: 0,
         energySavings: 0,
         waterSavings: 0,
@@ -545,7 +601,7 @@ describe("Helpers Comprehensive Tests", () => {
         efficiencyGain: 0,
         networkSavings: 0,
         storageSavings: 0,
-      };
+      });
 
       expect(() => displayEnvironmentalHeroMessage(impact)).not.toThrow();
     });

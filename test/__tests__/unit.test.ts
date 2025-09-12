@@ -13,6 +13,61 @@ import {
 import { ENVIRONMENTAL_CONSTANTS } from "../../src/constants";
 import { EnvironmentalImpact } from "../../src/interfaces";
 
+// Helper function to create complete EnvironmentalImpact objects for testing
+function createTestEnvironmentalImpact(
+  overrides: Partial<EnvironmentalImpact> = {}
+): EnvironmentalImpact {
+  return {
+    // Primary metrics
+    carbonSavings: 0,
+    energySavings: 0,
+    waterSavings: 0,
+    treesEquivalent: 0,
+    carMilesEquivalent: 0,
+    efficiencyGain: 0,
+    networkSavings: 0,
+    storageSavings: 0,
+
+    // Detailed energy breakdown
+    transferEnergy: 0,
+    cpuEnergy: 0,
+    memoryEnergy: 0,
+    latencyEnergy: 0,
+    buildEnergy: 0,
+    ciCdEnergy: 0,
+    registryEnergy: 0,
+    lifecycleEnergy: 0,
+
+    // Financial impact
+    carbonOffsetValue: 0,
+    waterTreatmentValue: 0,
+    totalFinancialValue: 0,
+
+    // Regional variations
+    carbonIntensityUsed: 0.456,
+    regionalMultiplier: 1.0,
+
+    // Time-based factors
+    peakEnergySavings: 0,
+    offPeakEnergySavings: 0,
+    timeOfDayMultiplier: 1.0,
+
+    // Renewable energy impact
+    renewableEnergySavings: 0,
+    fossilFuelSavings: 0,
+    renewablePercentage: 0,
+
+    // Additional environmental metrics
+    ewasteReduction: 0,
+    serverUtilizationImprovement: 0,
+    developerProductivityGain: 0,
+    buildTimeReduction: 0,
+
+    // Apply overrides
+    ...overrides,
+  };
+}
+
 describe("Environmental Impact Calculations", () => {
   describe("calculateEnvironmentalImpact", () => {
     it("should calculate environmental impact correctly", () => {
@@ -49,7 +104,7 @@ describe("Environmental Impact Calculations", () => {
       expect(impact.storageSavings).toBe(0);
     });
 
-    it("should handle negative inputs by using absolute values", () => {
+    it("should handle negative inputs by throwing error", () => {
       expect(() => calculateEnvironmentalImpact(-100, -50, -30)).toThrow(
         "Disk space cannot be negative"
       );
@@ -66,7 +121,7 @@ describe("Environmental Impact Calculations", () => {
 
   describe("calculateCumulativeEnvironmentalImpact", () => {
     it("should aggregate multiple environmental impacts correctly", () => {
-      const impact1: EnvironmentalImpact = {
+      const impact1 = createTestEnvironmentalImpact({
         carbonSavings: 1.5,
         energySavings: 2.3,
         waterSavings: 15.0,
@@ -75,9 +130,9 @@ describe("Environmental Impact Calculations", () => {
         efficiencyGain: 12.5,
         networkSavings: 25.0,
         storageSavings: 100.0,
-      };
+      });
 
-      const impact2: EnvironmentalImpact = {
+      const impact2 = createTestEnvironmentalImpact({
         carbonSavings: 2.1,
         energySavings: 1.7,
         waterSavings: 12.0,
@@ -86,7 +141,7 @@ describe("Environmental Impact Calculations", () => {
         efficiencyGain: 8.3,
         networkSavings: 18.0,
         storageSavings: 75.0,
-      };
+      });
 
       const cumulative = calculateCumulativeEnvironmentalImpact([
         impact1,
@@ -117,7 +172,7 @@ describe("Environmental Impact Calculations", () => {
     });
 
     it("should handle single impact", () => {
-      const impact: EnvironmentalImpact = {
+      const impact = createTestEnvironmentalImpact({
         carbonSavings: 1.5,
         energySavings: 2.3,
         waterSavings: 15.0,
@@ -126,7 +181,7 @@ describe("Environmental Impact Calculations", () => {
         efficiencyGain: 12.5,
         networkSavings: 25.0,
         storageSavings: 100.0,
-      };
+      });
 
       const cumulative = calculateCumulativeEnvironmentalImpact([impact]);
 
@@ -138,7 +193,7 @@ describe("Environmental Impact Calculations", () => {
 
   describe("formatEnvironmentalImpact", () => {
     it("should format environmental impact with default precision", () => {
-      const impact: EnvironmentalImpact = {
+      const impact = createTestEnvironmentalImpact({
         carbonSavings: 1.5,
         energySavings: 2.3,
         waterSavings: 15.0,
@@ -147,7 +202,7 @@ describe("Environmental Impact Calculations", () => {
         efficiencyGain: 12.5,
         networkSavings: 25.0,
         storageSavings: 100.0,
-      };
+      });
 
       const formatted = formatEnvironmentalImpact(impact);
 
@@ -166,7 +221,7 @@ describe("Environmental Impact Calculations", () => {
     });
 
     it("should format with default precision", () => {
-      const impact: EnvironmentalImpact = {
+      const impact = createTestEnvironmentalImpact({
         carbonSavings: 1.56789,
         energySavings: 2.34567,
         waterSavings: 15.6789,
@@ -175,7 +230,7 @@ describe("Environmental Impact Calculations", () => {
         efficiencyGain: 12.5678,
         networkSavings: 25.6789,
         storageSavings: 100.5678,
-      };
+      });
 
       const formatted = formatEnvironmentalImpact(impact);
 
@@ -185,7 +240,7 @@ describe("Environmental Impact Calculations", () => {
     });
 
     it("should handle zero values", () => {
-      const impact: EnvironmentalImpact = {
+      const impact = createTestEnvironmentalImpact({
         carbonSavings: 0,
         energySavings: 0,
         waterSavings: 0,
@@ -194,7 +249,7 @@ describe("Environmental Impact Calculations", () => {
         efficiencyGain: 0,
         networkSavings: 0,
         storageSavings: 0,
-      };
+      });
 
       const formatted = formatEnvironmentalImpact(impact);
 
@@ -206,7 +261,7 @@ describe("Environmental Impact Calculations", () => {
 
   describe("displayEnvironmentalImpactTable", () => {
     it("should display environmental impact table correctly", () => {
-      const impact: EnvironmentalImpact = {
+      const impact = createTestEnvironmentalImpact({
         carbonSavings: 1.5,
         energySavings: 2.3,
         waterSavings: 15.0,
@@ -215,7 +270,7 @@ describe("Environmental Impact Calculations", () => {
         efficiencyGain: 12.5,
         networkSavings: 25.0,
         storageSavings: 100.0,
-      };
+      });
 
       // Mock console.log to capture output
       const consoleSpy = jest.spyOn(console, "log").mockImplementation();
@@ -228,7 +283,7 @@ describe("Environmental Impact Calculations", () => {
     });
 
     it("should handle zero impact", () => {
-      const impact: EnvironmentalImpact = {
+      const impact = createTestEnvironmentalImpact({
         carbonSavings: 0,
         energySavings: 0,
         waterSavings: 0,
@@ -237,7 +292,7 @@ describe("Environmental Impact Calculations", () => {
         efficiencyGain: 0,
         networkSavings: 0,
         storageSavings: 0,
-      };
+      });
 
       const consoleSpy = jest.spyOn(console, "log").mockImplementation();
 
@@ -251,7 +306,7 @@ describe("Environmental Impact Calculations", () => {
 
   describe("generateEnvironmentalRecommendations", () => {
     it("should generate recommendations for significant impact", () => {
-      const impact: EnvironmentalImpact = {
+      const impact = createTestEnvironmentalImpact({
         carbonSavings: 0.5,
         energySavings: 0.1,
         waterSavings: 5.0,
@@ -260,7 +315,7 @@ describe("Environmental Impact Calculations", () => {
         efficiencyGain: 8.0,
         networkSavings: 15.0,
         storageSavings: 75.0,
-      };
+      });
 
       const recommendations = generateEnvironmentalRecommendations(impact, 10);
 
@@ -275,7 +330,7 @@ describe("Environmental Impact Calculations", () => {
     });
 
     it("should generate recommendations for minimal impact", () => {
-      const impact: EnvironmentalImpact = {
+      const impact = createTestEnvironmentalImpact({
         carbonSavings: 0.05,
         energySavings: 0.005,
         waterSavings: 0.5,
@@ -284,7 +339,7 @@ describe("Environmental Impact Calculations", () => {
         efficiencyGain: 1.0,
         networkSavings: 2.0,
         storageSavings: 10.0,
-      };
+      });
 
       const recommendations = generateEnvironmentalRecommendations(impact, 2);
 
@@ -295,7 +350,7 @@ describe("Environmental Impact Calculations", () => {
     });
 
     it("should handle zero impact", () => {
-      const impact: EnvironmentalImpact = {
+      const impact = createTestEnvironmentalImpact({
         carbonSavings: 0,
         energySavings: 0,
         waterSavings: 0,
@@ -304,7 +359,7 @@ describe("Environmental Impact Calculations", () => {
         efficiencyGain: 0,
         networkSavings: 0,
         storageSavings: 0,
-      };
+      });
 
       const recommendations = generateEnvironmentalRecommendations(impact, 0);
 
@@ -317,7 +372,7 @@ describe("Environmental Impact Calculations", () => {
 
   describe("displayEnvironmentalHeroMessage", () => {
     it("should display hero message correctly", () => {
-      const impact: EnvironmentalImpact = {
+      const impact = createTestEnvironmentalImpact({
         carbonSavings: 1.5,
         energySavings: 2.3,
         waterSavings: 15.0,
@@ -326,7 +381,7 @@ describe("Environmental Impact Calculations", () => {
         efficiencyGain: 12.5,
         networkSavings: 25.0,
         storageSavings: 100.0,
-      };
+      });
 
       const consoleSpy = jest.spyOn(console, "log").mockImplementation();
 
@@ -338,7 +393,7 @@ describe("Environmental Impact Calculations", () => {
     });
 
     it("should handle zero impact", () => {
-      const impact: EnvironmentalImpact = {
+      const impact = createTestEnvironmentalImpact({
         carbonSavings: 0,
         energySavings: 0,
         waterSavings: 0,
@@ -347,7 +402,7 @@ describe("Environmental Impact Calculations", () => {
         efficiencyGain: 0,
         networkSavings: 0,
         storageSavings: 0,
-      };
+      });
 
       const consoleSpy = jest.spyOn(console, "log").mockImplementation();
 

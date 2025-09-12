@@ -104,6 +104,7 @@ import {
   getTSConfig,
   findClosestPackageJson,
 } from "../../src/utils.js";
+import { EnvironmentalImpact } from "../../src/interfaces";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { findUp } from "find-up";
@@ -119,6 +120,61 @@ const mockGlobby = globby as jest.MockedFunction<typeof globby>;
 const mockExecSync = execSync as jest.MockedFunction<typeof execSync>;
 const mockChalk = chalk as jest.Mocked<typeof chalk>;
 const mockCliTable = CliTable as jest.MockedClass<typeof CliTable>;
+
+// Helper function to create complete EnvironmentalImpact objects for testing
+function createTestEnvironmentalImpact(
+  overrides: Partial<EnvironmentalImpact> = {}
+): EnvironmentalImpact {
+  return {
+    // Primary metrics
+    carbonSavings: 0,
+    energySavings: 0,
+    waterSavings: 0,
+    treesEquivalent: 0,
+    carMilesEquivalent: 0,
+    efficiencyGain: 0,
+    networkSavings: 0,
+    storageSavings: 0,
+
+    // Detailed energy breakdown
+    transferEnergy: 0,
+    cpuEnergy: 0,
+    memoryEnergy: 0,
+    latencyEnergy: 0,
+    buildEnergy: 0,
+    ciCdEnergy: 0,
+    registryEnergy: 0,
+    lifecycleEnergy: 0,
+
+    // Financial impact
+    carbonOffsetValue: 0,
+    waterTreatmentValue: 0,
+    totalFinancialValue: 0,
+
+    // Regional variations
+    carbonIntensityUsed: 0.456,
+    regionalMultiplier: 1.0,
+
+    // Time-based factors
+    peakEnergySavings: 0,
+    offPeakEnergySavings: 0,
+    timeOfDayMultiplier: 1.0,
+
+    // Renewable energy impact
+    renewableEnergySavings: 0,
+    fossilFuelSavings: 0,
+    renewablePercentage: 0,
+
+    // Additional environmental metrics
+    ewasteReduction: 0,
+    serverUtilizationImprovement: 0,
+    developerProductivityGain: 0,
+    buildTimeReduction: 0,
+
+    // Apply overrides
+    ...overrides,
+  };
+}
 
 describe("Remaining Coverage Tests", () => {
   beforeEach(() => {

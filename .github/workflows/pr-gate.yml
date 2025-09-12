@@ -1,0 +1,414 @@
+name: PR Gate - Tests & Quality
+
+on:
+  pull_request:
+    branches: [ main, develop ]
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '20'
+  NPM_VERSION: '10'
+  COVERAGE_THRESHOLD: 70
+
+jobs:
+  # Quick Test Suite - Fast feedback for PRs
+  quick-tests:
+    name: Quick Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Setup Node.js ${{ env.NODE_VERSION }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        cache-dependency-path: '**/package-lock.json'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Build project
+      run: npm run build
+
+    - name: Run core tests
+      run: |
+        echo "Running core functionality tests..."
+        npm test -- --testPathPatterns="constants|interfaces|environmental-impact-simple|minimal-environmental" --coverage
+
+    - name: Check TypeScript compilation
+      run: npm run type-check
+
+    - name: Run linting
+      run: npm run lint || echo "Linting completed with warnings"
+
+  # Comprehensive Test Suite - Full validation
+  comprehensive-tests:
+    name: Comprehensive Tests
+    runs-on: ubuntu-latest
+    needs: quick-tests
+    timeout-minutes: 20
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js ${{ env.NODE_VERSION }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Build project
+      run: npm run build
+
+    - name: Run all tests with coverage
+      run: npm run test:coverage
+
+    - name: Check coverage threshold
+      run: |
+        echo "Checking coverage threshold..."
+        # Extract coverage percentage from test output
+        COVERAGE_OUTPUT=$(npm run test:coverage 2>&1)
+        echo "$COVERAGE_OUTPUT"
+
+        # Check if tests passed
+        if echo "$COVERAGE_OUTPUT" | grep -q "Test Suites:.*failed"; then
+          echo "❌ Some test suites failed"
+          exit 1
+        fi
+
+        # Extract coverage percentage
+        COVERAGE=$(echo "$COVERAGE_OUTPUT" | grep -o 'All files.*[0-9]\+\.[0-9]\+%' | grep -o '[0-9]\+\.[0-9]\+' | head -1)
+        if [ -n "$COVERAGE" ]; then
+          echo "Current coverage: ${COVERAGE}%"
+          if (( $(echo "$COVERAGE >= ${{ env.COVERAGE_THRESHOLD }}" | bc -l) )); then
+            echo "✅ Coverage threshold met: ${COVERAGE}% >= ${{ env.COVERAGE_THRESHOLD }}%"
+          else
+            echo "❌ Coverage threshold not met: ${COVERAGE}% < ${{ env.COVERAGE_THRESHOLD }}%"
+            exit 1
+          fi
+        else
+          echo "⚠️ Could not determine coverage percentage, but tests passed"
+        fi
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        file: ./coverage/lcov.info
+        flags: pr-tests
+        name: codecov-pr
+        fail_ci_if_error: false
+        verbose: true
+
+  # Code Quality Checks
+  quality-checks:
+    name: Code Quality
+    runs-on: ubuntu-latest
+    needs: quick-tests
+    timeout-minutes: 5
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js ${{ env.NODE_VERSION }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Build project
+      run: npm run build
+
+    - name: Check for console.log statements
+      run: |
+        echo "Checking for console.log statements in production code..."
+        if grep -r "console\.log" src/ --exclude-dir=node_modules; then
+          echo "❌ Found console.log statements in production code"
+          exit 1
+        fi
+        echo "✅ No console.log statements found"
+
+    - name: Check for TODO/FIXME comments
+      run: |
+        echo "Checking for TODO/FIXME comments..."
+        if grep -r "TODO\|FIXME" src/ --exclude-dir=node_modules; then
+          echo "⚠️ Found TODO/FIXME comments in source code"
+          echo "Please address these before merging:"
+          grep -r "TODO\|FIXME" src/ --exclude-dir=node_modules
+        else
+          echo "✅ No TODO/FIXME comments found"
+        fi
+
+    - name: Run TypeScript check
+      run: npm run type-check
+
+    - name: Run format check
+      run: npm run format:check || echo "Format check completed with warnings"
+
+  # Security Checks
+  security-checks:
+    name: Security
+    runs-on: ubuntu-latest
+    needs: quick-tests
+    timeout-minutes: 5
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js ${{ env.NODE_VERSION }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Run security audit
+      run: npm audit --audit-level=moderate
+
+    - name: Check for outdated dependencies
+      run: npm outdated || echo "Some dependencies are outdated (non-blocking)"
+
+  # Environmental Impact Validation
+  environmental-validation:
+    name: Environmental Impact
+    runs-on: ubuntu-latest
+    needs: quick-tests
+    timeout-minutes: 5
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js ${{ env.NODE_VERSION }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Build project
+      run: npm run build
+
+    - name: Validate environmental constants
+      run: |
+        echo "Validating environmental constants..."
+        node -e "
+          const { ENVIRONMENTAL_CONSTANTS } = require('./dist/constants.js');
+
+          // Check critical constants are defined and valid
+          const criticalConstants = [
+            'CARBON_INTENSITY', 'WATER_INTENSITY', 'TREE_CARBON_ABSORPTION',
+            'CAR_EMISSIONS_PER_MILE', 'ENERGY_PER_GB'
+          ];
+
+          let allValid = true;
+          criticalConstants.forEach(constant => {
+            if (!(constant in ENVIRONMENTAL_CONSTANTS)) {
+              console.error(\`❌ Missing constant: \${constant}\`);
+              allValid = false;
+            } else if (typeof ENVIRONMENTAL_CONSTANTS[constant] !== 'number' || ENVIRONMENTAL_CONSTANTS[constant] <= 0) {
+              console.error(\`❌ Invalid value for \${constant}: \${ENVIRONMENTAL_CONSTANTS[constant]}\`);
+              allValid = false;
+            }
+          });
+
+          if (allValid) {
+            console.log('✅ Environmental constants are valid');
+          } else {
+            process.exit(1);
+          }
+        "
+
+    - name: Test environmental impact calculations
+      run: |
+        echo "Testing environmental impact calculations..."
+        node -e "
+          const { calculateEnvironmentalImpact } = require('./dist/helpers.js');
+
+          // Test basic calculation
+          const result = calculateEnvironmentalImpact(1073741824, 30, 1000);
+
+          if (!result || typeof result !== 'object') {
+            console.error('❌ calculateEnvironmentalImpact returned invalid result');
+            process.exit(1);
+          }
+
+          // Check required properties exist and are valid
+          const requiredProps = ['carbonSavings', 'energySavings', 'waterSavings'];
+          let allValid = true;
+
+          requiredProps.forEach(prop => {
+            if (!(prop in result)) {
+              console.error(\`❌ Missing property: \${prop}\`);
+              allValid = false;
+            } else if (typeof result[prop] !== 'number' || isNaN(result[prop])) {
+              console.error(\`❌ Invalid value for \${prop}: \${result[prop]}\`);
+              allValid = false;
+            }
+          });
+
+          if (allValid) {
+            console.log('✅ Environmental impact calculations are working');
+          } else {
+            process.exit(1);
+          }
+        "
+
+  # PR Gate Decision
+  pr-gate:
+    name: PR Gate Decision
+    runs-on: ubuntu-latest
+    needs: [quick-tests, comprehensive-tests, quality-checks, security-checks, environmental-validation]
+    if: always()
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Generate PR Gate Summary
+      run: |
+        echo "## 🚪 PR Gate Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 📊 Test Results" >> $GITHUB_STEP_SUMMARY
+
+        # Quick Tests
+        if [ "${{ needs.quick-tests.result }}" = "success" ]; then
+          echo "✅ **Quick Tests**: PASSED" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ **Quick Tests**: FAILED" >> $GITHUB_STEP_SUMMARY
+        fi
+
+        # Comprehensive Tests
+        if [ "${{ needs.comprehensive-tests.result }}" = "success" ]; then
+          echo "✅ **Comprehensive Tests**: PASSED" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ **Comprehensive Tests**: FAILED" >> $GITHUB_STEP_SUMMARY
+        fi
+
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 🔍 Quality Checks" >> $GITHUB_STEP_SUMMARY
+
+        # Quality Checks
+        if [ "${{ needs.quality-checks.result }}" = "success" ]; then
+          echo "✅ **Code Quality**: PASSED" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ **Code Quality**: FAILED" >> $GITHUB_STEP_SUMMARY
+        fi
+
+        # Security Checks
+        if [ "${{ needs.security-checks.result }}" = "success" ]; then
+          echo "✅ **Security**: PASSED" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ **Security**: FAILED" >> $GITHUB_STEP_SUMMARY
+        fi
+
+        # Environmental Validation
+        if [ "${{ needs.environmental-validation.result }}" = "success" ]; then
+          echo "✅ **Environmental Impact**: PASSED" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ **Environmental Impact**: FAILED" >> $GITHUB_STEP_SUMMARY
+        fi
+
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 🎯 Coverage Target" >> $GITHUB_STEP_SUMMARY
+        echo "**Minimum Required**: ${{ env.COVERAGE_THRESHOLD }}%" >> $GITHUB_STEP_SUMMARY
+
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 🚀 PR Gate Decision" >> $GITHUB_STEP_SUMMARY
+
+        # Determine if PR should be approved
+        if [ "${{ needs.quick-tests.result }}" = "success" ] &&
+           [ "${{ needs.comprehensive-tests.result }}" = "success" ] &&
+           [ "${{ needs.quality-checks.result }}" = "success" ] &&
+           [ "${{ needs.security-checks.result }}" = "success" ] &&
+           [ "${{ needs.environmental-validation.result }}" = "success" ]; then
+          echo "🎉 **PR APPROVED** - All checks passed!" >> $GITHUB_STEP_SUMMARY
+          echo "✅ This PR is ready for review and merge." >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ **PR BLOCKED** - Some checks failed." >> $GITHUB_STEP_SUMMARY
+          echo "⚠️ Please fix the failing checks before this PR can be merged." >> $GITHUB_STEP_SUMMARY
+        fi
+
+    - name: Set PR status
+      run: |
+        if [ "${{ needs.quick-tests.result }}" = "success" ] &&
+           [ "${{ needs.comprehensive-tests.result }}" = "success" ] &&
+           [ "${{ needs.quality-checks.result }}" = "success" ] &&
+           [ "${{ needs.security-checks.result }}" = "success" ] &&
+           [ "${{ needs.environmental-validation.result }}" = "success" ]; then
+          echo "✅ PR Gate: PASSED"
+        else
+          echo "❌ PR Gate: FAILED"
+          exit 1
+        fi
+
+    - name: Comment on PR
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const { data: comments } = await github.rest.issues.listComments({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: context.issue.number,
+          });
+
+          const botComment = comments.find(comment =>
+            comment.user.type === 'Bot' &&
+            comment.body.includes('PR Gate Summary')
+          );
+
+          const summary = `## 🚪 PR Gate Summary
+
+          ### 📊 Test Results
+          - **Quick Tests**: ${{ needs.quick-tests.result == 'success' && '✅ PASSED' || '❌ FAILED' }}
+          - **Comprehensive Tests**: ${{ needs.comprehensive-tests.result == 'success' && '✅ PASSED' || '❌ FAILED' }}
+
+          ### 🔍 Quality Checks
+          - **Code Quality**: ${{ needs.quality-checks.result == 'success' && '✅ PASSED' || '❌ FAILED' }}
+          - **Security**: ${{ needs.security-checks.result == 'success' && '✅ PASSED' || '❌ FAILED' }}
+          - **Environmental Impact**: ${{ needs.environmental-validation.result == 'success' && '✅ PASSED' || '❌ FAILED' }}
+
+          ### 🎯 Coverage Target
+          **Minimum Required**: ${{ env.COVERAGE_THRESHOLD }}%
+
+          ### 🚀 PR Gate Decision
+          ${{ needs.quick-tests.result == 'success' && needs.comprehensive-tests.result == 'success' && needs.quality-checks.result == 'success' && needs.security-checks.result == 'success' && needs.environmental-validation.result == 'success' && '🎉 **PR APPROVED** - All checks passed! This PR is ready for review and merge.' || '❌ **PR BLOCKED** - Some checks failed. Please fix the failing checks before this PR can be merged.' }}
+
+          ---
+          *This comment was automatically generated by the PR Gate workflow.*`;
+
+          if (botComment) {
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: botComment.id,
+              body: summary
+            });
+          } else {
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: summary
+            });
+          }

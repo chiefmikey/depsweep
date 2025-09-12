@@ -151,7 +151,10 @@ import {
   findSubDependencies,
 } from "../../src/utils.js";
 
-import type { DependencyContext } from "../../src/interfaces.js";
+import type {
+  DependencyContext,
+  EnvironmentalImpact,
+} from "../../src/interfaces.js";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { findUp } from "find-up";
@@ -167,6 +170,61 @@ const mockGlobby = globby as any;
 const mockExecSync = execSync as jest.MockedFunction<typeof execSync>;
 const mockChalk = chalk as jest.Mocked<typeof chalk>;
 const mockCliTable = CliTable as jest.MockedClass<typeof CliTable>;
+
+// Helper function to create complete EnvironmentalImpact objects for testing
+function createTestEnvironmentalImpact(
+  overrides: Partial<EnvironmentalImpact> = {}
+): EnvironmentalImpact {
+  return {
+    // Primary metrics
+    carbonSavings: 0,
+    energySavings: 0,
+    waterSavings: 0,
+    treesEquivalent: 0,
+    carMilesEquivalent: 0,
+    efficiencyGain: 0,
+    networkSavings: 0,
+    storageSavings: 0,
+
+    // Detailed energy breakdown
+    transferEnergy: 0,
+    cpuEnergy: 0,
+    memoryEnergy: 0,
+    latencyEnergy: 0,
+    buildEnergy: 0,
+    ciCdEnergy: 0,
+    registryEnergy: 0,
+    lifecycleEnergy: 0,
+
+    // Financial impact
+    carbonOffsetValue: 0,
+    waterTreatmentValue: 0,
+    totalFinancialValue: 0,
+
+    // Regional variations
+    carbonIntensityUsed: 0.456,
+    regionalMultiplier: 1.0,
+
+    // Time-based factors
+    peakEnergySavings: 0,
+    offPeakEnergySavings: 0,
+    timeOfDayMultiplier: 1.0,
+
+    // Renewable energy impact
+    renewableEnergySavings: 0,
+    fossilFuelSavings: 0,
+    renewablePercentage: 0,
+
+    // Additional environmental metrics
+    ewasteReduction: 0,
+    serverUtilizationImprovement: 0,
+    developerProductivityGain: 0,
+    buildTimeReduction: 0,
+
+    // Apply overrides
+    ...overrides,
+  };
+}
 
 describe("Coverage Completion Tests", () => {
   beforeEach(() => {
@@ -306,7 +364,7 @@ describe("Coverage Completion Tests", () => {
     });
 
     it("should handle formatEnvironmentalImpact with various inputs", () => {
-      const impact = {
+      const impact = createTestEnvironmentalImpact({
         carbonSavings: 123.456789,
         energySavings: 234.56789,
         waterSavings: 345.678901,
@@ -315,7 +373,7 @@ describe("Coverage Completion Tests", () => {
         efficiencyGain: 678.901234,
         networkSavings: 789.012345,
         storageSavings: 890.123456,
-      };
+      });
 
       const result = formatEnvironmentalImpact(impact);
       expect(result).toBeDefined();
@@ -324,7 +382,7 @@ describe("Coverage Completion Tests", () => {
     });
 
     it("should handle generateEnvironmentalRecommendations with various impact levels", () => {
-      const highImpact = {
+      const highImpact = createTestEnvironmentalImpact({
         carbonSavings: 1000,
         energySavings: 2000,
         waterSavings: 3000,
@@ -333,7 +391,7 @@ describe("Coverage Completion Tests", () => {
         efficiencyGain: 6000,
         networkSavings: 7000,
         storageSavings: 8000,
-      };
+      });
 
       const recommendations = generateEnvironmentalRecommendations(
         highImpact,

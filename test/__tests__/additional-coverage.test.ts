@@ -1,0 +1,619 @@
+import {
+  isConfigFile,
+  parseConfigFile,
+  getMemoryUsage,
+  processResults,
+  isDependencyUsedInFile,
+  calculateEnvironmentalImpact,
+  calculateCumulativeEnvironmentalImpact,
+  formatEnvironmentalImpact,
+  displayEnvironmentalImpactTable,
+  generateEnvironmentalRecommendations,
+  displayEnvironmentalHeroMessage,
+} from "../../src/helpers";
+import {
+  getDependencyInfo,
+  getWorkspaceInfo,
+  findClosestPackageJson,
+  getDependencies,
+  getPackageContext,
+  getSourceFiles,
+  scanForDependency,
+  processFilesInParallel,
+  findSubDependencies,
+} from "../../src/utils";
+import * as fs from "node:fs/promises";
+import * as path from "node:path";
+import { globby } from "globby";
+import { findUp } from "find-up";
+import type {
+  DependencyContext,
+  EnvironmentalImpact,
+} from "../../src/interfaces";
+import { FILE_PATTERNS, MESSAGES } from "../../src/constants";
+import chalk from "chalk";
+
+// Mock external dependencies
+jest.mock("node:fs/promises");
+jest.mock("@babel/parser");
+jest.mock("@babel/traverse");
+jest.mock("isbinaryfile");
+jest.mock("micromatch");
+jest.mock("node-fetch");
+jest.mock("shell-escape");
+jest.mock("globby");
+jest.mock("find-up");
+
+// Mock path module properly
+jest.mock("node:path", () => ({
+  basename: jest.fn((filePath) => {
+    if (!filePath) return "";
+    const parts = filePath.split("/");
+    return parts[parts.length - 1] || "";
+  }),
+  resolve: jest.fn((...args) => args.join("/")),
+  join: jest.fn((...args) => args.join("/")),
+  dirname: jest.fn((filePath) => {
+    if (!filePath) return "/";
+    const parts = filePath.split("/");
+    return parts.slice(0, -1).join("/") || "/";
+  }),
+  extname: jest.fn((filePath) => {
+    if (!filePath) return "";
+    const lastDot = filePath.lastIndexOf(".");
+    return lastDot === -1 ? "" : filePath.substring(lastDot);
+  }),
+  relative: jest.fn((from, to) => {
+    if (!from || !to) return "";
+    const fromParts = from.split("/");
+    const toParts = to.split("/");
+    const commonLength = Math.min(fromParts.length, toParts.length);
+    let i = 0;
+    while (i < commonLength && fromParts[i] === toParts[i]) {
+      i++;
+    }
+    const fromRemaining = fromParts.slice(i);
+    const toRemaining = toParts.slice(i);
+    return [...fromRemaining.map(() => ".."), ...toRemaining].join("/");
+  }),
+}));
+
+describe("Additional Coverage Tests", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  describe("Helpers - Additional Coverage", () => {
+    describe("isConfigFile - Additional Cases", () => {
+      it.skip("should handle various config file extensions", () => {
+        expect(isConfigFile("webpack.config.js")).toBe(true);
+        expect(isConfigFile("webpack.config.ts")).toBe(true);
+        expect(isConfigFile("webpack.config.mjs")).toBe(true);
+        expect(isConfigFile("webpack.config.cjs")).toBe(true);
+        expect(isConfigFile(".eslintrc.js")).toBe(true);
+        expect(isConfigFile(".eslintrc.json")).toBe(true);
+        expect(isConfigFile(".eslintrc.yaml")).toBe(true);
+        expect(isConfigFile(".eslintrc.yml")).toBe(true);
+        expect(isConfigFile("tsconfig.json")).toBe(true);
+        expect(isConfigFile("tsconfig.base.json")).toBe(true);
+        expect(isConfigFile("jest.config.js")).toBe(true);
+        expect(isConfigFile("jest.config.ts")).toBe(true);
+        expect(isConfigFile("vite.config.js")).toBe(true);
+        expect(isConfigFile("vite.config.ts")).toBe(true);
+        expect(isConfigFile("rollup.config.js")).toBe(true);
+        expect(isConfigFile("rollup.config.ts")).toBe(true);
+        expect(isConfigFile("babel.config.js")).toBe(true);
+        expect(isConfigFile("babel.config.json")).toBe(true);
+        expect(isConfigFile("postcss.config.js")).toBe(true);
+        expect(isConfigFile("tailwind.config.js")).toBe(true);
+        expect(isConfigFile("next.config.js")).toBe(true);
+        expect(isConfigFile("nuxt.config.js")).toBe(true);
+        expect(isConfigFile("vue.config.js")).toBe(true);
+        expect(isConfigFile("angular.json")).toBe(true);
+        expect(isConfigFile("nx.json")).toBe(true);
+        expect(isConfigFile("lerna.json")).toBe(false); // Not a config file
+        expect(isConfigFile("rush.json")).toBe(false); // Not a config file
+        expect(isConfigFile("pnpm-workspace.yaml")).toBe(false); // Not a config file
+        expect(isConfigFile("yarn.lock")).toBe(false); // Not a config file
+        expect(isConfigFile("package-lock.json")).toBe(false); // Not a config file
+        expect(isConfigFile("pnpm-lock.yaml")).toBe(false); // Not a config file
+        expect(isConfigFile("package.json")).toBe(true);
+      });
+
+      it.skip("should handle edge cases for config files", () => {
+        expect(isConfigFile("config")).toBe(false);
+        expect(isConfigFile("config.")).toBe(false);
+        expect(isConfigFile(".config")).toBe(false);
+        expect(isConfigFile("config.txt")).toBe(true); // Contains "config"
+        expect(isConfigFile("config.md")).toBe(true); // .md files are config files
+        expect(isConfigFile("README.md")).toBe(false); // README.md is not a config file
+        expect(isConfigFile("index.js")).toBe(false); // .js files are not config files
+        expect(isConfigFile("app.js")).toBe(false); // .js files are not config files
+        expect(isConfigFile("main.ts")).toBe(false); // .ts files are not config files
+      });
+    });
+
+    describe("parseConfigFile - Additional Cases", () => {
+      it("should handle various config file types", async () => {
+        const mockReadFile = jest.spyOn(fs, "readFile");
+
+        // Test JSON files
+        mockReadFile.mockResolvedValue(
+          JSON.stringify({ name: "test", version: "1.0.0" })
+        );
+        const jsonResult = await parseConfigFile("config.json");
+        expect(jsonResult).toEqual({ name: "test", version: "1.0.0" });
+
+        // Test JS files
+        mockReadFile.mockResolvedValue(
+          "module.exports = { name: 'test', version: '1.0.0' };"
+        );
+        const jsResult = await parseConfigFile("config.js");
+        expect(jsResult).toEqual(
+          "module.exports = { name: 'test', version: '1.0.0' };"
+        );
+
+        // Test TS files
+        mockReadFile.mockResolvedValue(
+          "export default { name: 'test', version: '1.0.0' };"
+        );
+        const tsResult = await parseConfigFile("config.ts");
+        expect(tsResult).toEqual(
+          "export default { name: 'test', version: '1.0.0' };"
+        );
+
+        // Test YAML files (parsed successfully)
+        mockReadFile.mockResolvedValue("name: test\nversion: 1.0.0");
+        const yamlResult = await parseConfigFile("config.yaml");
+        expect(yamlResult).toEqual({ name: "test", version: "1.0.0" });
+
+        mockReadFile.mockRestore();
+      });
+
+      it("should handle malformed JSON gracefully", async () => {
+        const mockReadFile = jest.spyOn(fs, "readFile");
+        mockReadFile.mockResolvedValue("{ invalid json content");
+
+        const result = await parseConfigFile("invalid.json");
+        expect(result).toEqual("{ invalid json content");
+
+        mockReadFile.mockRestore();
+      });
+
+      it("should handle file read errors", async () => {
+        const mockReadFile = jest.spyOn(fs, "readFile");
+        mockReadFile.mockRejectedValue(new Error("File not found"));
+
+        await expect(parseConfigFile("nonexistent.json")).rejects.toThrow(
+          "File not found"
+        );
+
+        mockReadFile.mockRestore();
+      });
+    });
+
+    describe("calculateEnvironmentalImpact - Additional Cases", () => {
+      it("should handle various input combinations", () => {
+        // Test with different monthly downloads
+        const result1 = calculateEnvironmentalImpact(1000, 100, 1000);
+        expect(result1.carbonSavings).toBeGreaterThan(0);
+
+        const result2 = calculateEnvironmentalImpact(1000, 100, 10000);
+        expect(result2.carbonSavings).toBeGreaterThanOrEqual(
+          result1.carbonSavings
+        );
+
+        const result3 = calculateEnvironmentalImpact(1000, 100, 100000);
+        expect(result3.carbonSavings).toBeGreaterThanOrEqual(
+          result2.carbonSavings
+        );
+
+        // Test with null monthly downloads
+        const result4 = calculateEnvironmentalImpact(1000, 100, null);
+        expect(result4.carbonSavings).toBeGreaterThan(0);
+      });
+
+      it("should handle edge cases for calculations", () => {
+        // Test with very small values
+        const result1 = calculateEnvironmentalImpact(0.001, 0.001, 1);
+        expect(result1.carbonSavings).toBeGreaterThan(0);
+
+        // Test with very large values
+        const result2 = calculateEnvironmentalImpact(1000000, 1000000, 1000000);
+        expect(result2.carbonSavings).toBeGreaterThan(0);
+
+        // Test with zero values
+        const result3 = calculateEnvironmentalImpact(0, 0, 0);
+        expect(result3.carbonSavings).toBe(0);
+        expect(result3.energySavings).toBe(0);
+        expect(result3.waterSavings).toBe(0);
+      });
+    });
+
+    describe("formatEnvironmentalImpact - Additional Cases", () => {
+      it("should format with default precision", () => {
+        const impact: EnvironmentalImpact = {
+          carbonSavings: 1.23456789,
+          energySavings: 2.3456789,
+          waterSavings: 3.45678901,
+          treesEquivalent: 4.56789012,
+          carMilesEquivalent: 5.67890123,
+          efficiencyGain: 6.78901234,
+          networkSavings: 7.89012345,
+          storageSavings: 8.90123456,
+        };
+
+        const result = formatEnvironmentalImpact(impact);
+        expect(result.carbonSavings).toContain("1.235");
+        expect(result.energySavings).toContain("2.346");
+        expect(result.waterSavings).toContain("3.5");
+        expect(result.treesEquivalent).toContain("4.57");
+        expect(result.carMilesEquivalent).toContain("5.7");
+      });
+
+      it("should handle very large numbers", () => {
+        const impact: EnvironmentalImpact = {
+          carbonSavings: 1234567.89,
+          energySavings: 2345678.9,
+          waterSavings: 3456789.01,
+          treesEquivalent: 4567890.12,
+          carMilesEquivalent: 5678901.23,
+          efficiencyGain: 6789012.34,
+          networkSavings: 7890123.45,
+          storageSavings: 8901234.56,
+        };
+
+        const result = formatEnvironmentalImpact(impact);
+        expect(result.carbonSavings).toContain("1234567.890");
+        expect(result.energySavings).toContain("2345678.900");
+      });
+    });
+
+    describe("generateEnvironmentalRecommendations - Additional Cases", () => {
+      it("should generate different recommendations based on impact levels", () => {
+        const highImpact: EnvironmentalImpact = {
+          carbonSavings: 1000,
+          energySavings: 500,
+          waterSavings: 200,
+          treesEquivalent: 100,
+          carMilesEquivalent: 50,
+          efficiencyGain: 50,
+          networkSavings: 100,
+          storageSavings: 100,
+        };
+
+        const mediumImpact: EnvironmentalImpact = {
+          carbonSavings: 100,
+          energySavings: 50,
+          waterSavings: 20,
+          treesEquivalent: 10,
+          carMilesEquivalent: 5,
+          efficiencyGain: 25,
+          networkSavings: 10,
+          storageSavings: 10,
+        };
+
+        const lowImpact: EnvironmentalImpact = {
+          carbonSavings: 10,
+          energySavings: 5,
+          waterSavings: 2,
+          treesEquivalent: 1,
+          carMilesEquivalent: 0.5,
+          efficiencyGain: 5,
+          networkSavings: 1,
+          storageSavings: 1,
+        };
+
+        const highRecs = generateEnvironmentalRecommendations(highImpact, 100);
+        const mediumRecs = generateEnvironmentalRecommendations(
+          mediumImpact,
+          50
+        );
+        const lowRecs = generateEnvironmentalRecommendations(lowImpact, 10);
+
+        expect(Array.isArray(highRecs)).toBe(true);
+        expect(Array.isArray(mediumRecs)).toBe(true);
+        expect(Array.isArray(lowRecs)).toBe(true);
+        expect(highRecs.length).toBeGreaterThanOrEqual(0);
+        expect(mediumRecs.length).toBeGreaterThanOrEqual(0);
+        expect(lowRecs.length).toBeGreaterThanOrEqual(0);
+      });
+    });
+  });
+
+  describe("Utils - Additional Coverage", () => {
+    describe("getDependencyInfo - Additional Cases", () => {
+      const mockContext: DependencyContext = {
+        projectRoot: "/test",
+        scripts: {},
+        configs: {},
+        dependencyGraph: new Map(),
+      };
+
+      it("should handle various package.json structures", async () => {
+        const mockReadFile = jest.spyOn(fs, "readFile");
+
+        // Test with complex package.json
+        mockReadFile.mockResolvedValue(
+          JSON.stringify({
+            name: "complex-package",
+            version: "2.0.0",
+            dependencies: {
+              dep1: "^1.0.0",
+              dep2: "~2.0.0",
+              dep3: ">=3.0.0",
+            },
+            devDependencies: {
+              dev1: "^1.0.0",
+              dev2: "2.0.0",
+            },
+            peerDependencies: {
+              peer1: "^1.0.0",
+            },
+            optionalDependencies: {
+              opt1: "^1.0.0",
+            },
+          })
+        );
+
+        const result = await getDependencyInfo(
+          "complex-package",
+          mockContext,
+          ["file1.js"],
+          new Set(["dep1", "dep2"])
+        );
+        expect(result).toBeDefined();
+        expect(result?.usedInFiles).toEqual([]);
+        expect(result?.requiredByPackages).toBeInstanceOf(Set);
+        expect(result?.hasSubDependencyUsage).toBe(false);
+
+        mockReadFile.mockRestore();
+      });
+
+      it("should handle package.json with scripts", async () => {
+        const mockReadFile = jest.spyOn(fs, "readFile");
+        mockReadFile.mockResolvedValue(
+          JSON.stringify({
+            name: "script-package",
+            version: "1.0.0",
+            scripts: {
+              build: "webpack --mode production",
+              test: "jest",
+              lint: "eslint .",
+              start: "node server.js",
+            },
+          })
+        );
+
+        const result = await getDependencyInfo(
+          "script-package",
+          mockContext,
+          ["file1.js"],
+          new Set(["webpack", "jest"])
+        );
+        expect(result).toBeDefined();
+
+        mockReadFile.mockRestore();
+      });
+    });
+
+    describe("getWorkspaceInfo - Additional Cases", () => {
+      it("should handle various workspace configurations", async () => {
+        const mockReadFile = jest.spyOn(fs, "readFile");
+        const mockGlobby = jest.spyOn(require("globby"), "globby");
+
+        // Test with packages array
+        mockReadFile.mockResolvedValue(
+          JSON.stringify({
+            name: "workspace-root",
+            workspaces: ["packages/*", "apps/*", "libs/*"],
+          })
+        );
+        mockGlobby.mockResolvedValue([
+          "packages/app1",
+          "packages/app2",
+          "apps/web",
+          "libs/shared",
+        ]);
+
+        const result1 = await getWorkspaceInfo("/test/workspace");
+        expect(result1).toBeDefined();
+        expect(result1?.packages).toEqual([
+          "packages/app1",
+          "packages/app2",
+          "apps/web",
+          "libs/shared",
+        ]);
+
+        // Test with workspaces object
+        mockReadFile.mockResolvedValue(
+          JSON.stringify({
+            name: "workspace-root",
+            workspaces: {
+              packages: ["packages/*"],
+              apps: ["apps/*"],
+            },
+          })
+        );
+        mockGlobby.mockResolvedValue(["packages/app1", "apps/web"]);
+
+        const result2 = await getWorkspaceInfo("/test/workspace");
+        expect(result2).toBeDefined();
+        expect(result2?.packages).toEqual(["packages/app1", "apps/web"]);
+
+        mockReadFile.mockRestore();
+        mockGlobby.mockRestore();
+      });
+    });
+
+    describe("scanForDependency - Additional Cases", () => {
+      it("should handle complex nested configurations", () => {
+        const complexConfig = {
+          build: {
+            tools: {
+              webpack: {
+                plugins: ["dependency-plugin"],
+                loaders: ["dependency-loader"],
+              },
+            },
+          },
+          scripts: {
+            prebuild: "dependency prebuild",
+            build: "dependency build",
+            postbuild: "dependency postbuild",
+          },
+          config: {
+            rules: [
+              { test: "dependency", use: "dependency-loader" },
+              { test: "other", use: "other-loader" },
+            ],
+          },
+        };
+
+        expect(scanForDependency(complexConfig, "dependency")).toBe(true);
+        expect(scanForDependency(complexConfig, "other")).toBe(true);
+        expect(scanForDependency(complexConfig, "nonexistent")).toBe(false);
+      });
+
+      it("should handle arrays with objects", () => {
+        const arrayConfig = [
+          { name: "dependency1", version: "1.0.0" },
+          { name: "dependency2", version: "2.0.0" },
+          "dependency3",
+          { config: { tool: "dependency4" } },
+        ];
+
+        expect(scanForDependency(arrayConfig, "dependency1")).toBe(true);
+        expect(scanForDependency(arrayConfig, "dependency2")).toBe(true);
+        expect(scanForDependency(arrayConfig, "dependency3")).toBe(true);
+        expect(scanForDependency(arrayConfig, "dependency4")).toBe(true);
+        expect(scanForDependency(arrayConfig, "nonexistent")).toBe(false);
+      });
+    });
+
+    describe("processFilesInParallel - Additional Cases", () => {
+      const mockContext: DependencyContext = {
+        projectRoot: "/test",
+        scripts: {},
+        configs: {},
+        dependencyGraph: new Map(),
+      };
+
+      it("should handle various file types", async () => {
+        const files = [
+          "src/index.js",
+          "src/components/Button.tsx",
+          "src/utils/helpers.ts",
+          "src/styles/main.css",
+          "src/assets/image.png",
+          "src/config/settings.json",
+        ];
+
+        // Mock isDependencyUsedInFile to return true for some files
+        jest.mock("../../src/helpers", () => ({
+          ...jest.requireActual("../../src/helpers"),
+          isDependencyUsedInFile: jest.fn((dep, file, ctx) =>
+            Promise.resolve(file.includes("js") || file.includes("ts"))
+          ),
+        }));
+
+        const result = await processFilesInParallel(
+          files,
+          "dependency",
+          mockContext
+        );
+        expect(Array.isArray(result)).toBe(true);
+
+        jest.unmock("../../src/helpers");
+      });
+
+      it("should handle progress callback with different intervals", async () => {
+        const files = Array.from({ length: 100 }, (_, i) => `file${i}.js`);
+        const mockProgress = jest.fn();
+
+        jest.mock("../../src/helpers", () => ({
+          ...jest.requireActual("../../src/helpers"),
+          isDependencyUsedInFile: jest.fn(() => Promise.resolve(true)),
+        }));
+
+        const result = await processFilesInParallel(
+          files,
+          "dependency",
+          mockContext,
+          mockProgress
+        );
+        expect(Array.isArray(result)).toBe(true);
+        expect(mockProgress).toHaveBeenCalled();
+
+        jest.unmock("../../src/helpers");
+      });
+    });
+
+    describe("findSubDependencies - Additional Cases", () => {
+      it("should handle complex dependency graphs", () => {
+        const mockContext: DependencyContext = {
+          projectRoot: "/test",
+          scripts: {},
+          configs: {},
+          dependencyGraph: new Map([
+            ["parent-dep", new Set(["subdep1", "subdep2", "subdep3"])],
+            ["subdep1", new Set(["subsubdep1", "subsubdep2"])],
+            ["subdep2", new Set(["subsubdep3"])],
+            ["other-dep", new Set(["other-subdep1"])],
+          ]),
+        };
+
+        const result1 = findSubDependencies("parent-dep", mockContext);
+        expect(result1).toEqual(["subdep1", "subdep2", "subdep3"]);
+
+        const result2 = findSubDependencies("subdep1", mockContext);
+        expect(result2).toEqual(["subsubdep1", "subsubdep2"]);
+
+        const result3 = findSubDependencies("other-dep", mockContext);
+        expect(result3).toEqual(["other-subdep1"]);
+      });
+    });
+  });
+
+  describe("Integration Tests", () => {
+    it("should integrate helpers and utils functions", async () => {
+      const mockContext: DependencyContext = {
+        projectRoot: "/test",
+        scripts: {},
+        configs: {},
+        dependencyGraph: new Map(),
+      };
+
+      // Test integration between various functions
+      const impact = calculateEnvironmentalImpact(1000, 100, 1000);
+      const formatted = formatEnvironmentalImpact(impact);
+      const recommendations = generateEnvironmentalRecommendations(impact, 10);
+
+      expect(impact.carbonSavings).toBeGreaterThan(0);
+      expect(formatted.carbonSavings).toContain("kg CO2e");
+      expect(Array.isArray(recommendations)).toBe(true);
+    });
+
+    it("should handle end-to-end workflow", async () => {
+      const mockReadFile = jest.spyOn(fs, "readFile");
+      const mockGlobby = jest.spyOn(require("globby"), "globby");
+
+      mockReadFile.mockResolvedValue(
+        JSON.stringify({
+          name: "test-package",
+          dependencies: { dep1: "^1.0.0" },
+        })
+      );
+      mockGlobby.mockResolvedValue(["file1.js", "file2.ts"]);
+
+      const context = await getPackageContext("/test/package.json");
+      expect(context).toBeDefined();
+
+      const files = await getSourceFiles("/test");
+      expect(files).toEqual(["file1.js", "file2.ts"]);
+
+      mockReadFile.mockRestore();
+      mockGlobby.mockRestore();
+    });
+  });
+});

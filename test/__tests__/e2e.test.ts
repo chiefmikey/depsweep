@@ -43,7 +43,7 @@ describe("DepSweep CLI End-to-End Tests", () => {
         encoding: "utf8",
       });
 
-      expect(result).toContain("0.6.6"); // Should match package.json version
+      expect(result).toContain("1.0.0"); // Should match package.json version
     });
 
     it("should handle missing package.json gracefully", () => {

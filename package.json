@@ -82,7 +82,7 @@
     "commander": "^14.0.0",
     "find-up": "^7.0.0",
     "globby": "^14.1.0",
-    "isbinaryfile": "^5.0.6",
+    "isbinaryfile": "^6.0.0",
     "lru-cache": "^11.2.1",
     "node-fetch": "^3.3.2",
     "ora": "^8.2.0",

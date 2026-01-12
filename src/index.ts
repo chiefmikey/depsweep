@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-/* eslint-disable unicorn/prefer-json-parse-buffer */
 
 import * as fs from "node:fs/promises";
 import path from "node:path";

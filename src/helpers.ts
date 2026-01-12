@@ -1,4 +1,3 @@
-/* eslint-disable unicorn/prefer-json-parse-buffer */
 import { execSync, spawn } from "node:child_process";
 import { readdirSync, statSync } from "node:fs";
 import * as fs from "node:fs/promises";
@@ -175,12 +174,10 @@ export async function isDependencyUsedInFile(
   filePath: string,
   context: DependencyContext
 ): Promise<boolean> {
-  if (
-    path.basename(filePath) === FILE_PATTERNS.PACKAGE_JSON &&
-    context.configs?.["package.json"] &&
-    scanForDependency(context.configs["package.json"], dependency)
-  ) {
-    return true;
+  // Don't consider dependencies as "used" just because they're in package.json
+  // Only check actual source code files for dependency usage
+  if (path.basename(filePath) === FILE_PATTERNS.PACKAGE_JSON) {
+    return false;
   }
 
   const configKey = path.relative(path.dirname(filePath), filePath);

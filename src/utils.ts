@@ -1,4 +1,3 @@
-/* eslint-disable unicorn/prefer-json-parse-buffer */
 import { readdirSync } from "node:fs";
 import * as fs from "node:fs/promises";
 import path from "node:path";
@@ -257,94 +256,9 @@ export async function getDependencyInfo(
 
   performanceMonitor.endTimer("fileProcessing");
 
-  // Check package dependencies
-  const nodeModulesPath = path.join(context.projectRoot, "node_modules");
-  try {
-    const packages = new Set<string>();
-    const entries = readdirSync(nodeModulesPath, { withFileTypes: true });
-
-    // Get list of package directories once
-    for (const entry of entries) {
-      if (!entry.isDirectory()) continue;
-      if (entry.name.startsWith("@")) {
-        const scopedDir = path.join(nodeModulesPath, entry.name);
-        const scopedEntries = readdirSync(scopedDir, { withFileTypes: true });
-        for (const sub of scopedEntries) {
-          if (sub.isDirectory()) {
-            packages.add(path.join(entry.name, sub.name));
-          }
-        }
-      } else {
-        packages.add(entry.name);
-      }
-    }
-
-    // Optimized bulk reading with intelligent batching
-    performanceMonitor.startTimer("packageJsonReading");
-
-    const packageJsonPromises = [...packages].map(async (package_) => {
-      try {
-        const packagePath = StringOptimizer.intern(
-          path.join(nodeModulesPath, package_, "package.json")
-        );
-        const data = await fileReader.readFile(packagePath);
-        return {
-          pkg: StringOptimizer.intern(package_),
-          data: JSON.parse(data),
-        };
-      } catch {
-        return null;
-      }
-    });
-
-    const packageJsonResults = await Promise.all(packageJsonPromises);
-    performanceMonitor.endTimer("packageJsonReading");
-
-    // Build dependency graph to track chains
-    const dependencyGraph = new Map<string, Set<string>>();
-
-    // First pass: build direct dependency relationships
-    for (const result of packageJsonResults) {
-      if (!result) continue;
-      const { pkg, data } = result;
-      const allDeps = {
-        ...data.dependencies,
-        ...data.peerDependencies,
-        ...data.optionalDependencies,
-      };
-
-      // Track what each package requires
-      dependencyGraph.set(pkg, new Set(Object.keys(allDeps)));
-    }
-
-    // Find all packages that eventually require our dependency
-    const findTopLevelDependents = (dep: string): Set<string> => {
-      const dependents = new Set<string>();
-
-      for (const [package_, deps] of dependencyGraph.entries()) {
-        if (deps.has(dep)) {
-          // If this is a top-level dependency, add it
-          if (topLevelDependencies.has(package_)) {
-            dependents.add(package_);
-          } else {
-            // Otherwise, find what requires this package
-            const parentDeps = findTopLevelDependents(package_);
-            for (const parentDep of parentDeps) {
-              dependents.add(parentDep);
-            }
-          }
-        }
-      }
-
-      return dependents;
-    };
-
-    // Get all packages that require this dependency (directly or indirectly)
-    const allRequiringPackages = findTopLevelDependents(dependency);
-    info.requiredByPackages = allRequiringPackages;
-  } catch {
-    // Ignore errors
-  }
+  // Don't check package dependencies in node_modules
+  // A dependency should only be considered "used" if it's actually imported in source code
+  // The requiredByPackages logic was causing false positives
 
   // Cache the result with optimized key
   depInfoCache.set(cacheKey, info);
@@ -551,6 +465,10 @@ export async function getSourceFiles(
       ".git",
       "*.log",
       "*.lock",
+      "package.json",
+      "package-lock.json",
+      "yarn.lock",
+      "pnpm-lock.yaml",
       ...ignorePatterns,
     ],
     absolute: true,

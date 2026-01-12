@@ -150,7 +150,9 @@ export function calculateCICDEnergy(
 ): number {
   if (!monthlyDownloads || monthlyDownloads <= 0) return 0;
 
-  const dailyBuilds = Math.max(1, monthlyDownloads / 30);
+  // Cap monthly downloads to prevent overflow
+  const cappedDownloads = Math.min(monthlyDownloads, 1e9); // Cap at 1B downloads
+  const dailyBuilds = Math.max(1, cappedDownloads / 30);
   const baseEnergy =
     dailyBuilds * ENVIRONMENTAL_CONSTANTS.CI_CD_ENERGY_PER_BUILD;
   const frequencyMultiplier = Math.max(0.5, Math.min(2.0, buildFrequency));
@@ -165,9 +167,11 @@ export function calculateRegistryEnergy(
 ): number {
   if (!monthlyDownloads || monthlyDownloads <= 0) return 0;
 
+  // Cap monthly downloads to prevent overflow
+  const cappedDownloads = Math.min(monthlyDownloads, 1e9); // Cap at 1B downloads
   return Math.max(
     0,
-    monthlyDownloads * ENVIRONMENTAL_CONSTANTS.REGISTRY_ENERGY_PER_DOWNLOAD
+    cappedDownloads * ENVIRONMENTAL_CONSTANTS.REGISTRY_ENERGY_PER_DOWNLOAD
   );
 }
 
@@ -292,23 +296,13 @@ export function calculateComprehensiveEnvironmentalImpact(
   const carbonIntensity = getRegionalCarbonIntensity(region);
   const timeOfDayMultiplier = getTimeOfDayMultiplier();
 
-  console.log(
-    "DEBUG: calculateComprehensiveEnvironmentalImpact region:",
-    region
-  );
-  console.log(
-    "DEBUG: calculateComprehensiveEnvironmentalImpact carbonIntensity:",
-    carbonIntensity
-  );
-  console.log(
-    "DEBUG: calculateComprehensiveEnvironmentalImpact timeOfDayMultiplier:",
-    timeOfDayMultiplier
-  );
-
-  // Convert to appropriate units
-  const diskSpaceGB = Math.max(0, diskSpace / (1024 * 1024 * 1024));
-  const diskSpaceMB = Math.max(0, diskSpace / (1024 * 1024));
-  const installTimeHours = Math.max(0, installTime / 3600);
+  // Convert to appropriate units with bounds checking to prevent NaN/Infinity
+  const diskSpaceGB = Math.max(
+    0,
+    Math.min(diskSpace / (1024 * 1024 * 1024), 1e6)
+  ); // Cap at 1M GB
+  const diskSpaceMB = Math.max(0, Math.min(diskSpace / (1024 * 1024), 1e9)); // Cap at 1B MB
+  const installTimeHours = Math.max(0, Math.min(installTime / 3600, 8760)); // Cap at 1 year
 
   // Calculate detailed energy breakdown
   const transferEnergy = diskSpaceGB * ENVIRONMENTAL_CONSTANTS.ENERGY_PER_GB;

@@ -608,64 +608,191 @@ export async function measurePackageInstallation(
     errors: [],
   };
 
+  // Validate package name to prevent command injection
+  if (!packageName || typeof packageName !== 'string' || !/^[\w./@-]+$/.test(packageName)) {
+    metrics.errors?.push('Invalid package name');
+    return metrics;
+  }
+
+  let temporaryDirectory: string | null = null;
+
   try {
     // Create temp directory with package.json
-    const temporaryDirectory = await createTemporaryPackageJson(packageName);
+    temporaryDirectory = await createTemporaryPackageJson(packageName);
 
-    // Measure install time
+    // Measure install time with timeout
     const startTime = Date.now();
+    const INSTALL_TIMEOUT = 120000; // 2 minutes max for install
+
     try {
       await new Promise<void>((resolve, reject) => {
-        const install = spawn("npm", ["install", "--no-package-lock"], {
-          cwd: temporaryDirectory,
+        const timeoutId = setTimeout(() => {
+          install.kill('SIGTERM');
+          reject(new Error('Installation timeout'));
+        }, INSTALL_TIMEOUT);
+
+        const install = spawn("npm", ["install", "--no-package-lock", "--no-audit", "--no-fund"], {
+          cwd: temporaryDirectory!,
           stdio: "ignore",
+          shell: false, // Prevent shell injection
         });
 
         install.on("close", (code) => {
+          clearTimeout(timeoutId);
           if (code === 0) resolve();
           else reject(new Error(`npm install failed with code ${code}`));
         });
-        install.on("error", reject);
+
+        install.on("error", (error) => {
+          clearTimeout(timeoutId);
+          reject(error);
+        });
       });
     } catch (error) {
-      metrics.errors?.push(`Install error: ${(error as Error).message}`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown install error';
+      metrics.errors?.push(`Install error: ${errorMessage}`);
     }
 
     metrics.installTime = (Date.now() - startTime) / 1000;
 
     // Measure disk space
     const nodeModulesPath = path.join(temporaryDirectory, "node_modules");
-    metrics.diskSpace = getDirectorySize(nodeModulesPath);
+    try {
+      metrics.diskSpace = getDirectorySize(nodeModulesPath);
+    } catch (error) {
+      metrics.errors?.push('Failed to measure disk space');
+    }
 
-    // Cleanup
-    await fs.rm(temporaryDirectory, { recursive: true, force: true });
   } catch (error) {
-    metrics.errors?.push(`Measurement error: ${(error as Error).message}`);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown measurement error';
+    metrics.errors?.push(`Measurement error: ${errorMessage}`);
+  } finally {
+    // Always cleanup, even on error
+    if (temporaryDirectory) {
+      try {
+        await fs.rm(temporaryDirectory, { recursive: true, force: true });
+      } catch {
+        // Ignore cleanup errors
+      }
+    }
   }
 
   return metrics;
 }
 
+// Rate limiting for npm API calls
+const npmApiRateLimiter = {
+  lastCallTime: 0,
+  minInterval: 200, // Minimum 200ms between calls (5 requests/second max)
+  queue: [] as Array<() => void>,
+  processing: false,
+};
+
+async function rateLimitedFetch(url: string, timeout = 10000): Promise<Response> {
+  return new Promise((resolve, reject) => {
+    const now = Date.now();
+    const timeSinceLastCall = now - npmApiRateLimiter.lastCallTime;
+    const waitTime = Math.max(0, npmApiRateLimiter.minInterval - timeSinceLastCall);
+
+    const executeFetch = async () => {
+      npmApiRateLimiter.lastCallTime = Date.now();
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+      try {
+        const response = await fetch(url, {
+          signal: controller.signal,
+          headers: {
+            'User-Agent': 'depsweep/1.0.0',
+            'Accept': 'application/json',
+          },
+        });
+        clearTimeout(timeoutId);
+        resolve(response);
+      } catch (error) {
+        clearTimeout(timeoutId);
+        reject(error);
+      }
+    };
+
+    if (waitTime === 0 && !npmApiRateLimiter.processing) {
+      npmApiRateLimiter.processing = true;
+      executeFetch().finally(() => {
+        npmApiRateLimiter.processing = false;
+        if (npmApiRateLimiter.queue.length > 0) {
+          const next = npmApiRateLimiter.queue.shift();
+          if (next) next();
+        }
+      });
+    } else {
+      npmApiRateLimiter.queue.push(() => {
+        npmApiRateLimiter.processing = true;
+        executeFetch().finally(() => {
+          npmApiRateLimiter.processing = false;
+          if (npmApiRateLimiter.queue.length > 0) {
+            const next = npmApiRateLimiter.queue.shift();
+            if (next) next();
+          }
+        });
+      });
+      setTimeout(() => {
+        if (npmApiRateLimiter.queue.length > 0 && !npmApiRateLimiter.processing) {
+          const next = npmApiRateLimiter.queue.shift();
+          if (next) next();
+        }
+      }, waitTime);
+    }
+  });
+}
+
 export async function getDownloadStatsFromNpm(
   packageName: string
 ): Promise<number | null> {
+  // Validate package name to prevent injection
+  if (!packageName || typeof packageName !== 'string' || !/^[\w./@-]+$/.test(packageName)) {
+    return null;
+  }
+
   try {
-    const response = await fetch(
-      `https://api.npmjs.org/downloads/point/last-month/${packageName}`
+    const encodedPackageName = encodeURIComponent(packageName);
+    const response = await rateLimitedFetch(
+      `https://api.npmjs.org/downloads/point/last-month/${encodedPackageName}`,
+      10000 // 10 second timeout
     );
+
     if (!response.ok) {
+      // Handle rate limiting (429) and other errors gracefully
+      if (response.status === 429) {
+        // Rate limited - wait longer before retry
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        return null;
+      }
       return null;
     }
+
     const data = await response.json();
     const downloadData = data as { downloads: number };
-    return downloadData.downloads || null;
-  } catch {
+
+    // Validate response data
+    if (typeof downloadData.downloads === 'number' && downloadData.downloads >= 0) {
+      return downloadData.downloads;
+    }
+
+    return null;
+  } catch (error) {
+    // Silently handle network errors - don't spam console
+    if (error instanceof Error && error.name === 'AbortError') {
+      // Timeout - expected in some cases
+      return null;
+    }
     return null;
   }
 }
 
 export async function getParentPackageDownloads(
-  packageJsonPath: string
+  packageJsonPath: string,
+  verbose = false
 ): Promise<{
   name: string;
   downloads: number;
@@ -675,19 +802,48 @@ export async function getParentPackageDownloads(
   try {
     const packageJsonString =
       (await fs.readFile(packageJsonPath, "utf8")) || "{}";
-    const packageJson = JSON.parse(packageJsonString);
-    const { name, repository, homepage } = packageJson;
-    if (!name) return null;
 
-    const downloads = await getDownloadStatsFromNpm(name);
-    if (!downloads) {
-      console.log(
-        chalk.yellow(`\nUnable to find download stats for '${name}'`)
-      );
+    // Validate JSON structure
+    let packageJson: any;
+    try {
+      packageJson = JSON.parse(packageJsonString);
+    } catch (parseError) {
+      if (verbose) {
+        console.error(chalk.red("Invalid package.json format"));
+      }
       return null;
     }
-    return { name, downloads, repository, homepage };
-  } catch {
+
+    // Validate package.json structure
+    if (typeof packageJson !== 'object' || packageJson === null) {
+      return null;
+    }
+
+    const { name, repository, homepage } = packageJson;
+
+    // Validate name field
+    if (!name || typeof name !== 'string' || !/^[\w./@-]+$/.test(name)) {
+      return null;
+    }
+
+    const downloads = await getDownloadStatsFromNpm(name);
+    if (!downloads && downloads !== 0) {
+      if (verbose) {
+        console.log(
+          chalk.yellow(`\nUnable to find download stats for '${name}'`)
+        );
+      }
+      return null;
+    }
+
+    return {
+      name,
+      downloads,
+      repository: typeof repository === 'object' ? repository : undefined,
+      homepage: typeof homepage === 'string' ? homepage : undefined
+    };
+  } catch (error) {
+    // Silently handle errors - don't expose internal details
     return null;
   }
 }
@@ -696,12 +852,22 @@ export async function getYearlyDownloads(
   packageName: string,
   months = 12
 ): Promise<{ total: number; monthsFetched: number; startDate: string } | null> {
+  // Validate package name
+  if (!packageName || typeof packageName !== 'string' || !/^[\w./@-]+$/.test(packageName)) {
+    return null;
+  }
+
+  // Limit months to reasonable range
+  const validMonths = Math.max(1, Math.min(months, 24));
+
   const monthlyDownloads: number[] = [];
   const currentDate = new Date();
   let startDate = "";
   let monthsFetched = 0;
+  let consecutiveErrors = 0;
+  const maxConsecutiveErrors = 3;
 
-  for (let index = 0; index < months; index++) {
+  for (let index = 0; index < validMonths; index++) {
     const start = new Date(
       currentDate.getFullYear(),
       currentDate.getMonth() - index,
@@ -716,12 +882,26 @@ export async function getYearlyDownloads(
     const [endString] = end.toISOString().split("T");
 
     try {
-      const response = await fetch(
-        `https://api.npmjs.org/downloads/range/${startString}:${endString}/${packageName}`
+      const encodedPackageName = encodeURIComponent(packageName);
+      const response = await rateLimitedFetch(
+        `https://api.npmjs.org/downloads/range/${startString}:${endString}/${encodedPackageName}`,
+        10000 // 10 second timeout
       );
+
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        if (response.status === 429) {
+          // Rate limited - wait before continuing
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+        consecutiveErrors++;
+        if (consecutiveErrors >= maxConsecutiveErrors) {
+          break;
+        }
+        continue;
       }
+
+      consecutiveErrors = 0; // Reset on success
+
       const data = (await response.json()) as {
         downloads: { downloads: number; day: string }[];
       };
@@ -729,7 +909,12 @@ export async function getYearlyDownloads(
       if (data.downloads && Array.isArray(data.downloads)) {
         // Sum all daily downloads for that month
         const monthTotal = data.downloads.reduce(
-          (accumulator, dayItem) => accumulator + (dayItem.downloads || 0),
+          (accumulator, dayItem) => {
+            const downloads = typeof dayItem.downloads === 'number' && dayItem.downloads >= 0
+              ? dayItem.downloads
+              : 0;
+            return accumulator + downloads;
+          },
           0
         );
         monthlyDownloads.push(monthTotal);
@@ -741,11 +926,12 @@ export async function getYearlyDownloads(
         monthsFetched++;
       }
     } catch (error) {
-      console.error(
-        `Failed to fetch downloads for ${startString} to ${endString}:`,
-        error
-      );
-      break;
+      consecutiveErrors++;
+      if (consecutiveErrors >= maxConsecutiveErrors) {
+        break;
+      }
+      // Continue to next month on error rather than breaking immediately
+      continue;
     }
   }
 
@@ -1262,27 +1448,27 @@ export function displayEnvironmentalImpactTable(
 
   table.push(
     [
-      "🌱 Carbon Savings",
+      "Carbon Savings",
       formatted.carbonSavings,
       `Equivalent to ${formatted.treesEquivalent} trees planted`,
     ],
     [
-      "⚡ Energy Savings",
+      "Energy Savings",
       formatted.energySavings,
       "Reduced data center energy consumption",
     ],
     [
-      "💧 Water Savings",
+      "Water Savings",
       formatted.waterSavings,
       "Reduced data center cooling needs",
     ],
     [
-      "🚗 Car Miles Equivalent",
+      "Car Miles Equivalent",
       formatted.carMilesEquivalent,
       "CO2 savings equivalent to driving",
     ],
     [
-      "🚀 Efficiency Gain",
+      "Efficiency Gain",
       formatted.efficiencyGain,
       "Improved build and runtime performance",
     ]
@@ -1300,50 +1486,50 @@ export function generateEnvironmentalRecommendations(
 
   if (impact.carbonSavings > 0.1) {
     recommendations.push(
-      `🌍 You're saving ${impact.carbonSavings.toFixed(
+      `Carbon savings: ${impact.carbonSavings.toFixed(
         3
       )} kg CO2e - equivalent to ${impact.treesEquivalent.toFixed(
         2
-      )} trees planted annually!`
+      )} trees planted annually`
     );
   }
 
   if (impact.energySavings > 0.01) {
     recommendations.push(
-      `⚡ Energy savings of ${impact.energySavings.toFixed(
+      `Energy savings: ${impact.energySavings.toFixed(
         3
-      )} kWh - enough to power a laptop for ${(
+      )} kWh - sufficient to power a laptop for ${(
         impact.energySavings * 10
-      ).toFixed(1)} hours!`
+      ).toFixed(1)} hours`
     );
   }
 
   if (impact.waterSavings > 1) {
     recommendations.push(
-      `💧 Water savings of ${impact.waterSavings.toFixed(
+      `Water savings: ${impact.waterSavings.toFixed(
         1
       )}L - equivalent to ${(impact.waterSavings / 2).toFixed(
         1
-      )} water bottles!`
+      )} standard water bottles`
     );
   }
 
   if (packageCount > 5) {
     recommendations.push(
-      `🎯 Removing ${packageCount} unused dependencies significantly reduces your project's environmental footprint!`
+      `Removing ${packageCount} unused dependencies significantly reduces your project's environmental footprint`
     );
   }
 
   if (impact.carMilesEquivalent > 0.1) {
     recommendations.push(
-      `🚗 Your CO2 savings equal driving ${impact.carMilesEquivalent.toFixed(
+      `CO2 savings equivalent to driving ${impact.carMilesEquivalent.toFixed(
         1
-      )} fewer miles - every bit helps!`
+      )} fewer miles`
     );
   }
 
   recommendations.push(
-    `🌟 You're making a real difference! Share your environmental impact with your team to inspire others.`
+    `Your actions are making a measurable difference. Share your environmental impact analysis with your team to encourage sustainable development practices.`
   );
 
   return recommendations;
@@ -1356,21 +1542,21 @@ export function displayEnvironmentalHeroMessage(
     impact.carbonSavings + impact.energySavings + impact.waterSavings;
 
   if (totalSavings > 1) {
-    console.log(chalk.green.bold("\n🏆 Environmental Hero Award! 🏆"));
+    console.log(chalk.green.bold("\nEnvironmental Impact: Significant"));
     console.log(
       chalk.green(
-        "You're making a significant positive impact on the environment!"
+        "Your dependency cleanup is making a measurable positive environmental impact"
       )
     );
   } else if (totalSavings > 0.1) {
-    console.log(chalk.yellow.bold("\n🌱 Green Developer! 🌱"));
+    console.log(chalk.yellow.bold("\nEnvironmental Impact: Positive"));
     console.log(
-      chalk.yellow("Every small action counts toward a sustainable future!")
+      chalk.yellow("Every optimization contributes to sustainable development practices")
     );
   } else {
-    console.log(chalk.blue.bold("\n💚 Eco-Conscious Developer! 💚"));
+    console.log(chalk.blue.bold("\nEnvironmental Impact: Measured"));
     console.log(
-      chalk.blue("You're contributing to a cleaner, more efficient codebase!")
+      chalk.blue("You are contributing to a more efficient and sustainable codebase")
     );
   }
 }

@@ -151,6 +151,40 @@ DepSweep automatically detects and analyzes:
 - Yarn workspaces
 - pnpm workspaces
 
+### GitHub Actions - Analyze Any Repository
+DepSweep includes a GitHub Actions workflow that allows you to analyze any repository or npm package without cloning it locally. Results are automatically posted as a comment on your issue and the issue is closed.
+
+#### Using Issue Template (Recommended)
+1. Go to the **Issues** tab in the DepSweep repository
+2. Click **New Issue**
+3. Select **Analyze Repository** template
+4. Fill in the form:
+   - **Repository URL or Package Name**: Enter either:
+     - A GitHub repository URL: `https://github.com/user/repo`
+     - An npm package name: `express`, `lodash`, etc.
+   - **Branch** (optional): Branch to analyze for GitHub repos (default: `main`)
+   - **Ignore Patterns** (optional): Comma-separated patterns to ignore
+   - **Verbose output** (optional): Check for detailed output
+5. Click **Submit new issue**
+
+The workflow will automatically:
+- Clone the repository (if GitHub URL) or install the package
+- Run DepSweep analysis with environmental impact reporting
+- Generate a comprehensive report
+- Post results as a comment on the issue
+- Close the issue automatically
+- Upload detailed report as a downloadable artifact
+
+#### Using Workflow Dispatch (Advanced)
+For manual workflow execution:
+1. Go to the **Actions** tab
+2. Select **Analyze Repository** workflow
+3. Click **Run workflow**
+4. Enter repository URL or package name
+5. Configure options and run
+
+**Note**: The issue template method is recommended as it provides better tracking and automatic result posting.
+
 ### Performance Optimization
 - **Memory Efficient**: Uses optimized caching and memory management
 - **Concurrent Processing**: Parallel file analysis for faster results

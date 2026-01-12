@@ -8,14 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.0] - 2024-09-12
 
 ### Added
-- 🌱 **Environmental Impact Analysis**: Calculate carbon savings, energy consumption, and water usage
-- 🔍 **Smart Dependency Detection**: Accurately identify unused dependencies across JavaScript, TypeScript, JSX, and TSX files
-- 🛡️ **Protected Dependencies**: Automatically protect critical packages from removal
-- ⚡ **Performance Optimization**: Memory-efficient processing with concurrent file analysis
-- 📊 **Beautiful Output**: Professional tables, progress bars, and detailed reporting
-- 🎯 **Advanced Configuration**: Ignore patterns, safe dependencies, and aggressive mode
-- 🔧 **CLI Interface**: Comprehensive command-line interface with help and version commands
-- 📚 **Comprehensive Documentation**: Complete README with examples and usage guides
+- **Environmental Impact Analysis**: Calculate carbon savings, energy consumption, and water usage
+- **Dependency Detection**: Identify unused dependencies across JavaScript, TypeScript, JSX, and TSX files
+- **Protected Dependencies**: Automatically protect critical packages from removal
+- **Performance Optimization**: Memory-efficient processing with concurrent file analysis
+- **Structured Output**: Professional tables, progress bars, and detailed reporting
+- **Advanced Configuration**: Ignore patterns, safe dependencies, and aggressive mode
+- **CLI Interface**: Comprehensive command-line interface with help and version commands
+- **Documentation**: Complete README with examples and usage guides
 
 ### Features
 - **Dependency Analysis**
@@ -113,4 +113,4 @@ depsweep --version
 
 ---
 
-**DepSweep - Making codebases cleaner and the environment greener! 🌱✨**
+**DepSweep - Optimizing dependencies, reducing waste, building sustainably**

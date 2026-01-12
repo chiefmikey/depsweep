@@ -115,33 +115,33 @@ depsweep --measure-impact --dry-run --no-progress
 
 DepSweep calculates several environmental impact metrics:
 
-- **🌱 Carbon Savings**: CO2 equivalent reduction in kg
-- **⚡ Energy Savings**: Reduced data center energy consumption in kWh
-- **💧 Water Savings**: Reduced cooling water usage in liters
-- **🌳 Tree Equivalents**: Trees that would need to be planted to offset carbon
-- **🚗 Car Miles**: Equivalent miles driven to produce the same CO2
-- **🚀 Efficiency Gain**: Performance improvement percentage
+- **Carbon Savings**: CO2 equivalent reduction in kg
+- **Energy Savings**: Reduced data center energy consumption in kWh
+- **Water Savings**: Reduced cooling water usage in liters
+- **Tree Equivalents**: Trees that would need to be planted to offset carbon
+- **Car Miles**: Equivalent miles driven to produce the same CO2
+- **Efficiency Gain**: Performance improvement percentage
 
 ### Example Output
 
 ```
-🌱 Environmental Impact Analysis
+Environmental Impact Analysis
 
-🌍 Total Environmental Impact
+Total Environmental Impact
 ┌─────────────────────────┬────────────────────┬───────────────────────────────────┐
 │ Metric                  │ Value              │ Impact                            │
 ├─────────────────────────┼────────────────────┼───────────────────────────────────┤
-│ 🌱 Carbon Savings       │ 0.492 kg CO2e      │ Equivalent to 0.02 trees/year     │
+│ Carbon Savings          │ 0.492 kg CO2e      │ Equivalent to 0.02 trees/year     │
 │                         │                    │ trees planted                     │
 ├─────────────────────────┼────────────────────┼───────────────────────────────────┤
-│ ⚡ Energy Savings       │ 1.273 kWh          │ Reduced data center energy        │
+│ Energy Savings          │ 1.273 kWh          │ Reduced data center energy        │
 │                         │                    │ consumption                       │
 ├─────────────────────────┼────────────────────┼───────────────────────────────────┤
-│ 💧 Water Savings        │ 2.4 L              │ Reduced data center cooling needs │
+│ Water Savings           │ 2.4 L              │ Reduced data center cooling needs │
 ├─────────────────────────┼────────────────────┼───────────────────────────────────┤
-│ 🚗 Car Miles Equivalent │ 1.3 miles          │ CO2 savings equivalent to driving │
+│ Car Miles Equivalent    │ 1.3 miles          │ CO2 savings equivalent to driving │
 ├─────────────────────────┼────────────────────┼───────────────────────────────────┤
-│ 🚀 Efficiency Gain      │ 18.5%              │ Improved build and runtime        │
+│ Efficiency Gain         │ 18.5%              │ Improved build and runtime        │
 │                         │                    │ performance                       │
 └─────────────────────────┴────────────────────┴───────────────────────────────────┘
 ```
@@ -151,7 +151,7 @@ DepSweep calculates several environmental impact metrics:
 Each unused dependency gets its own environmental impact breakdown:
 
 ```
-📦 Per-Package Environmental Impact:
+Per-Package Environmental Impact:
 
 lodash:
 
@@ -159,17 +159,17 @@ Package: lodash
 ┌─────────────────────────┬────────────────────┬───────────────────────────────────┐
 │ Metric                  │ Value              │ Impact                            │
 ├─────────────────────────┼────────────────────┼───────────────────────────────────┤
-│ 🌱 Carbon Savings       │ 0.098 kg CO2e      │ Equivalent to 0.00 trees/year     │
+│ Carbon Savings          │ 0.098 kg CO2e      │ Equivalent to 0.00 trees/year     │
 │                         │                    │ trees planted                     │
 ├─────────────────────────┼────────────────────┼───────────────────────────────────┤
-│ ⚡ Energy Savings       │ 0.253 kWh          │ Reduced data center energy        │
+│ Energy Savings          │ 0.253 kWh          │ Reduced data center energy        │
 │                         │                    │ consumption                       │
 ├─────────────────────────┼────────────────────┼───────────────────────────────────┤
-│ 💧 Water Savings        │ 0.5 L              │ Reduced data center cooling needs │
+│ Water Savings           │ 0.5 L              │ Reduced data center cooling needs │
 ├─────────────────────────┼────────────────────┼───────────────────────────────────┤
-│ 🚗 Car Miles Equivalent │ 0.3 miles          │ CO2 savings equivalent to driving │
+│ Car Miles Equivalent    │ 0.3 miles          │ CO2 savings equivalent to driving │
 ├─────────────────────────┼────────────────────┼───────────────────────────────────┤
-│ 🚀 Efficiency Gain      │ 18.5%              │ Improved build and runtime        │
+│ Efficiency Gain         │ 18.5%              │ Improved build and runtime        │
 │                         │                    │ performance                       │
 └─────────────────────────┴────────────────────┴───────────────────────────────────┘
 ```
@@ -342,4 +342,4 @@ A:
 
 ---
 
-**Happy cleaning! 🌱✨**
+**DepSweep - Optimizing dependencies, reducing waste, building sustainably**

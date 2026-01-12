@@ -1,25 +1,25 @@
-# DepSweep 🌱
+# DepSweep
 
-**Automated intelligent dependency cleanup with environmental impact reporting**
+**Enterprise-grade dependency analysis with environmental impact reporting**
 
 [![npm version](https://badge.fury.io/js/depsweep.svg)](https://badge.fury.io/js/depsweep)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node.js Version](https://img.shields.io/node/v/depsweep)](https://nodejs.org/)
 [![Test Coverage](https://img.shields.io/badge/coverage-71.5%25-green)](https://github.com/yourusername/depsweep)
 
-DepSweep is a powerful CLI tool that intelligently identifies unused dependencies in your Node.js projects and calculates their environmental impact. It helps you clean up your codebase while making a positive impact on the environment.
+DepSweep is a production-ready CLI tool that identifies unused dependencies in Node.js projects and calculates their environmental impact. Designed for enterprise use and high-traffic open source projects.
 
-## ✨ Features
+## Features
 
-- 🔍 **Smart Dependency Analysis**: Accurately identifies unused dependencies across JavaScript, TypeScript, JSX, and TSX files
-- 🌱 **Environmental Impact Reporting**: Calculates carbon savings, energy consumption, and water usage
-- 🛡️ **Safe Cleanup**: Protected dependencies prevent breaking changes
-- ⚡ **Performance Optimized**: Fast analysis with memory optimization
-- 🎯 **Flexible Configuration**: Customizable ignore patterns and safe dependencies
-- 📊 **Beautiful Output**: Professional tables and progress indicators
-- 🔧 **Developer Friendly**: Easy to use with comprehensive help
+- **Dependency Analysis**: Identifies unused dependencies across JavaScript, TypeScript, JSX, and TSX files using AST parsing
+- **Environmental Impact Reporting**: Calculates carbon savings, energy consumption, and water usage based on scientific research
+- **Safe Cleanup**: Protected dependencies prevent breaking changes
+- **Performance Optimized**: Fast analysis with memory optimization and parallel processing
+- **Flexible Configuration**: Customizable ignore patterns and safe dependencies
+- **Professional Output**: Structured tables and progress indicators
+- **Enterprise Ready**: Comprehensive error handling, rate limiting, and security features
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Installation
 
@@ -40,7 +40,7 @@ depsweep --measure-impact --dry-run --verbose
 depsweep --help
 ```
 
-## 📖 Usage Examples
+## Usage Examples
 
 ### Basic Analysis
 ```bash
@@ -63,41 +63,41 @@ depsweep --measure-impact --aggressive --dry-run
 depsweep --measure-impact --aggressive --safe "express" --ignore "src/**,tests/**" --verbose
 ```
 
-## 🌱 Environmental Impact
+## Environmental Impact
 
-DepSweep calculates the environmental impact of removing unused dependencies:
+DepSweep calculates the environmental impact of removing unused dependencies using scientifically validated methodologies:
 
-- **🌱 Carbon Savings**: CO2 equivalent reduction
-- **⚡ Energy Savings**: Reduced data center energy consumption
-- **💧 Water Savings**: Reduced cooling water usage
-- **🌳 Tree Equivalents**: Trees that would need to be planted to offset carbon
-- **🚗 Car Miles**: Equivalent miles driven to produce the same CO2
+- **Carbon Savings**: CO2 equivalent reduction (kg CO2e)
+- **Energy Savings**: Reduced data center energy consumption (kWh)
+- **Water Savings**: Reduced cooling water usage (liters)
+- **Tree Equivalents**: Trees that would need to be planted to offset carbon
+- **Car Miles**: Equivalent miles driven to produce the same CO2
 
 ### Example Output
 
 ```
-🌱 Environmental Impact Analysis
+Environmental Impact Analysis
 
-🌍 Total Environmental Impact
+Total Environmental Impact
 ┌─────────────────────────┬────────────────────┬───────────────────────────────────┐
 │ Metric                  │ Value              │ Impact                            │
 ├─────────────────────────┼────────────────────┼───────────────────────────────────┤
-│ 🌱 Carbon Savings       │ 0.492 kg CO2e      │ Equivalent to 0.02 trees/year     │
+│ Carbon Savings          │ 0.492 kg CO2e      │ Equivalent to 0.02 trees/year     │
 │                         │                    │ trees planted                     │
 ├─────────────────────────┼────────────────────┼───────────────────────────────────┤
-│ ⚡ Energy Savings       │ 1.273 kWh          │ Reduced data center energy        │
+│ Energy Savings          │ 1.273 kWh          │ Reduced data center energy        │
 │                         │                    │ consumption                       │
 ├─────────────────────────┼────────────────────┼───────────────────────────────────┤
-│ 💧 Water Savings        │ 2.4 L              │ Reduced data center cooling needs │
+│ Water Savings           │ 2.4 L              │ Reduced data center cooling needs │
 ├─────────────────────────┼────────────────────┼───────────────────────────────────┤
-│ 🚗 Car Miles Equivalent │ 1.3 miles          │ CO2 savings equivalent to driving │
+│ Car Miles Equivalent    │ 1.3 miles          │ CO2 savings equivalent to driving │
 ├─────────────────────────┼────────────────────┼───────────────────────────────────┤
-│ 🚀 Efficiency Gain      │ 18.5%              │ Improved build and runtime        │
+│ Efficiency Gain         │ 18.5%              │ Improved build and runtime        │
 │                         │                    │ performance                       │
 └─────────────────────────┴────────────────────┴───────────────────────────────────┘
 ```
 
-## 🛡️ Safety Features
+## Safety Features
 
 ### Protected Dependencies
 DepSweep automatically protects critical dependencies:
@@ -119,7 +119,7 @@ depsweep --measure-impact --dry-run  # Safe - no changes made
 depsweep --measure-impact            # Actually removes dependencies
 ```
 
-## ⚙️ Configuration Options
+## Configuration Options
 
 | Option | Short | Description |
 |--------|-------|-------------|
@@ -133,7 +133,7 @@ depsweep --measure-impact            # Actually removes dependencies
 | `--version` | | Display version information |
 | `--help` | `-h` | Display help information |
 
-## 🔧 Advanced Usage
+## Advanced Usage
 
 ### Ignore Patterns
 ```bash
@@ -156,7 +156,7 @@ DepSweep automatically detects and analyzes:
 - **Concurrent Processing**: Parallel file analysis for faster results
 - **Smart Caching**: Caches dependency analysis results
 
-## 📊 Supported Project Types
+## Supported Project Types
 
 - **Node.js**: Express, Koa, Fastify applications
 - **React**: Create React App, Next.js, Gatsby
@@ -165,7 +165,7 @@ DepSweep automatically detects and analyzes:
 - **TypeScript**: Pure TypeScript projects
 - **Monorepos**: Lerna, Yarn workspaces, pnpm workspaces
 
-## 🧪 Testing
+## Testing
 
 ```bash
 # Run all tests
@@ -179,7 +179,7 @@ npm run test:unit
 npm run test:e2e
 ```
 
-## 📈 Performance
+## Performance
 
 DepSweep is optimized for performance:
 - **Memory Usage**: 25-44MB for large projects
@@ -187,7 +187,7 @@ DepSweep is optimized for performance:
 - **Concurrent Operations**: Parallel file processing
 - **Smart Caching**: Reduces redundant operations
 
-## 🤝 Contributing
+## Contributing
 
 We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
 
@@ -211,17 +211,17 @@ npm test
 npm link
 ```
 
-## 📄 License
+## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
-- Inspired by the need for sustainable software development
-- Built with environmental consciousness in mind
+- Environmental impact calculations based on peer-reviewed research from IEA, EPA, USDA, and other scientific organizations
+- Built with enterprise-grade security and reliability standards
 - Thanks to all contributors and the open-source community
 
-## 📞 Support
+## Support
 
 - **Issues**: [GitHub Issues](https://github.com/yourusername/depsweep/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/yourusername/depsweep/discussions)
@@ -229,6 +229,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-**Make your codebase cleaner and the environment greener! 🌱✨**
-
-Made with ❤️ and 🌱 for a sustainable future.
+**DepSweep - Optimizing dependencies, reducing waste, building sustainably**

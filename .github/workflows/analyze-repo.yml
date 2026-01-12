@@ -233,8 +233,9 @@ jobs:
 
             // Check if any comment contains the analysis identifier
             // Look for both the identifier and a structured format
+            const escapedIdentifier = searchIdentifier.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
             const identifierPattern = new RegExp(
-              `(?:${searchType}|Identifier|Hash|Version)[:]*\\s*[\\`]?${searchIdentifier.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[\\`]?`,
+              '(?:' + searchType + '|Identifier|Hash|Version)[:]*\\s*[`]?' + escapedIdentifier + '[`]?',
               'i'
             );
 

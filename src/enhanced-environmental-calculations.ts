@@ -79,11 +79,7 @@ export function getTimeOfDayMultiplier(): number {
     } else {
       return ENVIRONMENTAL_CONSTANTS.OFF_PEAK_ENERGY_MULTIPLIER;
     }
-  } catch (error) {
-    console.log(
-      "DEBUG: getTimeOfDayMultiplier error, defaulting to 1.0:",
-      error
-    );
+  } catch {
     return 1.0; // Default multiplier if Date fails
   }
 }

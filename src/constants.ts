@@ -18,7 +18,7 @@ export const MESSAGES = {
   signalCleanup: "\n{0} received, cleaning up...",
   unexpected: "\nUnexpected error:",
   // New environmental impact messages
-  environmentalImpact: "🌱 Environmental Impact Analysis",
+  environmentalImpact: "Environmental Impact Analysis",
   carbonSavings: "Carbon Savings",
   energyEfficiency: "Energy Efficiency",
   waterSavings: "Water Savings",

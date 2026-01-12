@@ -66,7 +66,7 @@ jobs:
         echo "- Peak Heap: \$(node -e 'console.log(process.memoryUsage().heapUsed)') bytes" >> performance-report.md
 
     - name: Upload performance report
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: performance-report-node-${{ matrix.node-version }}
         path: performance-report.md

@@ -1,0 +1,48 @@
+name: Analyze Repository
+description: Request DepSweep analysis for a GitHub repository or npm package
+title: "[Analysis Request] "
+labels: ["analysis-request", "automated"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template to request DepSweep analysis for any GitHub repository or npm package.
+        The analysis will run automatically and results will be posted as a comment on this issue.
+
+  - type: input
+    id: target
+    attributes:
+      label: Repository URL or Package Name
+      description: |
+        Enter either:
+        - GitHub repository URL (e.g., https://github.com/user/repo)
+        - npm package name (e.g., express, lodash)
+      placeholder: "https://github.com/user/repo or package-name"
+    validations:
+      required: true
+
+  - type: input
+    id: branch
+    attributes:
+      label: Branch (GitHub repos only)
+      description: Branch to analyze (leave empty for default branch)
+      placeholder: "main"
+
+  - type: textarea
+    id: ignore_patterns
+    attributes:
+      label: Ignore Patterns (Optional)
+      description: Comma-separated patterns to ignore (e.g., tests/**,docs/**)
+      placeholder: "tests/**,docs/**"
+
+  - type: checkboxes
+    id: verbose
+    attributes:
+      label: Options
+      options:
+        - label: Verbose output
+
+  - type: markdown
+    attributes:
+      value: |
+        **Note**: The analysis will run automatically when this issue is created. Results will be posted as a comment and this issue will be closed.

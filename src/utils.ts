@@ -367,37 +367,89 @@ export async function findClosestPackageJson(
   return packageJsonPath;
 }
 
+/**
+ * Validates package.json structure and content
+ */
+function validatePackageJson(packageJson: any): { valid: boolean; error?: string } {
+  if (typeof packageJson !== 'object' || packageJson === null) {
+    return { valid: false, error: 'package.json must be an object' };
+  }
+
+  // Validate dependency fields if they exist
+  const dependencyFields = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'];
+  for (const field of dependencyFields) {
+    if (packageJson[field] !== undefined) {
+      if (typeof packageJson[field] !== 'object' || Array.isArray(packageJson[field])) {
+        return { valid: false, error: `${field} must be an object` };
+      }
+
+      // Validate dependency names
+      for (const depName of Object.keys(packageJson[field])) {
+        if (typeof depName !== 'string' || !FILE_PATTERNS.PACKAGE_NAME_REGEX.test(depName)) {
+          return { valid: false, error: `Invalid dependency name in ${field}: ${depName}` };
+        }
+      }
+    }
+  }
+
+  return { valid: true };
+}
+
 export async function getDependencies(
   packageJsonPath: string
 ): Promise<string[]> {
-  const packageJsonString =
-    (await fs.readFile(packageJsonPath, "utf8")) || "{}";
-  const packageJson = JSON.parse(packageJsonString);
+  try {
+    const packageJsonString = await fs.readFile(packageJsonPath, "utf8");
+    if (!packageJsonString || packageJsonString.trim() === '') {
+      return [];
+    }
 
-  const dependencies = packageJson.dependencies
-    ? Object.keys(packageJson.dependencies)
-    : [];
-  const devDependencies = packageJson.devDependencies
-    ? Object.keys(packageJson.devDependencies)
-    : [];
-  const peerDependencies = packageJson.peerDependencies
-    ? Object.keys(packageJson.peerDependencies)
-    : [];
-  const optionalDependencies = packageJson.optionalDependencies
-    ? Object.keys(packageJson.optionalDependencies)
-    : [];
+    let packageJson: any;
+    try {
+      packageJson = JSON.parse(packageJsonString);
+    } catch (parseError) {
+      console.error(chalk.red(`Invalid JSON in package.json: ${packageJsonPath}`));
+      return [];
+    }
 
-  const allDependencies = [
-    ...dependencies,
-    ...devDependencies,
-    ...peerDependencies,
-    ...optionalDependencies,
-  ];
+    // Validate package.json structure
+    const validation = validatePackageJson(packageJson);
+    if (!validation.valid) {
+      console.error(chalk.red(`Invalid package.json: ${validation.error}`));
+      return [];
+    }
 
-  // Sort all dependencies using custom sort function
-  allDependencies.sort(customSort);
+    const dependencies = packageJson.dependencies && typeof packageJson.dependencies === 'object'
+      ? Object.keys(packageJson.dependencies).filter(dep => FILE_PATTERNS.PACKAGE_NAME_REGEX.test(dep))
+      : [];
+    const devDependencies = packageJson.devDependencies && typeof packageJson.devDependencies === 'object'
+      ? Object.keys(packageJson.devDependencies).filter(dep => FILE_PATTERNS.PACKAGE_NAME_REGEX.test(dep))
+      : [];
+    const peerDependencies = packageJson.peerDependencies && typeof packageJson.peerDependencies === 'object'
+      ? Object.keys(packageJson.peerDependencies).filter(dep => FILE_PATTERNS.PACKAGE_NAME_REGEX.test(dep))
+      : [];
+    const optionalDependencies = packageJson.optionalDependencies && typeof packageJson.optionalDependencies === 'object'
+      ? Object.keys(packageJson.optionalDependencies).filter(dep => FILE_PATTERNS.PACKAGE_NAME_REGEX.test(dep))
+      : [];
 
-  return allDependencies;
+    const allDependencies = [
+      ...dependencies,
+      ...devDependencies,
+      ...peerDependencies,
+      ...optionalDependencies,
+    ];
+
+    // Remove duplicates
+    const uniqueDependencies = [...new Set(allDependencies)];
+
+    // Sort all dependencies using custom sort function
+    uniqueDependencies.sort(customSort);
+
+    return uniqueDependencies;
+  } catch (error) {
+    console.error(chalk.red(`Error reading package.json: ${packageJsonPath}`));
+    return [];
+  }
 }
 
 export async function getPackageContext(

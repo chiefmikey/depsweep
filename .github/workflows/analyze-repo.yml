@@ -31,13 +31,12 @@ permissions:
 
 env:
   NODE_VERSION: '20'
-  TIMEOUT_MINUTES: 30
 
 jobs:
   analyze:
     name: Analyze Repository
     runs-on: ubuntu-latest
-    timeout-minutes: ${{ env.TIMEOUT_MINUTES }}
+    timeout-minutes: 30
     # Only run on issues with analysis-request label or workflow_dispatch
     if: |
       (github.event_name == 'issues' && contains(github.event.issue.labels.*.name, 'analysis-request')) ||

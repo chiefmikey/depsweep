@@ -20,6 +20,7 @@ import CliTable from "cli-table3";
 import { isBinaryFileSync } from "isbinaryfile";
 import micromatch from "micromatch";
 import fetch from "node-fetch";
+import type { Response } from "node-fetch";
 import shellEscape from "shell-escape";
 
 import {
@@ -689,7 +690,7 @@ const npmApiRateLimiter = {
 };
 
 async function rateLimitedFetch(url: string, timeout = 10000): Promise<Response> {
-  return new Promise((resolve, reject) => {
+  return new Promise<Response>((resolve, reject) => {
     const now = Date.now();
     const timeSinceLastCall = now - npmApiRateLimiter.lastCallTime;
     const waitTime = Math.max(0, npmApiRateLimiter.minInterval - timeSinceLastCall);
@@ -709,7 +710,7 @@ async function rateLimitedFetch(url: string, timeout = 10000): Promise<Response>
           },
         });
         clearTimeout(timeoutId);
-        resolve(response);
+        resolve(response as Response);
       } catch (error) {
         clearTimeout(timeoutId);
         reject(error);

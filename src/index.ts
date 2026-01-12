@@ -472,7 +472,7 @@ async function main(): Promise<void> {
           } [${totalPackages}/${totalPackages}] ${chalk.green("✔")}`
         );
 
-        const parentInfo = await getParentPackageDownloads(packageJsonPath);
+        const parentInfo = await getParentPackageDownloads(packageJsonPath, options.verbose);
 
         logNewlines();
         console.log(
@@ -517,13 +517,13 @@ async function main(): Promise<void> {
         console.log(chalk.green.bold(MESSAGES.environmentalImpact));
         displayEnvironmentalImpactTable(
           totalEnvironmentalImpact,
-          "🌍 Total Environmental Impact"
+          "Total Environmental Impact"
         );
 
         // Display per-package environmental impact
         if (unusedDependencies.length > 1) {
           logNewlines();
-          console.log(chalk.blue.bold("📦 Per-Package Environmental Impact:"));
+          console.log(chalk.blue.bold("Per-Package Environmental Impact:"));
           for (const [index, dep] of unusedDependencies.entries()) {
             const impact = environmentalImpacts[index];
             console.log(chalk.blue(`\n${dep}:`));
@@ -601,7 +601,7 @@ async function main(): Promise<void> {
           if (totalEnvironmentalImpact) {
             logNewlines();
             console.log(
-              chalk.green.bold("💡 Environmental Impact Recommendations:")
+              chalk.green.bold("Environmental Impact Recommendations:")
             );
             const recommendations = generateEnvironmentalRecommendations(
               totalEnvironmentalImpact,
@@ -675,10 +675,14 @@ async function main(): Promise<void> {
           }
         }
 
-        // Validate before using in execSync
-        unusedDependencies = unusedDependencies.filter((dep) =>
-          isValidPackageName(dep)
-        );
+        // Validate before using in execSync - filter out invalid package names
+        unusedDependencies = unusedDependencies.filter((dep) => {
+          if (!isValidPackageName(dep)) {
+            console.warn(chalk.yellow(`Skipping invalid package name: ${dep}`));
+            return false;
+          }
+          return true;
+        });
 
         if (unusedDependencies.length > 0) {
           try {

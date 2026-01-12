@@ -1,0 +1,466 @@
+name: Analyze Repository
+
+on:
+  issues:
+    types: [opened]
+  workflow_dispatch:
+    inputs:
+      repository_url:
+        description: 'GitHub repository URL (e.g., https://github.com/user/repo) or package name'
+        required: true
+        type: string
+      branch:
+        description: 'Branch to analyze (default: main)'
+        required: false
+        type: string
+        default: 'main'
+      verbose:
+        description: 'Verbose output'
+        required: false
+        type: boolean
+        default: false
+      ignore_patterns:
+        description: 'Comma-separated ignore patterns (e.g., tests/**,docs/**)'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+
+env:
+  NODE_VERSION: '20'
+  TIMEOUT_MINUTES: 30
+
+jobs:
+  analyze:
+    name: Analyze Repository
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ env.TIMEOUT_MINUTES }}
+    # Only run on issues with analysis-request label or workflow_dispatch
+    if: |
+      (github.event_name == 'issues' && contains(github.event.issue.labels.*.name, 'analysis-request')) ||
+      github.event_name == 'workflow_dispatch'
+
+    steps:
+    - name: Checkout DepSweep
+      uses: actions/checkout@v4
+      with:
+        path: depsweep
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        cache-dependency-path: depsweep/package-lock.json
+
+    - name: Install DepSweep dependencies
+      working-directory: depsweep
+      run: npm ci
+
+    - name: Build DepSweep
+      working-directory: depsweep
+      run: npm run build
+
+    - name: Parse issue form data
+      if: github.event_name == 'issues'
+      id: issue-data
+      uses: actions/github-script@v7
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          const issueBody = context.payload.issue.body;
+
+          // Parse GitHub issue form data
+          // Format: ### Repository URL or Package Name\n\nvalue\n\n### Branch\n\nvalue
+          const targetMatch = issueBody.match(/### Repository URL or Package Name\s*\n\n([^\n]+)/);
+          const branchMatch = issueBody.match(/### Branch \(GitHub repos only\)\s*\n\n([^\n]+)/);
+          const ignoreMatch = issueBody.match(/### Ignore Patterns \(Optional\)\s*\n\n([^\n]+)/);
+          const verboseMatch = issueBody.match(/### Options\s*[\s\S]*?- \[([ x])\] Verbose output/);
+
+          const target = targetMatch ? targetMatch[1].trim() : '';
+          const branch = branchMatch && branchMatch[1].trim() && branchMatch[1].trim() !== '_No response_'
+            ? branchMatch[1].trim()
+            : 'main';
+          const ignorePatterns = ignoreMatch && ignoreMatch[1].trim() && ignoreMatch[1].trim() !== '_No response_'
+            ? ignoreMatch[1].trim()
+            : '';
+          const verbose = verboseMatch && verboseMatch[1] === 'x';
+
+          if (!target || target === '_No response_') {
+            core.setFailed('Repository URL or package name is required');
+          }
+
+          core.setOutput('target', target);
+          core.setOutput('branch', branch);
+          if (ignorePatterns) {
+            core.setOutput('ignore_patterns', ignorePatterns);
+          }
+          if (verbose) {
+            core.setOutput('verbose', 'true');
+          }
+
+    - name: Determine repository URL
+      id: repo-info
+      run: |
+        if [ "${{ github.event_name }}" = "issues" ]; then
+          REPO_URL="${{ steps.issue-data.outputs.target }}"
+          BRANCH="${{ steps.issue-data.outputs.branch }}"
+          if [ -n "${{ steps.issue-data.outputs.ignore_patterns }}" ]; then
+            echo "ignore_patterns=${{ steps.issue-data.outputs.ignore_patterns }}" >> $GITHUB_OUTPUT
+          fi
+          if [ "${{ steps.issue-data.outputs.verbose }}" = "true" ]; then
+            echo "verbose=true" >> $GITHUB_OUTPUT
+          fi
+        else
+          REPO_URL="${{ github.event.inputs.repository_url }}"
+          BRANCH="${{ github.event.inputs.branch || 'main' }}"
+          if [ -n "${{ github.event.inputs.ignore_patterns }}" ]; then
+            echo "ignore_patterns=${{ github.event.inputs.ignore_patterns }}" >> $GITHUB_OUTPUT
+          fi
+          if [ "${{ github.event.inputs.verbose }}" = "true" ]; then
+            echo "verbose=true" >> $GITHUB_OUTPUT
+          fi
+        fi
+
+        # Check if it's a GitHub URL or package name
+        if echo "$REPO_URL" | grep -qE '^https://github.com/'; then
+          REPO_NAME=$(echo "$REPO_URL" | sed 's|https://github.com/||' | sed 's|\.git$||')
+          OWNER=$(echo "$REPO_NAME" | cut -d'/' -f1)
+          REPO=$(echo "$REPO_NAME" | cut -d'/' -f2)
+          echo "repo_owner=$OWNER" >> $GITHUB_OUTPUT
+          echo "repo_name=$REPO" >> $GITHUB_OUTPUT
+          echo "repo_url=$REPO_URL" >> $GITHUB_OUTPUT
+          echo "branch=$BRANCH" >> $GITHUB_OUTPUT
+          echo "is_github_repo=true" >> $GITHUB_OUTPUT
+        else
+          echo "package_name=$REPO_URL" >> $GITHUB_OUTPUT
+          echo "is_github_repo=false" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Clone target repository
+      if: steps.repo-info.outputs.is_github_repo == 'true'
+      uses: actions/checkout@v4
+      with:
+        repository: ${{ steps.repo-info.outputs.repo_owner }}/${{ steps.repo-info.outputs.repo_name }}
+        ref: ${{ steps.repo-info.outputs.branch }}
+        path: target-repo
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Install target package (if package name)
+      if: steps.repo-info.outputs.is_github_repo == 'false'
+      run: |
+        mkdir -p target-repo
+        cd target-repo
+        npm init -y
+        npm install ${{ steps.repo-info.outputs.package_name }} --no-save
+
+    - name: Check if target has package.json
+      id: check-package
+      run: |
+        if [ -f "target-repo/package.json" ]; then
+          echo "has_package_json=true" >> $GITHUB_OUTPUT
+          PACKAGE_NAME=$(node -p "require('./target-repo/package.json').name || 'unknown'")
+          PACKAGE_VERSION=$(node -p "require('./target-repo/package.json').version || 'unknown'")
+          echo "package_name=$PACKAGE_NAME" >> $GITHUB_OUTPUT
+          echo "package_version=$PACKAGE_VERSION" >> $GITHUB_OUTPUT
+        else
+          echo "has_package_json=false" >> $GITHUB_OUTPUT
+          echo "No package.json found in target repository"
+          exit 1
+        fi
+
+    - name: Get repository commit hash (for GitHub repos)
+      if: steps.repo-info.outputs.is_github_repo == 'true'
+      id: repo-hash
+      working-directory: target-repo
+      run: |
+        COMMIT_HASH=$(git rev-parse HEAD)
+        echo "commit_hash=$COMMIT_HASH" >> $GITHUB_OUTPUT
+        echo "Commit hash: $COMMIT_HASH"
+
+    - name: Check for existing analysis
+      if: github.event_name == 'issues'
+      id: check-existing
+      uses: actions/github-script@v7
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          const fs = require('fs');
+
+          // Determine the identifier to search for
+          let searchIdentifier = '';
+          let searchType = '';
+
+          if ('${{ steps.repo-info.outputs.is_github_repo }}' === 'true') {
+            // For GitHub repos, use commit hash
+            searchIdentifier = '${{ steps.repo-hash.outputs.commit_hash }}';
+            searchType = 'commit';
+          } else {
+            // For npm packages, use name@version
+            const packageName = '${{ steps.check-package.outputs.package_name }}';
+            const packageVersion = '${{ steps.check-package.outputs.package_version }}';
+            searchIdentifier = `${packageName}@${packageVersion}`;
+            searchType = 'package';
+          }
+
+          // Search for existing issues with the same analysis
+          const { data: issues } = await github.rest.issues.listForRepo({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            state: 'all', // Check both open and closed
+            labels: 'analysis-request',
+            per_page: 100,
+            sort: 'updated',
+            direction: 'desc'
+          });
+
+          // Look for issues with matching identifier in comments
+          for (const issue of issues) {
+            // Skip the current issue
+            if (issue.number === context.issue.number) {
+              continue;
+            }
+
+            // Get comments for this issue
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issue.number,
+              per_page: 100
+            });
+
+            // Check if any comment contains the analysis identifier
+            // Look for both the identifier and a structured format
+            const identifierPattern = new RegExp(
+              `(?:${searchType}|Identifier|Hash|Version)[:]*\\s*[\\`]?${searchIdentifier.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[\\`]?`,
+              'i'
+            );
+
+            for (const comment of comments) {
+              if (comment.body && (
+                comment.body.includes(searchIdentifier) ||
+                identifierPattern.test(comment.body)
+              )) {
+                // Found existing analysis
+                core.setOutput('found', 'true');
+                core.setOutput('existing_issue_number', issue.number.toString());
+                core.setOutput('existing_issue_url', issue.html_url);
+                return;
+              }
+            }
+
+            // Also check issue body for the identifier
+            if (issue.body && (
+              issue.body.includes(searchIdentifier) ||
+              identifierPattern.test(issue.body)
+            )) {
+              core.setOutput('found', 'true');
+              core.setOutput('existing_issue_number', issue.number.toString());
+              core.setOutput('existing_issue_url', issue.html_url);
+              return;
+            }
+          }
+
+          core.setOutput('found', 'false');
+
+    - name: Link to existing analysis (if found)
+      if: |
+        github.event_name == 'issues' &&
+        steps.check-existing.outputs.found == 'true'
+      uses: actions/github-script@v7
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          const existingIssueNumber = '${{ steps.check-existing.outputs.existing_issue_number }}';
+          const existingIssueUrl = '${{ steps.check-existing.outputs.existing_issue_url }}';
+          const searchType = '${{ steps.repo-info.outputs.is_github_repo }}' === 'true' ? 'commit hash' : 'package version';
+          const searchIdentifier = '${{ steps.repo-info.outputs.is_github_repo }}' === 'true'
+            ? '${{ steps.repo-hash.outputs.commit_hash }}'
+            : '${{ steps.check-package.outputs.package_name }}@${{ steps.check-package.outputs.package_version }}';
+
+          const commentBody = `**Duplicate Analysis Detected**\n\n` +
+            `This analysis has already been performed for the same ${searchType}.\n\n` +
+            `**Identifier**: \`${searchIdentifier}\`\n\n` +
+            `**Existing Analysis**: [#${existingIssueNumber}](${existingIssueUrl})\n\n` +
+            `To save resources, this issue will be closed. Please refer to the existing analysis above.`;
+
+          await github.rest.issues.createComment({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: context.issue.number,
+            body: commentBody
+          });
+
+          await github.rest.issues.update({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: context.issue.number,
+            state: 'closed'
+          });
+
+    - name: Run DepSweep analysis
+      if: |
+        github.event_name == 'workflow_dispatch' ||
+        (github.event_name == 'issues' && steps.check-existing.outputs.found != 'true')
+      id: analysis
+      working-directory: target-repo
+      continue-on-error: true
+      run: |
+        IGNORE_ARGS=""
+        if [ -n "${{ steps.repo-info.outputs.ignore_patterns }}" ]; then
+          IGNORE_ARGS="--ignore ${{ steps.repo-info.outputs.ignore_patterns }}"
+        elif [ -n "${{ github.event.inputs.ignore_patterns }}" ]; then
+          IGNORE_ARGS="--ignore ${{ github.event.inputs.ignore_patterns }}"
+        fi
+
+        VERBOSE_ARGS=""
+        if [ "${{ steps.repo-info.outputs.verbose }}" = "true" ] || [ "${{ github.event.inputs.verbose }}" = "true" ]; then
+          VERBOSE_ARGS="--verbose"
+        fi
+
+        # Run analysis and capture output
+        node ../depsweep/dist/index.js \
+          --measure-impact \
+          --dry-run \
+          $IGNORE_ARGS \
+          $VERBOSE_ARGS \
+          > ../analysis-output.txt 2>&1 || ANALYSIS_EXIT=$?
+
+        # Capture exit code
+        echo "exit_code=${ANALYSIS_EXIT:-0}" >> $GITHUB_OUTPUT
+
+        # Extract key metrics from output
+        if grep -q "unused dependencies found" ../analysis-output.txt; then
+          echo "has_unused=true" >> $GITHUB_OUTPUT
+        else
+          echo "has_unused=false" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Generate analysis report
+      if: |
+        github.event_name == 'workflow_dispatch' ||
+        (github.event_name == 'issues' && steps.check-existing.outputs.found != 'true')
+      id: report
+      run: |
+        REPORT_FILE="analysis-report.md"
+
+        # Determine identifier for deduplication
+        if [ "${{ steps.repo-info.outputs.is_github_repo }}" = "true" ]; then
+          IDENTIFIER="${{ steps.repo-hash.outputs.commit_hash }}"
+          IDENTIFIER_TYPE="Commit Hash"
+        else
+          IDENTIFIER="${{ steps.check-package.outputs.package_name }}@${{ steps.check-package.outputs.package_version }}"
+          IDENTIFIER_TYPE="Package Version"
+        fi
+
+        echo "# DepSweep Analysis Report" > $REPORT_FILE
+        echo "" >> $REPORT_FILE
+        echo "**Repository**: ${{ steps.repo-info.outputs.repo_url || steps.repo-info.outputs.package_name }}" >> $REPORT_FILE
+        echo "**Package**: ${{ steps.check-package.outputs.package_name }}" >> $REPORT_FILE
+        echo "**Version**: ${{ steps.check-package.outputs.package_version }}" >> $REPORT_FILE
+        if [ "${{ steps.repo-info.outputs.is_github_repo }}" = "true" ]; then
+          echo "**Commit Hash**: \`${{ steps.repo-hash.outputs.commit_hash }}\`" >> $REPORT_FILE
+          echo "**Branch**: ${{ steps.repo-info.outputs.branch || 'main' }}" >> $REPORT_FILE
+        fi
+        echo "**Analysis Date**: $(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> $REPORT_FILE
+        echo "**${IDENTIFIER_TYPE}**: \`${IDENTIFIER}\`" >> $REPORT_FILE
+        echo "" >> $REPORT_FILE
+
+        if [ "${{ steps.analysis.outputs.exit_code }}" = "0" ]; then
+          echo "## Analysis Results" >> $REPORT_FILE
+          echo "" >> $REPORT_FILE
+          echo '```' >> $REPORT_FILE
+          cat analysis-output.txt >> $REPORT_FILE
+          echo '```' >> $REPORT_FILE
+        else
+          echo "## Analysis Error" >> $REPORT_FILE
+          echo "" >> $REPORT_FILE
+          echo "The analysis encountered an error. Details:" >> $REPORT_FILE
+          echo "" >> $REPORT_FILE
+          echo '```' >> $REPORT_FILE
+          cat analysis-output.txt >> $REPORT_FILE
+          echo '```' >> $REPORT_FILE
+        fi
+
+        echo "" >> $REPORT_FILE
+        echo "---" >> $REPORT_FILE
+        echo "*Generated by DepSweep GitHub Action*" >> $REPORT_FILE
+
+    - name: Upload analysis report
+      uses: actions/upload-artifact@v4
+      with:
+        name: depsweep-analysis-report
+        path: |
+          analysis-report.md
+          analysis-output.txt
+        retention-days: 30
+
+    - name: Post results to GitHub Summary
+      run: |
+        echo "## DepSweep Analysis Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Target**: ${{ steps.repo-info.outputs.repo_url || steps.repo-info.outputs.package_name }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Package**: ${{ steps.check-package.outputs.package_name }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+
+        if [ "${{ steps.analysis.outputs.exit_code }}" = "0" ]; then
+          echo "**Status**: Analysis completed successfully" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Key Findings" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.analysis.outputs.has_unused }}" = "true" ]; then
+            echo "- Unused dependencies detected" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- No unused dependencies found" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Full Report" >> $GITHUB_STEP_SUMMARY
+          echo "See the uploaded artifact for complete analysis results." >> $GITHUB_STEP_SUMMARY
+        else
+          echo "**Status**: Analysis encountered errors" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Check the analysis output for details." >> $GITHUB_STEP_SUMMARY
+        fi
+
+    - name: Comment results on issue
+      if: |
+        github.event_name == 'issues' &&
+        steps.check-existing.outputs.found != 'true'
+      uses: actions/github-script@v7
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          const fs = require('fs');
+          const report = fs.readFileSync('analysis-report.md', 'utf8');
+
+          // Add status indicator
+          const exitCode = '${{ steps.analysis.outputs.exit_code }}';
+          const statusText = exitCode === '0'
+            ? 'Analysis completed successfully'
+            : 'Analysis encountered errors';
+
+          const commentBody = `**${statusText}**\n\n${report}\n\n---\n*This analysis was automatically generated by DepSweep. The full report is also available as a downloadable artifact.*`;
+
+          await github.rest.issues.createComment({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: context.issue.number,
+            body: commentBody
+          });
+
+    - name: Close issue
+      if: |
+        github.event_name == 'issues' &&
+        steps.check-existing.outputs.found != 'true'
+      uses: actions/github-script@v7
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          await github.rest.issues.update({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: context.issue.number,
+            state: 'closed'
+          });

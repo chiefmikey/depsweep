@@ -85,13 +85,13 @@ jobs:
         if [ -n "$COVERAGE" ]; then
           echo "Current coverage: ${COVERAGE}%"
           if (( $(echo "$COVERAGE >= ${{ env.COVERAGE_THRESHOLD }}" | bc -l) )); then
-            echo "✅ Coverage threshold met: ${COVERAGE}% >= ${{ env.COVERAGE_THRESHOLD }}%"
+            echo "Coverage threshold met: ${COVERAGE}% >= ${{ env.COVERAGE_THRESHOLD }}%"
           else
-            echo "❌ Coverage threshold not met: ${COVERAGE}% < ${{ env.COVERAGE_THRESHOLD }}%"
+            echo "Coverage threshold not met: ${COVERAGE}% < ${{ env.COVERAGE_THRESHOLD }}%"
             exit 1
           fi
         else
-          echo "⚠️ Could not determine coverage percentage"
+          echo "Could not determine coverage percentage"
         fi
 
     - name: Upload Test Results
@@ -106,11 +106,11 @@ jobs:
 
     - name: Generate Test Summary
       run: |
-        echo "## 🧪 Test Runner Summary" >> $GITHUB_STEP_SUMMARY
+        echo "## Test Runner Summary" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "**Test Type**: ${{ github.event.inputs.test_type }}" >> $GITHUB_STEP_SUMMARY
         echo "**Node Version**: ${{ env.NODE_VERSION }}" >> $GITHUB_STEP_SUMMARY
         echo "**Coverage Threshold**: ${{ env.COVERAGE_THRESHOLD }}%" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### 📊 Results" >> $GITHUB_STEP_SUMMARY
-        echo "✅ Tests completed successfully" >> $GITHUB_STEP_SUMMARY
+        echo "### Results" >> $GITHUB_STEP_SUMMARY
+        echo "Tests completed successfully" >> $GITHUB_STEP_SUMMARY

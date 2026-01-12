@@ -42,7 +42,7 @@ jobs:
 
     - name: Generate status badge
       run: |
-        echo "## 📊 Project Status" >> $GITHUB_STEP_SUMMARY
+        echo "## Project Status" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "**Tests**: ${{ steps.test-status.outputs.status }}" >> $GITHUB_STEP_SUMMARY
         echo "**Last Check**: $(date)" >> $GITHUB_STEP_SUMMARY

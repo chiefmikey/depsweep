@@ -97,7 +97,7 @@ jobs:
       - name: Notify on success
         if: success()
         run: |
-          echo "🎉 Successfully published version ${{ steps.bump_version.outputs.new_version }}"
+          echo "Successfully published version ${{ steps.bump_version.outputs.new_version }}"
           echo "- NPM package: https://www.npmjs.com/package/depsweep"
           echo "- GitHub release: https://github.com/${{ github.repository }}/releases/tag/v${{ steps.bump_version.outputs.new_version }}"
 

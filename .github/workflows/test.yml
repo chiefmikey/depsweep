@@ -91,13 +91,13 @@ jobs:
           if [ -n "$COVERAGE" ]; then
             echo "Current coverage: ${COVERAGE}%"
             if (( $(echo "$COVERAGE >= ${{ env.COVERAGE_THRESHOLD }}" | bc -l) )); then
-              echo "✅ Coverage threshold met: ${COVERAGE}% >= ${{ env.COVERAGE_THRESHOLD }}%"
+              echo "Coverage threshold met: ${COVERAGE}% >= ${{ env.COVERAGE_THRESHOLD }}%"
             else
-              echo "❌ Coverage threshold not met: ${COVERAGE}% < ${{ env.COVERAGE_THRESHOLD }}%"
+              echo "Coverage threshold not met: ${COVERAGE}% < ${{ env.COVERAGE_THRESHOLD }}%"
               exit 1
             fi
           else
-            echo "⚠️ Could not determine coverage percentage"
+            echo "Could not determine coverage percentage"
           fi
         fi
 
@@ -180,19 +180,19 @@ jobs:
       run: |
         echo "Checking for TODO/FIXME comments..."
         if grep -r "TODO\|FIXME" src/ --exclude-dir=node_modules; then
-          echo "❌ Found TODO/FIXME comments in source code"
+          echo "Found TODO/FIXME comments in source code"
           exit 1
         fi
-        echo "✅ No TODO/FIXME comments found"
+        echo "No TODO/FIXME comments found"
 
     - name: Check for console.log statements in production code
       run: |
         echo "Checking for console.log statements..."
         if grep -r "console\.log" src/ --exclude-dir=node_modules; then
-          echo "❌ Found console.log statements in production code"
+          echo "Found console.log statements in production code"
           exit 1
         fi
-        echo "✅ No console.log statements found"
+        echo "No console.log statements found"
 
     - name: Check bundle size
       run: |
@@ -237,7 +237,7 @@ jobs:
       run: |
         echo "Checking for known vulnerabilities..."
         npm audit --audit-level=moderate || {
-          echo "⚠️ Found vulnerabilities, but continuing..."
+          echo "Found vulnerabilities, but continuing..."
           echo "Please review and update dependencies"
         }
 
@@ -287,20 +287,20 @@ jobs:
 
           requiredConstants.forEach(constant => {
             if (!(constant in ENVIRONMENTAL_CONSTANTS)) {
-              console.error(\`❌ Missing constant: \${constant}\`);
+              console.error(\`Missing constant: \${constant}\`);
               process.exit(1);
             }
             if (typeof ENVIRONMENTAL_CONSTANTS[constant] !== 'number') {
-              console.error(\`❌ Invalid type for \${constant}\`);
+              console.error(\`Invalid type for \${constant}\`);
               process.exit(1);
             }
             if (ENVIRONMENTAL_CONSTANTS[constant] <= 0) {
-              console.error(\`❌ Invalid value for \${constant}: \${ENVIRONMENTAL_CONSTANTS[constant]}\`);
+              console.error(\`Invalid value for \${constant}: \${ENVIRONMENTAL_CONSTANTS[constant]}\`);
               process.exit(1);
             }
           });
 
-          console.log('✅ All environmental constants are valid');
+          console.log('All environmental constants are valid');
         "
 
     - name: Validate protected dependencies
@@ -318,15 +318,15 @@ jobs:
 
           requiredCategories.forEach(category => {
             if (!(category in PROTECTED_DEPENDENCIES)) {
-              console.error(\`❌ Missing category: \${category}\`);
+              console.error(\`Missing category: \${category}\`);
               process.exit(1);
             }
             if (!Array.isArray(PROTECTED_DEPENDENCIES[category])) {
-              console.error(\`❌ Invalid type for category \${category}\`);
+              console.error(\`Invalid type for category \${category}\`);
               process.exit(1);
             }
             if (PROTECTED_DEPENDENCIES[category].length === 0) {
-              console.error(\`❌ Empty category: \${category}\`);
+              console.error(\`Empty category: \${category}\`);
               process.exit(1);
             }
           });
@@ -343,12 +343,12 @@ jobs:
           testCases.forEach(({ name, expected }) => {
             const result = isProtectedDependency(name);
             if (result !== expected) {
-              console.error(\`❌ \${name}: expected \${expected}, got \${result}\`);
+              console.error(\`\${name}: expected \${expected}, got \${result}\`);
               process.exit(1);
             }
           });
 
-          console.log('✅ Protected dependencies validation passed');
+          console.log('Protected dependencies validation passed');
         "
 
     - name: Test environmental impact calculations
@@ -361,7 +361,7 @@ jobs:
           const result = calculateEnvironmentalImpact(1073741824, 30, 1000);
 
           if (!result || typeof result !== 'object') {
-            console.error('❌ calculateEnvironmentalImpact returned invalid result');
+            console.error('calculateEnvironmentalImpact returned invalid result');
             process.exit(1);
           }
 
@@ -372,20 +372,20 @@ jobs:
 
           requiredProps.forEach(prop => {
             if (!(prop in result)) {
-              console.error(\`❌ Missing property: \${prop}\`);
+              console.error(\`Missing property: \${prop}\`);
               process.exit(1);
             }
             if (typeof result[prop] !== 'number') {
-              console.error(\`❌ Invalid type for \${prop}\`);
+              console.error(\`Invalid type for \${prop}\`);
               process.exit(1);
             }
             if (result[prop] < 0) {
-              console.error(\`❌ Negative value for \${prop}: \${result[prop]}\`);
+              console.error(\`Negative value for \${prop}: \${result[prop]}\`);
               process.exit(1);
             }
           });
 
-          console.log('✅ Environmental impact calculations are valid');
+          console.log('Environmental impact calculations are valid');
         "
 
   # Performance Tests (Optional)
@@ -438,63 +438,63 @@ jobs:
 
     - name: Generate test summary
       run: |
-        echo "## 🧪 Test & Quality Gate Summary" >> $GITHUB_STEP_SUMMARY
+        echo "## Test & Quality Gate Summary" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### 📊 Test Results" >> $GITHUB_STEP_SUMMARY
+        echo "### Test Results" >> $GITHUB_STEP_SUMMARY
 
         if [ "${{ needs.test.result }}" = "success" ]; then
-          echo "✅ **Unit Tests**: PASSED" >> $GITHUB_STEP_SUMMARY
+          echo "**Unit Tests**: PASSED" >> $GITHUB_STEP_SUMMARY
         else
-          echo "❌ **Unit Tests**: FAILED" >> $GITHUB_STEP_SUMMARY
+          echo "**Unit Tests**: FAILED" >> $GITHUB_STEP_SUMMARY
         fi
 
         if [ "${{ needs.e2e.result }}" = "success" ]; then
-          echo "✅ **E2E Tests**: PASSED" >> $GITHUB_STEP_SUMMARY
+          echo "**E2E Tests**: PASSED" >> $GITHUB_STEP_SUMMARY
         elif [ "${{ needs.e2e.result }}" = "skipped" ]; then
-          echo "⏭️ **E2E Tests**: SKIPPED" >> $GITHUB_STEP_SUMMARY
+          echo "**E2E Tests**: SKIPPED" >> $GITHUB_STEP_SUMMARY
         else
-          echo "❌ **E2E Tests**: FAILED" >> $GITHUB_STEP_SUMMARY
+          echo "**E2E Tests**: FAILED" >> $GITHUB_STEP_SUMMARY
         fi
 
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### 🔍 Quality Checks" >> $GITHUB_STEP_SUMMARY
+        echo "### Quality Checks" >> $GITHUB_STEP_SUMMARY
 
         if [ "${{ needs.quality.result }}" = "success" ]; then
-          echo "✅ **Code Quality**: PASSED" >> $GITHUB_STEP_SUMMARY
+          echo "**Code Quality**: PASSED" >> $GITHUB_STEP_SUMMARY
         else
-          echo "❌ **Code Quality**: FAILED" >> $GITHUB_STEP_SUMMARY
+          echo "**Code Quality**: FAILED" >> $GITHUB_STEP_SUMMARY
         fi
 
         if [ "${{ needs.security.result }}" = "success" ]; then
-          echo "✅ **Security**: PASSED" >> $GITHUB_STEP_SUMMARY
+          echo "**Security**: PASSED" >> $GITHUB_STEP_SUMMARY
         else
-          echo "❌ **Security**: FAILED" >> $GITHUB_STEP_SUMMARY
+          echo "**Security**: FAILED" >> $GITHUB_STEP_SUMMARY
         fi
 
         if [ "${{ needs.environmental-impact.result }}" = "success" ]; then
-          echo "✅ **Environmental Impact**: PASSED" >> $GITHUB_STEP_SUMMARY
+          echo "**Environmental Impact**: PASSED" >> $GITHUB_STEP_SUMMARY
         else
-          echo "❌ **Environmental Impact**: FAILED" >> $GITHUB_STEP_SUMMARY
+          echo "**Environmental Impact**: FAILED" >> $GITHUB_STEP_SUMMARY
         fi
 
         if [ "${{ needs.performance.result }}" = "success" ]; then
-          echo "✅ **Performance**: PASSED" >> $GITHUB_STEP_SUMMARY
+          echo "**Performance**: PASSED" >> $GITHUB_STEP_SUMMARY
         elif [ "${{ needs.performance.result }}" = "skipped" ]; then
-          echo "⏭️ **Performance**: SKIPPED" >> $GITHUB_STEP_SUMMARY
+          echo "**Performance**: SKIPPED" >> $GITHUB_STEP_SUMMARY
         else
-          echo "❌ **Performance**: FAILED" >> $GITHUB_STEP_SUMMARY
+          echo "**Performance**: FAILED" >> $GITHUB_STEP_SUMMARY
         fi
 
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### 🎯 Coverage Target" >> $GITHUB_STEP_SUMMARY
+        echo "### Coverage Target" >> $GITHUB_STEP_SUMMARY
         echo "**Target**: ${{ env.COVERAGE_THRESHOLD }}%" >> $GITHUB_STEP_SUMMARY
 
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### 🚀 Next Steps" >> $GITHUB_STEP_SUMMARY
+        echo "### Next Steps" >> $GITHUB_STEP_SUMMARY
         if [ "${{ needs.test.result }}" = "success" ] && [ "${{ needs.quality.result }}" = "success" ] && [ "${{ needs.security.result }}" = "success" ] && [ "${{ needs.environmental-impact.result }}" = "success" ]; then
-          echo "🎉 **All checks passed!** Ready for deployment." >> $GITHUB_STEP_SUMMARY
+          echo "**All checks passed** - Ready for deployment." >> $GITHUB_STEP_SUMMARY
         else
-          echo "⚠️ **Some checks failed.** Please review and fix issues before proceeding." >> $GITHUB_STEP_SUMMARY
+          echo "**Some checks failed** - Please review and fix issues before proceeding." >> $GITHUB_STEP_SUMMARY
         fi
 
     - name: Fail if any required job failed
@@ -504,7 +504,7 @@ jobs:
         needs.security.result != 'success' ||
         needs.environmental-impact.result != 'success'
       run: |
-        echo "❌ Quality gate failed. One or more required checks failed."
+        echo "Quality gate failed. One or more required checks failed."
         exit 1
 
   # Manual Deployment (Optional)
@@ -535,11 +535,11 @@ jobs:
 
     - name: Deploy to production
       run: |
-        echo "🚀 Deploying to production..."
+        echo "Deploying to production..."
         # Add your deployment commands here
-        echo "✅ Deployment completed successfully"
+        echo "Deployment completed successfully"
 
     - name: Notify deployment success
       run: |
-        echo "🎉 Successfully deployed to production!"
+        echo "Successfully deployed to production"
         # Add your notification logic here

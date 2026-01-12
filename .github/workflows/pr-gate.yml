@@ -83,7 +83,7 @@ jobs:
 
         # Check if tests passed
         if echo "$COVERAGE_OUTPUT" | grep -q "Test Suites:.*failed"; then
-          echo "❌ Some test suites failed"
+          echo "Some test suites failed"
           exit 1
         fi
 
@@ -92,13 +92,13 @@ jobs:
         if [ -n "$COVERAGE" ]; then
           echo "Current coverage: ${COVERAGE}%"
           if (( $(echo "$COVERAGE >= ${{ env.COVERAGE_THRESHOLD }}" | bc -l) )); then
-            echo "✅ Coverage threshold met: ${COVERAGE}% >= ${{ env.COVERAGE_THRESHOLD }}%"
+            echo "Coverage threshold met: ${COVERAGE}% >= ${{ env.COVERAGE_THRESHOLD }}%"
           else
-            echo "❌ Coverage threshold not met: ${COVERAGE}% < ${{ env.COVERAGE_THRESHOLD }}%"
+            echo "Coverage threshold not met: ${COVERAGE}% < ${{ env.COVERAGE_THRESHOLD }}%"
             exit 1
           fi
         else
-          echo "⚠️ Could not determine coverage percentage, but tests passed"
+          echo "Could not determine coverage percentage, but tests passed"
         fi
 
     - name: Upload coverage to Codecov
@@ -137,20 +137,20 @@ jobs:
       run: |
         echo "Checking for console.log statements in production code..."
         if grep -r "console\.log" src/ --exclude-dir=node_modules; then
-          echo "❌ Found console.log statements in production code"
+          echo "Found console.log statements in production code"
           exit 1
         fi
-        echo "✅ No console.log statements found"
+        echo "No console.log statements found"
 
     - name: Check for TODO/FIXME comments
       run: |
         echo "Checking for TODO/FIXME comments..."
         if grep -r "TODO\|FIXME" src/ --exclude-dir=node_modules; then
-          echo "⚠️ Found TODO/FIXME comments in source code"
+          echo "Found TODO/FIXME comments in source code"
           echo "Please address these before merging:"
           grep -r "TODO\|FIXME" src/ --exclude-dir=node_modules
         else
-          echo "✅ No TODO/FIXME comments found"
+          echo "No TODO/FIXME comments found"
         fi
 
     - name: Run TypeScript check
@@ -223,16 +223,16 @@ jobs:
           let allValid = true;
           criticalConstants.forEach(constant => {
             if (!(constant in ENVIRONMENTAL_CONSTANTS)) {
-              console.error(\`❌ Missing constant: \${constant}\`);
+              console.error(\`Missing constant: \${constant}\`);
               allValid = false;
             } else if (typeof ENVIRONMENTAL_CONSTANTS[constant] !== 'number' || ENVIRONMENTAL_CONSTANTS[constant] <= 0) {
-              console.error(\`❌ Invalid value for \${constant}: \${ENVIRONMENTAL_CONSTANTS[constant]}\`);
+              console.error(\`Invalid value for \${constant}: \${ENVIRONMENTAL_CONSTANTS[constant]}\`);
               allValid = false;
             }
           });
 
           if (allValid) {
-            console.log('✅ Environmental constants are valid');
+            console.log('Environmental constants are valid');
           } else {
             process.exit(1);
           }
@@ -248,7 +248,7 @@ jobs:
           const result = calculateEnvironmentalImpact(1073741824, 30, 1000);
 
           if (!result || typeof result !== 'object') {
-            console.error('❌ calculateEnvironmentalImpact returned invalid result');
+            console.error('calculateEnvironmentalImpact returned invalid result');
             process.exit(1);
           }
 
@@ -258,16 +258,16 @@ jobs:
 
           requiredProps.forEach(prop => {
             if (!(prop in result)) {
-              console.error(\`❌ Missing property: \${prop}\`);
+              console.error(\`Missing property: \${prop}\`);
               allValid = false;
             } else if (typeof result[prop] !== 'number' || isNaN(result[prop])) {
-              console.error(\`❌ Invalid value for \${prop}: \${result[prop]}\`);
+              console.error(\`Invalid value for \${prop}: \${result[prop]}\`);
               allValid = false;
             }
           });
 
           if (allValid) {
-            console.log('✅ Environmental impact calculations are working');
+            console.log('Environmental impact calculations are working');
           } else {
             process.exit(1);
           }
@@ -286,54 +286,54 @@ jobs:
 
     - name: Generate PR Gate Summary
       run: |
-        echo "## 🚪 PR Gate Summary" >> $GITHUB_STEP_SUMMARY
+        echo "## PR Gate Summary" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### 📊 Test Results" >> $GITHUB_STEP_SUMMARY
+        echo "### Test Results" >> $GITHUB_STEP_SUMMARY
 
         # Quick Tests
         if [ "${{ needs.quick-tests.result }}" = "success" ]; then
-          echo "✅ **Quick Tests**: PASSED" >> $GITHUB_STEP_SUMMARY
+          echo "**Quick Tests**: PASSED" >> $GITHUB_STEP_SUMMARY
         else
-          echo "❌ **Quick Tests**: FAILED" >> $GITHUB_STEP_SUMMARY
+          echo "**Quick Tests**: FAILED" >> $GITHUB_STEP_SUMMARY
         fi
 
         # Comprehensive Tests
         if [ "${{ needs.comprehensive-tests.result }}" = "success" ]; then
-          echo "✅ **Comprehensive Tests**: PASSED" >> $GITHUB_STEP_SUMMARY
+          echo "**Comprehensive Tests**: PASSED" >> $GITHUB_STEP_SUMMARY
         else
-          echo "❌ **Comprehensive Tests**: FAILED" >> $GITHUB_STEP_SUMMARY
+          echo "**Comprehensive Tests**: FAILED" >> $GITHUB_STEP_SUMMARY
         fi
 
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### 🔍 Quality Checks" >> $GITHUB_STEP_SUMMARY
+        echo "### Quality Checks" >> $GITHUB_STEP_SUMMARY
 
         # Quality Checks
         if [ "${{ needs.quality-checks.result }}" = "success" ]; then
-          echo "✅ **Code Quality**: PASSED" >> $GITHUB_STEP_SUMMARY
+          echo "**Code Quality**: PASSED" >> $GITHUB_STEP_SUMMARY
         else
-          echo "❌ **Code Quality**: FAILED" >> $GITHUB_STEP_SUMMARY
+          echo "**Code Quality**: FAILED" >> $GITHUB_STEP_SUMMARY
         fi
 
         # Security Checks
         if [ "${{ needs.security-checks.result }}" = "success" ]; then
-          echo "✅ **Security**: PASSED" >> $GITHUB_STEP_SUMMARY
+          echo "**Security**: PASSED" >> $GITHUB_STEP_SUMMARY
         else
-          echo "❌ **Security**: FAILED" >> $GITHUB_STEP_SUMMARY
+          echo "**Security**: FAILED" >> $GITHUB_STEP_SUMMARY
         fi
 
         # Environmental Validation
         if [ "${{ needs.environmental-validation.result }}" = "success" ]; then
-          echo "✅ **Environmental Impact**: PASSED" >> $GITHUB_STEP_SUMMARY
+          echo "**Environmental Impact**: PASSED" >> $GITHUB_STEP_SUMMARY
         else
-          echo "❌ **Environmental Impact**: FAILED" >> $GITHUB_STEP_SUMMARY
+          echo "**Environmental Impact**: FAILED" >> $GITHUB_STEP_SUMMARY
         fi
 
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### 🎯 Coverage Target" >> $GITHUB_STEP_SUMMARY
+        echo "### Coverage Target" >> $GITHUB_STEP_SUMMARY
         echo "**Minimum Required**: ${{ env.COVERAGE_THRESHOLD }}%" >> $GITHUB_STEP_SUMMARY
 
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### 🚀 PR Gate Decision" >> $GITHUB_STEP_SUMMARY
+        echo "### PR Gate Decision" >> $GITHUB_STEP_SUMMARY
 
         # Determine if PR should be approved
         if [ "${{ needs.quick-tests.result }}" = "success" ] &&
@@ -341,11 +341,11 @@ jobs:
            [ "${{ needs.quality-checks.result }}" = "success" ] &&
            [ "${{ needs.security-checks.result }}" = "success" ] &&
            [ "${{ needs.environmental-validation.result }}" = "success" ]; then
-          echo "🎉 **PR APPROVED** - All checks passed!" >> $GITHUB_STEP_SUMMARY
-          echo "✅ This PR is ready for review and merge." >> $GITHUB_STEP_SUMMARY
+          echo "**PR APPROVED** - All checks passed" >> $GITHUB_STEP_SUMMARY
+          echo "This PR is ready for review and merge." >> $GITHUB_STEP_SUMMARY
         else
-          echo "❌ **PR BLOCKED** - Some checks failed." >> $GITHUB_STEP_SUMMARY
-          echo "⚠️ Please fix the failing checks before this PR can be merged." >> $GITHUB_STEP_SUMMARY
+          echo "**PR BLOCKED** - Some checks failed." >> $GITHUB_STEP_SUMMARY
+          echo "Please fix the failing checks before this PR can be merged." >> $GITHUB_STEP_SUMMARY
         fi
 
     - name: Set PR status
@@ -355,9 +355,9 @@ jobs:
            [ "${{ needs.quality-checks.result }}" = "success" ] &&
            [ "${{ needs.security-checks.result }}" = "success" ] &&
            [ "${{ needs.environmental-validation.result }}" = "success" ]; then
-          echo "✅ PR Gate: PASSED"
+          echo "PR Gate: PASSED"
         else
-          echo "❌ PR Gate: FAILED"
+          echo "PR Gate: FAILED"
           exit 1
         fi
 
@@ -377,22 +377,22 @@ jobs:
             comment.body.includes('PR Gate Summary')
           );
 
-          const summary = `## 🚪 PR Gate Summary
+          const summary = `## PR Gate Summary
 
-          ### 📊 Test Results
-          - **Quick Tests**: ${{ needs.quick-tests.result == 'success' && '✅ PASSED' || '❌ FAILED' }}
-          - **Comprehensive Tests**: ${{ needs.comprehensive-tests.result == 'success' && '✅ PASSED' || '❌ FAILED' }}
+          ### Test Results
+          - **Quick Tests**: ${{ needs.quick-tests.result == 'success' && 'PASSED' || 'FAILED' }}
+          - **Comprehensive Tests**: ${{ needs.comprehensive-tests.result == 'success' && 'PASSED' || 'FAILED' }}
 
-          ### 🔍 Quality Checks
-          - **Code Quality**: ${{ needs.quality-checks.result == 'success' && '✅ PASSED' || '❌ FAILED' }}
-          - **Security**: ${{ needs.security-checks.result == 'success' && '✅ PASSED' || '❌ FAILED' }}
-          - **Environmental Impact**: ${{ needs.environmental-validation.result == 'success' && '✅ PASSED' || '❌ FAILED' }}
+          ### Quality Checks
+          - **Code Quality**: ${{ needs.quality-checks.result == 'success' && 'PASSED' || 'FAILED' }}
+          - **Security**: ${{ needs.security-checks.result == 'success' && 'PASSED' || 'FAILED' }}
+          - **Environmental Impact**: ${{ needs.environmental-validation.result == 'success' && 'PASSED' || 'FAILED' }}
 
-          ### 🎯 Coverage Target
+          ### Coverage Target
           **Minimum Required**: ${{ env.COVERAGE_THRESHOLD }}%
 
-          ### 🚀 PR Gate Decision
-          ${{ needs.quick-tests.result == 'success' && needs.comprehensive-tests.result == 'success' && needs.quality-checks.result == 'success' && needs.security-checks.result == 'success' && needs.environmental-validation.result == 'success' && '🎉 **PR APPROVED** - All checks passed! This PR is ready for review and merge.' || '❌ **PR BLOCKED** - Some checks failed. Please fix the failing checks before this PR can be merged.' }}
+          ### PR Gate Decision
+          ${{ needs.quick-tests.result == 'success' && needs.comprehensive-tests.result == 'success' && needs.quality-checks.result == 'success' && needs.security-checks.result == 'success' && needs.environmental-validation.result == 'success' && '**PR APPROVED** - All checks passed. This PR is ready for review and merge.' || '**PR BLOCKED** - Some checks failed. Please fix the failing checks before this PR can be merged.' }}
 
           ---
           *This comment was automatically generated by the PR Gate workflow.*`;

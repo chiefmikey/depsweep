@@ -84,7 +84,7 @@
     "cli-table3": "^0.6.5",
     "commander": "^14.0.0",
     "find-up": "^7.0.0",
-    "globby": "^14.1.0",
+    "globby": "^16.1.0",
     "isbinaryfile": "^5.0.6",
     "lru-cache": "^11.2.1",
     "node-fetch": "^3.3.2",

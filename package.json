@@ -95,7 +95,7 @@
   "devDependencies": {
     "@eslint/js": "^9.39.2",
     "@types/cli-progress": "^3.11.6",
-    "@types/glob": "^8.1.0",
+    "@types/glob": "^9.0.0",
     "@types/jest": "^29.5.12",
     "@types/micromatch": "^4.0.9",
     "@types/node": "^24.3.0",

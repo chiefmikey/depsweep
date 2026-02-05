@@ -88,7 +88,7 @@
     "isbinaryfile": "^5.0.6",
     "lru-cache": "^11.2.1",
     "node-fetch": "^3.3.2",
-    "ora": "^8.2.0",
+    "ora": "^9.3.0",
     "shell-escape": "^0.2.0",
     "yaml": "^2.8.1"
   },

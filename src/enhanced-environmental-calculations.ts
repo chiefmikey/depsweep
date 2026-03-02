@@ -36,7 +36,7 @@ export function detectUserRegion(): "NA" | "EU" | "AP" | "GLOBAL" {
     }
 
     return "GLOBAL";
-  } catch (error) {
+  } catch {
     return "NA"; // Default to NA if Intl fails
   }
 }
@@ -45,7 +45,7 @@ export function detectUserRegion(): "NA" | "EU" | "AP" | "GLOBAL" {
  * Gets the appropriate carbon intensity for the user's region
  */
 export function getRegionalCarbonIntensity(
-  region: "NA" | "EU" | "AP" | "GLOBAL"
+  region: "NA" | "EU" | "AP" | "GLOBAL",
 ): number {
   switch (region) {
     case "NA":
@@ -82,7 +82,7 @@ export function getTimeOfDayMultiplier(): number {
   } catch (error) {
     console.log(
       "DEBUG: getTimeOfDayMultiplier error, defaulting to 1.0:",
-      error
+      error,
     );
     return 1.0; // Default multiplier if Date fails
   }
@@ -93,12 +93,12 @@ export function getTimeOfDayMultiplier(): number {
  */
 export function calculateCPUEnergy(
   diskSpaceGB: number,
-  processingComplexity: number = 1.0
+  processingComplexity: number = 1.0,
 ): number {
   const baseEnergy = diskSpaceGB * ENVIRONMENTAL_CONSTANTS.CPU_ENERGY_PER_GB;
   const complexityMultiplier = Math.max(
     0.5,
-    Math.min(2.0, processingComplexity)
+    Math.min(2.0, processingComplexity),
   );
   return Math.max(0, baseEnergy * complexityMultiplier);
 }
@@ -108,7 +108,7 @@ export function calculateCPUEnergy(
  */
 export function calculateMemoryEnergy(
   diskSpaceGB: number,
-  accessFrequency: number = 1.0
+  accessFrequency: number = 1.0,
 ): number {
   const baseEnergy = diskSpaceGB * ENVIRONMENTAL_CONSTANTS.MEMORY_ENERGY_PER_GB;
   const frequencyMultiplier = Math.max(0.1, Math.min(3.0, accessFrequency));
@@ -120,7 +120,7 @@ export function calculateMemoryEnergy(
  */
 export function calculateLatencyEnergy(
   diskSpaceMB: number,
-  averageLatency: number = 50
+  averageLatency: number = 50,
 ): number {
   const baseEnergy =
     diskSpaceMB * ENVIRONMENTAL_CONSTANTS.LATENCY_ENERGY_PER_MB;
@@ -133,7 +133,7 @@ export function calculateLatencyEnergy(
  */
 export function calculateBuildEnergy(
   installTimeHours: number,
-  buildComplexity: number = 1.0
+  buildComplexity: number = 1.0,
 ): number {
   const baseEnergy =
     installTimeHours * ENVIRONMENTAL_CONSTANTS.BUILD_SYSTEM_ENERGY_PER_HOUR;
@@ -146,7 +146,7 @@ export function calculateBuildEnergy(
  */
 export function calculateCICDEnergy(
   monthlyDownloads: number | null,
-  buildFrequency: number = 1.0
+  buildFrequency: number = 1.0,
 ): number {
   if (!monthlyDownloads || monthlyDownloads <= 0) return 0;
 
@@ -163,7 +163,7 @@ export function calculateCICDEnergy(
  * Enhanced registry energy calculation
  */
 export function calculateRegistryEnergy(
-  monthlyDownloads: number | null
+  monthlyDownloads: number | null,
 ): number {
   if (!monthlyDownloads || monthlyDownloads <= 0) return 0;
 
@@ -171,7 +171,7 @@ export function calculateRegistryEnergy(
   const cappedDownloads = Math.min(monthlyDownloads, 1e9); // Cap at 1B downloads
   return Math.max(
     0,
-    cappedDownloads * ENVIRONMENTAL_CONSTANTS.REGISTRY_ENERGY_PER_DOWNLOAD
+    cappedDownloads * ENVIRONMENTAL_CONSTANTS.REGISTRY_ENERGY_PER_DOWNLOAD,
   );
 }
 
@@ -181,7 +181,7 @@ export function calculateRegistryEnergy(
 export function calculateLifecycleEnergy(totalEnergy: number): number {
   return Math.max(
     0,
-    totalEnergy * (ENVIRONMENTAL_CONSTANTS.LIFECYCLE_ENERGY_MULTIPLIER - 1)
+    totalEnergy * (ENVIRONMENTAL_CONSTANTS.LIFECYCLE_ENERGY_MULTIPLIER - 1),
   );
 }
 
@@ -210,7 +210,7 @@ export function calculateRenewableEnergyBreakdown(totalEnergy: number): {
  */
 export function calculateFinancialValue(
   carbonSavings: number,
-  waterSavings: number
+  waterSavings: number,
 ): {
   carbonOffsetValue: number;
   waterTreatmentValue: number;
@@ -235,7 +235,7 @@ export function calculateFinancialValue(
 export function calculateEwasteReduction(diskSpaceGB: number): number {
   return Math.max(
     0,
-    diskSpaceGB * ENVIRONMENTAL_CONSTANTS.EWASTE_IMPACT_PER_GB
+    diskSpaceGB * ENVIRONMENTAL_CONSTANTS.EWASTE_IMPACT_PER_GB,
   );
 }
 
@@ -243,7 +243,7 @@ export function calculateEwasteReduction(diskSpaceGB: number): number {
  * Enhanced server utilization improvement calculation
  */
 export function calculateServerUtilizationImprovement(
-  diskSpaceGB: number
+  diskSpaceGB: number,
 ): number {
   const baseImprovement =
     ENVIRONMENTAL_CONSTANTS.SERVER_UTILIZATION_IMPROVEMENT;
@@ -256,7 +256,7 @@ export function calculateServerUtilizationImprovement(
  */
 export function calculateDeveloperProductivityGain(
   installTimeHours: number,
-  teamSize: number = 1
+  teamSize: number = 1,
 ): number {
   const baseGain =
     installTimeHours * ENVIRONMENTAL_CONSTANTS.BUILD_TIME_PRODUCTIVITY_GAIN;
@@ -268,7 +268,7 @@ export function calculateDeveloperProductivityGain(
  * Enhanced build time reduction calculation
  */
 export function calculateBuildTimeReduction(
-  installTimeSeconds: number
+  installTimeSeconds: number,
 ): number {
   const efficiencyGain = ENVIRONMENTAL_CONSTANTS.EFFICIENCY_IMPROVEMENT / 100;
   return Math.max(0, installTimeSeconds * efficiencyGain);
@@ -289,7 +289,7 @@ export function calculateComprehensiveEnvironmentalImpact(
     buildComplexity?: number;
     buildFrequency?: number;
     teamSize?: number;
-  } = {}
+  } = {},
 ): EnvironmentalImpact {
   // Detect region if not provided
   const region = options.region || detectUserRegion();
@@ -299,7 +299,7 @@ export function calculateComprehensiveEnvironmentalImpact(
   // Convert to appropriate units with bounds checking to prevent NaN/Infinity
   const diskSpaceGB = Math.max(
     0,
-    Math.min(diskSpace / (1024 * 1024 * 1024), 1e6)
+    Math.min(diskSpace / (1024 * 1024 * 1024), 1e6),
   ); // Cap at 1M GB
   const diskSpaceMB = Math.max(0, Math.min(diskSpace / (1024 * 1024), 1e9)); // Cap at 1B MB
   const installTimeHours = Math.max(0, Math.min(installTime / 3600, 8760)); // Cap at 1 year
@@ -312,23 +312,23 @@ export function calculateComprehensiveEnvironmentalImpact(
     (diskSpaceGB * ENVIRONMENTAL_CONSTANTS.STORAGE_ENERGY_PER_GB_YEAR) / 12;
   const cpuEnergy = calculateCPUEnergy(
     diskSpaceGB,
-    options.processingComplexity
+    options.processingComplexity,
   );
   const memoryEnergy = calculateMemoryEnergy(
     diskSpaceGB,
-    options.accessFrequency
+    options.accessFrequency,
   );
   const latencyEnergy = calculateLatencyEnergy(
     diskSpaceMB,
-    options.averageLatency
+    options.averageLatency,
   );
   const buildEnergy = calculateBuildEnergy(
     installTimeHours,
-    options.buildComplexity
+    options.buildComplexity,
   );
   const ciCdEnergy = calculateCICDEnergy(
     monthlyDownloads,
-    options.buildFrequency
+    options.buildFrequency,
   );
   const registryEnergy = calculateRegistryEnergy(monthlyDownloads);
 
@@ -356,15 +356,15 @@ export function calculateComprehensiveEnvironmentalImpact(
   const carbonSavings = Math.max(0, totalEnergySavings * carbonIntensity);
   const waterSavings = Math.max(
     0,
-    totalEnergySavings * ENVIRONMENTAL_CONSTANTS.WATER_PER_KWH
+    totalEnergySavings * ENVIRONMENTAL_CONSTANTS.WATER_PER_KWH,
   );
   const treesEquivalent = Math.max(
     0,
-    carbonSavings * ENVIRONMENTAL_CONSTANTS.TREES_PER_KG_CO2
+    carbonSavings * ENVIRONMENTAL_CONSTANTS.TREES_PER_KG_CO2,
   );
   const carMilesEquivalent = Math.max(
     0,
-    carbonSavings / ENVIRONMENTAL_CONSTANTS.CO2_PER_CAR_MILE
+    carbonSavings / ENVIRONMENTAL_CONSTANTS.CO2_PER_CAR_MILE,
   );
 
   // Calculate renewable energy breakdown
@@ -380,14 +380,14 @@ export function calculateComprehensiveEnvironmentalImpact(
     calculateServerUtilizationImprovement(diskSpaceGB);
   const developerProductivityGain = calculateDeveloperProductivityGain(
     installTimeHours,
-    options.teamSize
+    options.teamSize,
   );
   const buildTimeReduction = calculateBuildTimeReduction(installTime);
 
   // Calculate efficiency gain
   const efficiencyGain = Math.min(
     50,
-    ENVIRONMENTAL_CONSTANTS.EFFICIENCY_IMPROVEMENT
+    ENVIRONMENTAL_CONSTANTS.EFFICIENCY_IMPROVEMENT,
   );
 
   return {
@@ -442,7 +442,7 @@ export function calculateComprehensiveEnvironmentalImpact(
  * Validates environmental impact calculations for accuracy
  */
 export function validateEnvironmentalCalculations(
-  impact: EnvironmentalImpact
+  impact: EnvironmentalImpact,
 ): {
   isValid: boolean;
   warnings: string[];
@@ -472,8 +472,8 @@ export function validateEnvironmentalCalculations(
   if (carbonDifference > 0.01) {
     warnings.push(
       `Carbon calculation inconsistency: ${carbonDifference.toFixed(
-        3
-      )} kg CO2e difference`
+        3,
+      )} kg CO2e difference`,
     );
   }
 

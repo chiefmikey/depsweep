@@ -17,12 +17,9 @@ import {
   FILE_PATTERNS,
   MESSAGES,
   PACKAGE_MANAGERS,
-  PROTECTED_DEPENDENCIES,
   isProtectedDependency,
-  getProtectionReason,
 } from "./constants.js";
 import {
-  isTypePackageUsed,
   safeExecSync,
   detectPackageManager,
   measurePackageInstallation,
@@ -33,7 +30,6 @@ import {
   formatSize,
   formatTime,
   formatNumber,
-  // New environmental impact functions
   calculateEnvironmentalImpact,
   calculateCumulativeEnvironmentalImpact,
   displayEnvironmentalImpactTable,
@@ -46,7 +42,6 @@ import {
   findClosestPackageJson,
   getDependencies,
   getPackageContext,
-  processFilesInParallel,
   getDependencyInfo,
 } from "./utils.js";
 import {
@@ -176,7 +171,7 @@ async function main(): Promise<void> {
     // Filter out any file you don't want to count (e.g., binaries):
     const allFiles = await getSourceFiles(
       projectDirectory,
-      options.ignore || []
+      options.ignore || [],
     );
     const filteredFiles = [];
     for (const file of allFiles) {
@@ -202,8 +197,8 @@ async function main(): Promise<void> {
               .map((dep) => dep.trim())
               .filter((dep) => dep.length > 0)
           : Array.isArray(options.safe)
-          ? options.safe
-          : [];
+            ? options.safe
+            : [];
 
       for (const safeDep of safeDeps) {
         if (!safeUnused.includes(safeDep)) {
@@ -235,10 +230,6 @@ async function main(): Promise<void> {
       });
     }
 
-    // Declare subdepIndex and subdepCount at an appropriate scope
-    let subdepIndex = 0;
-    let subdepCount = 0;
-
     let totalDepsProcessed = 0;
     const currentDepFiles = new Set<string>(); // Add this to track unique files per dep
 
@@ -247,9 +238,9 @@ async function main(): Promise<void> {
 
     // Adjust progress tracking
     const progressCallback = (
-      filePath: string,
-      sIndex?: number,
-      sCount?: number
+      _filePath: string,
+      _sIndex?: number,
+      _sCount?: number,
     ) => {
       analysisStepsProcessed++;
       if (progressBar) {
@@ -259,7 +250,7 @@ async function main(): Promise<void> {
             currentDeps: totalDepsProcessed,
             totalDeps: dependencies.length,
             dep: currentDependency,
-          }
+          },
         );
       }
     };
@@ -274,13 +265,11 @@ async function main(): Promise<void> {
     let currentDependency = "";
 
     // Analyze all dependencies
-    for (const [index, dep] of dependencies.entries()) {
+    for (const dep of dependencies) {
       currentDependency = dep; // Update the current dependency name
       subdepsProcessed.clear();
       totalDepsProcessed++;
       currentDepFiles.clear(); // Reset the file tracker for each dependency
-      subdepIndex = 0;
-      subdepCount = 0;
       const info = await getDependencyInfo(
         dep,
         context,
@@ -289,7 +278,7 @@ async function main(): Promise<void> {
         {
           onProgress: progressCallback,
           totalAnalysisSteps,
-        }
+        },
       );
 
       depInfoMap.set(dep, info);
@@ -313,9 +302,9 @@ async function main(): Promise<void> {
       console.log(
         chalk.blue(
           `\nMemory Usage: ${Math.round(
-            memoryStats.heapUsed / 1024 / 1024
-          )}MB / ${Math.round(memoryStats.heapTotal / 1024 / 1024)}MB`
-        )
+            memoryStats.heapUsed / 1024 / 1024,
+          )}MB / ${Math.round(memoryStats.heapTotal / 1024 / 1024)}MB`,
+        ),
       );
     }
 
@@ -334,7 +323,7 @@ async function main(): Promise<void> {
     unusedDependencies = finalizeUnusedDependencies(
       unusedDependencies,
       depInfoMap,
-      dependencies
+      dependencies,
     );
 
     // Sort unused dependencies alphabetically
@@ -371,7 +360,7 @@ async function main(): Promise<void> {
       for (const dep of safeUnused) {
         const isSafeListed = options.safe?.includes(dep);
         console.log(
-          chalk.blue(`- ${dep} [${isSafeListed ? "safe" : "protected"}]`)
+          chalk.blue(`- ${dep} [${isSafeListed ? "safe" : "protected"}]`),
         );
       }
       logNewlines(2); // replaces console.log('\n\n')
@@ -384,7 +373,7 @@ async function main(): Promise<void> {
       for (const dep of safeUnused) {
         const isSafeListed = options.safe?.includes(dep);
         console.log(
-          chalk.blue(`- ${dep} [${isSafeListed ? "safe" : "protected"}]`)
+          chalk.blue(`- ${dep} [${isSafeListed ? "safe" : "protected"}]`),
         );
       }
       logNewlines();
@@ -414,7 +403,7 @@ async function main(): Promise<void> {
                   .map((requestDep) =>
                     unusedDependencies.includes(requestDep)
                       ? `${requestDep} ${chalk.blue("(unused)")}`
-                      : requestDep
+                      : requestDep,
                   )
                   .join(", ")
               : chalk.gray("-");
@@ -469,7 +458,7 @@ async function main(): Promise<void> {
         console.log(
           `${
             MESSAGES.measuringImpact
-          } [${totalPackages}/${totalPackages}] ${chalk.green("✔")}`
+          } [${totalPackages}/${totalPackages}] ${chalk.green("✔")}`,
         );
 
         const parentInfo = await getParentPackageDownloads(packageJsonPath);
@@ -477,10 +466,10 @@ async function main(): Promise<void> {
         logNewlines();
         console.log(
           `${chalk.bold("Unused Dependency Impact Report:")} ${chalk.yellow(
-            parentInfo?.name
+            parentInfo?.name,
           )} ${chalk.blue(
-            `(${parentInfo?.homepage || parentInfo?.repository?.url || ""})`
-          )}`
+            `(${parentInfo?.homepage || parentInfo?.repository?.url || ""})`,
+          )}`,
         );
 
         // Create a table for detailed results
@@ -503,7 +492,7 @@ async function main(): Promise<void> {
           const environmentImpact = calculateEnvironmentalImpact(
             result.space,
             result.time,
-            parentInfo?.downloads || null
+            parentInfo?.downloads || null,
           );
           environmentalImpacts.push(environmentImpact);
         }
@@ -517,7 +506,7 @@ async function main(): Promise<void> {
         console.log(chalk.green.bold(MESSAGES.environmentalImpact));
         displayEnvironmentalImpactTable(
           totalEnvironmentalImpact,
-          "🌍 Total Environmental Impact"
+          "🌍 Total Environmental Impact",
         );
 
         // Display per-package environmental impact
@@ -537,7 +526,7 @@ async function main(): Promise<void> {
             totalDiskSpace,
             totalInstallTime,
             parentInfo.downloads,
-            yearlyData
+            yearlyData,
           );
 
           const impactTable = new CliTable({
@@ -601,11 +590,11 @@ async function main(): Promise<void> {
           if (totalEnvironmentalImpact) {
             logNewlines();
             console.log(
-              chalk.green.bold("💡 Environmental Impact Recommendations:")
+              chalk.green.bold("💡 Environmental Impact Recommendations:"),
             );
             const recommendations = generateEnvironmentalRecommendations(
               totalEnvironmentalImpact,
-              unusedDependencies.length
+              unusedDependencies.length,
             );
             for (const rec of recommendations)
               console.log(chalk.green(`  ${rec}`));
@@ -617,15 +606,15 @@ async function main(): Promise<void> {
           logNewlines();
           console.log(
             `${chalk.yellow(
-              "Note:"
+              "Note:",
             )} These results depend on your system's capabilities.\nTry a multi-architecture analysis at ${chalk.bold(
-              "https://github.com/chiefmikey/depsweep/analysis"
-            )}`
+              "https://github.com/chiefmikey/depsweep/analysis",
+            )}`,
           );
         } else {
           logNewlines();
           console.log(
-            chalk.yellow("Insufficient download data to calculate impact")
+            chalk.yellow("Insufficient download data to calculate impact"),
           );
         }
       }
@@ -633,8 +622,8 @@ async function main(): Promise<void> {
       if (!options.measureImpact) {
         console.log(
           chalk.blue(
-            "Run with the -m, --measure-impact flag to output a detailed impact analysis report"
-          )
+            "Run with the -m, --measure-impact flag to output a detailed impact analysis report",
+          ),
         );
       }
 
@@ -677,7 +666,7 @@ async function main(): Promise<void> {
 
         // Validate before using in execSync
         unusedDependencies = unusedDependencies.filter((dep) =>
-          isValidPackageName(dep)
+          isValidPackageName(dep),
         );
 
         if (unusedDependencies.length > 0) {
@@ -707,7 +696,7 @@ async function main(): Promise<void> {
       const totalTime =
         performanceMonitor.getMetrics().get("totalExecution")?.totalTime || 0;
       console.log(
-        chalk.blue(`\nTotal execution time: ${totalTime.toFixed(2)}ms`)
+        chalk.blue(`\nTotal execution time: ${totalTime.toFixed(2)}ms`),
       );
     }
   } catch (error) {
@@ -758,7 +747,7 @@ function finalizeUnusedDependencies(
     string,
     { usedInFiles: string[]; requiredByPackages: Set<string> }
   >,
-  allDeps: string[]
+  allDeps: string[],
 ): string[] {
   const unusedSet = new Set(initialUnusedDeps);
   let changed = true;
@@ -771,7 +760,7 @@ function finalizeUnusedDependencies(
         if (info) {
           // If every package requiring this dep is also unused, mark it unused
           const allRequirersUnused = [...info.requiredByPackages].every(
-            (package_) => unusedSet.has(package_)
+            (package_) => unusedSet.has(package_),
           );
           if (allRequirersUnused && info.usedInFiles.length === 0) {
             unusedSet.add(dep);

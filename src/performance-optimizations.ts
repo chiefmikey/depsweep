@@ -5,11 +5,13 @@
  * to improve the overall performance and efficiency of the dependency analysis.
  */
 
+import type { Stats } from "node:fs";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { LRUCache } from "lru-cache";
 
 // Enhanced caching with TTL and size limits
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type -- cache stores any non-nullish value
 export class OptimizedCache<T extends {}> {
   private cache: LRUCache<string, T>;
   private hitCount = 0;
@@ -115,7 +117,7 @@ export class OptimizedFileReader {
             } catch (error) {
               reject(error as Error);
             }
-          })
+          }),
         );
       }
     }
@@ -143,10 +145,10 @@ export class OptimizedFileReader {
 // Optimized dependency analysis with early exit strategies
 export class OptimizedDependencyAnalyzer {
   private static instance: OptimizedDependencyAnalyzer;
-  private analysisCache = new OptimizedCache<any>(2000, 300000); // 5 minutes TTL
+  private analysisCache = new OptimizedCache<boolean>(2000, 300000); // 5 minutes TTL
   private dependencyGraphCache = new OptimizedCache<Map<string, Set<string>>>(
     100,
-    600000
+    600000,
   ); // 10 minutes TTL
   private filePatternCache = new OptimizedCache<RegExp[]>(500, 300000); // 5 minutes TTL
 
@@ -168,25 +170,25 @@ export class OptimizedDependencyAnalyzer {
     const patterns = [
       new RegExp(
         `\\b${dependency.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`,
-        "g"
+        "g",
       ),
       new RegExp(
         `from\\s+['"]${dependency.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}['"]`,
-        "g"
+        "g",
       ),
       new RegExp(
         `import\\s+.*\\s+from\\s+['"]${dependency.replace(
           /[.*+?^${}()|[\]\\]/g,
-          "\\$&"
+          "\\$&",
         )}['"]`,
-        "g"
+        "g",
       ),
       new RegExp(
         `require\\(['"]${dependency.replace(
           /[.*+?^${}()|[\]\\]/g,
-          "\\$&"
+          "\\$&",
         )}['"]\\)`,
-        "g"
+        "g",
       ),
     ];
 
@@ -198,7 +200,8 @@ export class OptimizedDependencyAnalyzer {
   async isDependencyUsedInFile(
     dependency: string,
     filePath: string,
-    context: any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- API compatibility
+    _context: any,
   ): Promise<boolean> {
     const cacheKey = `usage:${dependency}:${filePath}`;
     const cached = this.analysisCache.get(cacheKey);
@@ -238,16 +241,16 @@ export class OptimizedDependencyAnalyzer {
   async processFilesInBatches(
     files: string[],
     dependency: string,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- API compatibility
     context: any,
-    onProgress?: (processed: number, total: number) => void
+    onProgress?: (processed: number, total: number) => void,
   ): Promise<string[]> {
     const results: string[] = [];
-    const fileReader = OptimizedFileReader.getInstance();
 
     // Dynamic batch size based on file count and memory
     const batchSize = Math.min(
       100,
-      Math.max(10, Math.floor(files.length / 10))
+      Math.max(10, Math.floor(files.length / 10)),
     );
 
     for (let i = 0; i < files.length; i += batchSize) {
@@ -258,7 +261,7 @@ export class OptimizedDependencyAnalyzer {
         const isUsed = await this.isDependencyUsedInFile(
           dependency,
           file,
-          context
+          context,
         );
         return isUsed ? file : null;
       });
@@ -310,7 +313,7 @@ export class StringOptimizer {
       const entries = Array.from(StringOptimizer.STRING_POOL.entries());
       const toRemove = entries.slice(
         0,
-        Math.floor(StringOptimizer.MAX_POOL_SIZE / 4)
+        Math.floor(StringOptimizer.MAX_POOL_SIZE / 4),
       );
       toRemove.forEach(([key]) => StringOptimizer.STRING_POOL.delete(key));
     }
@@ -335,7 +338,7 @@ export class StringOptimizer {
 export class OptimizedFileSystem {
   private static instance: OptimizedFileSystem;
   private dirCache = new OptimizedCache<string[]>(100, 60000); // 1 minute TTL
-  private statCache = new OptimizedCache<any>(500, 30000); // 30 seconds TTL
+  private statCache = new OptimizedCache<Stats>(500, 30000); // 30 seconds TTL
 
   static getInstance(): OptimizedFileSystem {
     if (!OptimizedFileSystem.instance) {
@@ -364,7 +367,7 @@ export class OptimizedFileSystem {
     }
   }
 
-  async getFileStats(filePath: string): Promise<any> {
+  async getFileStats(filePath: string): Promise<Stats | null> {
     const cached = this.statCache.get(filePath);
     if (cached) {
       return cached;

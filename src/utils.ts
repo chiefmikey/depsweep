@@ -1,4 +1,3 @@
-import { readdirSync } from "node:fs";
 import * as fs from "node:fs/promises";
 import path from "node:path";
 
@@ -11,8 +10,6 @@ import { FILE_PATTERNS, MESSAGES } from "./constants.js";
 import {
   isConfigFile,
   parseConfigFile,
-  getMemoryUsage,
-  processResults,
   isDependencyUsedInFile,
 } from "./helpers.js";
 import type {
@@ -25,7 +22,6 @@ import {
   OptimizedFileReader,
   OptimizedDependencyAnalyzer,
   StringOptimizer,
-  OptimizedFileSystem,
   PerformanceMonitor,
   MemoryOptimizer,
 } from "./performance-optimizations.js";
@@ -44,7 +40,6 @@ const performanceMonitor = PerformanceMonitor.getInstance();
 const memoryOptimizer = MemoryOptimizer.getInstance();
 const fileReader = OptimizedFileReader.getInstance();
 const dependencyAnalyzer = OptimizedDependencyAnalyzer.getInstance();
-const fileSystem = OptimizedFileSystem.getInstance();
 
 function normalizeTypesPackage(typesPackage: string): string {
   // Remove @types/ prefix
@@ -62,7 +57,7 @@ interface ProgressOptions {
   onProgress?: (
     filePath: string,
     subdepIndex?: number,
-    totalSubdeps?: number
+    totalSubdeps?: number,
   ) => void;
   totalAnalysisSteps: number;
 }
@@ -114,12 +109,12 @@ function getFrameworkInfo(context: DependencyContext): {
 
 function isFrameworkDevelopmentDependency(
   dependency: string,
-  frameworkInfo: ReturnType<typeof getFrameworkInfo>
+  frameworkInfo: ReturnType<typeof getFrameworkInfo>,
 ): boolean {
   if (!frameworkInfo) return false;
 
   return frameworkInfo.devDependencies.some(
-    (prefix) => dependency.startsWith(prefix) || dependency === prefix
+    (prefix) => dependency.startsWith(prefix) || dependency === prefix,
   );
 }
 
@@ -128,7 +123,7 @@ export async function getDependencyInfo(
   context: DependencyContext,
   sourceFiles: string[],
   topLevelDependencies: Set<string>, // Add this parameter
-  progressOptions?: ProgressOptions
+  progressOptions?: ProgressOptions,
 ): Promise<DependencyInfo> {
   performanceMonitor.startTimer("getDependencyInfo");
 
@@ -143,7 +138,7 @@ export async function getDependencyInfo(
 
   // Check cache with optimized key
   const cacheKey = StringOptimizer.intern(
-    `${context.projectRoot}:${dependency}`
+    `${context.projectRoot}:${dependency}`,
   );
   const cached = depInfoCache.get(cacheKey);
   if (cached !== undefined) {
@@ -229,9 +224,9 @@ export async function getDependencyInfo(
       progressOptions?.onProgress?.(
         sourceFiles[processed - 1],
         processed,
-        total
+        total,
       );
-    }
+    },
   );
 
   info.usedInFiles = usedFiles;
@@ -242,7 +237,7 @@ export async function getDependencyInfo(
       const subdepUsedFiles = await dependencyAnalyzer.processFilesInBatches(
         sourceFiles,
         subdep,
-        context
+        context,
       );
 
       if (subdepUsedFiles.length > 0) {
@@ -266,6 +261,7 @@ export async function getDependencyInfo(
   return info;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- tsconfig.json has arbitrary shape
 export async function getTSConfig(projectRoot: string): Promise<any> {
   try {
     const tsConfigPath = path.join(projectRoot, "tsconfig.json");
@@ -282,7 +278,7 @@ function hasTSFiles(files: string[]): boolean {
 
 // Add workspace detection
 export async function getWorkspaceInfo(
-  packageJsonPath: string
+  packageJsonPath: string,
 ): Promise<WorkspaceInfo | undefined> {
   try {
     const content = await fs.readFile(packageJsonPath);
@@ -311,7 +307,7 @@ export async function getWorkspaceInfo(
 }
 
 export async function findClosestPackageJson(
-  startDirectory: string
+  startDirectory: string,
 ): Promise<string> {
   const packageJsonPath = await findUp(FILE_PATTERNS.PACKAGE_JSON, {
     cwd: startDirectory,
@@ -330,7 +326,7 @@ export async function findClosestPackageJson(
     }
     const potentialRootPackageJson = path.join(
       parentDirectory,
-      FILE_PATTERNS.PACKAGE_JSON
+      FILE_PATTERNS.PACKAGE_JSON,
     );
     try {
       const rootPackageString = await fs.readFile(potentialRootPackageJson);
@@ -349,10 +345,10 @@ export async function findClosestPackageJson(
     if (workspaceInfo) {
       const relativePath = path.relative(
         path.dirname(workspaceInfo.root),
-        packageJsonPath
+        packageJsonPath,
       );
       const isWorkspacePackage = workspaceInfo.packages.some(
-        (p: string) => relativePath.startsWith(p) || p.startsWith(relativePath)
+        (p: string) => relativePath.startsWith(p) || p.startsWith(relativePath),
       );
 
       if (isWorkspacePackage) {
@@ -368,7 +364,7 @@ export async function findClosestPackageJson(
 }
 
 export async function getDependencies(
-  packageJsonPath: string
+  packageJsonPath: string,
 ): Promise<string[]> {
   const packageJsonString =
     (await fs.readFile(packageJsonPath, "utf8")) || "{}";
@@ -401,9 +397,10 @@ export async function getDependencies(
 }
 
 export async function getPackageContext(
-  packageJsonPath: string
+  packageJsonPath: string,
 ): Promise<DependencyContext> {
   const projectDirectory = path.dirname(packageJsonPath);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- config files have arbitrary shapes
   const configs: Record<string, any> = {};
   const dependencyGraph = new Map<string, Set<string>>(); // Re-added dependencyGraph
 
@@ -452,7 +449,7 @@ export async function getPackageContext(
 
 export async function getSourceFiles(
   projectDirectory: string,
-  ignorePatterns: string[] = []
+  ignorePatterns: string[] = [],
 ): Promise<string[]> {
   const files = await globby(["**/*"], {
     cwd: projectDirectory,
@@ -477,6 +474,7 @@ export async function getSourceFiles(
   return files.filter((file) => !isBinaryFileSync(file));
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- recursively scans arbitrary config structures
 export function scanForDependency(config: any, dependency: string): boolean {
   if (!config) {
     return false;
@@ -495,7 +493,7 @@ export function scanForDependency(config: any, dependency: string): boolean {
     return false;
   }
 
-  for (const [key, value] of Object.entries(config)) {
+  for (const [, value] of Object.entries(config)) {
     if (typeof value === "string" && value.includes(dependency)) {
       return true;
     }
@@ -512,27 +510,19 @@ export async function processFilesInParallel(
   files: string[],
   dependency: string,
   context: DependencyContext,
-  onProgress?: (processed: number, total: number) => void
+  onProgress?: (processed: number, total: number) => void,
 ): Promise<string[]> {
   performanceMonitor.startTimer("processFilesInParallel");
 
-  // Dynamic batch sizing based on memory and file count
-  const memoryStats = memoryOptimizer.getMemoryStats();
-  const availableMemory = memoryStats.heapTotal - memoryStats.heapUsed;
-  const BATCH_SIZE = Math.min(
-    200, // Increased max batch size
-    Math.max(20, Math.floor(availableMemory / (1024 * 1024 * 25))) // More conservative memory usage
-  );
-
   const results: string[] = [];
-  let totalErrors = 0;
+  const totalErrors = 0;
 
   // Use optimized dependency analyzer for better performance
   const usedFiles = await dependencyAnalyzer.processFilesInBatches(
     files,
     dependency,
     context,
-    onProgress
+    onProgress,
   );
 
   // Process results with error handling
@@ -546,7 +536,7 @@ export async function processFilesInParallel(
 
   if (totalErrors > 0) {
     console.warn(
-      chalk.yellow(`\nWarning: ${totalErrors} files had processing errors`)
+      chalk.yellow(`\nWarning: ${totalErrors} files had processing errors`),
     );
   }
 
@@ -555,7 +545,7 @@ export async function processFilesInParallel(
 
 export function findSubDependencies(
   dependency: string,
-  context: DependencyContext
+  context: DependencyContext,
 ): string[] {
   // Retrieve sub-dependencies from the dependencyGraph
   return context.dependencyGraph?.get(dependency)

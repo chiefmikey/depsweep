@@ -1,5 +1,6 @@
 export interface DependencyContext {
   scripts?: Record<string, string>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- config files have arbitrary shapes
   configs?: Record<string, any>;
   projectRoot: string;
   dependencyGraph?: Map<string, Set<string>>; // Added dependencyGraph
@@ -25,7 +26,7 @@ export interface ProgressOptions {
   onProgress?: (
     filePath: string,
     subdepIndex?: number,
-    subdepCount?: number
+    subdepCount?: number,
   ) => void;
   totalAnalysisSteps: number;
 }

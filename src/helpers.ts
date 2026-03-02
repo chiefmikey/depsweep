@@ -29,20 +29,11 @@ import {
   RAW_CONTENT_PATTERNS,
   ENVIRONMENTAL_CONSTANTS,
 } from "./constants.js";
-import type {
-  DependencyContext,
-  ProgressOptions,
-  DependencyInfo,
-  EnvironmentalImpact,
-  ImpactMetrics,
-  EnvironmentalReport,
-} from "./interfaces.js";
+import type { DependencyContext, EnvironmentalImpact } from "./interfaces.js";
 import {
   calculateComprehensiveEnvironmentalImpact,
   validateEnvironmentalCalculations,
-  formatEnvironmentalImpact as formatEnhancedImpact,
 } from "./enhanced-environmental-calculations.js";
-import { findSubDependencies } from "./utils.js";
 
 import { customSort } from "./index.js";
 
@@ -91,17 +82,19 @@ export async function parseConfigFile(filePath: string): Promise<unknown> {
   }
 }
 
+/* eslint-disable @typescript-eslint/no-explicit-any -- Babel traverse CJS/ESM interop */
 const traverseFunction = ((traverse as any).default || traverse) as (
   ast: any,
-  options: any
+  options: any,
 ) => void;
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 export async function isTypePackageUsed(
   dependency: string,
   installedPackages: string[],
   unusedDependencies: string[],
   context: DependencyContext,
-  sourceFiles: string[]
+  sourceFiles: string[],
 ): Promise<{ isUsed: boolean; supportedPackage?: string }> {
   if (!dependency.startsWith(DEPENDENCY_PATTERNS.TYPES_PREFIX)) {
     return { isUsed: false };
@@ -116,7 +109,7 @@ export async function isTypePackageUsed(
     : correspondingPackage;
 
   const supportedPackage = installedPackages.find(
-    (package_) => package_ === normalizedPackage
+    (package_) => package_ === normalizedPackage,
   );
 
   if (supportedPackage) {
@@ -149,7 +142,7 @@ export async function isTypePackageUsed(
 
 export function scanForDependency(
   object: unknown,
-  dependency: string
+  dependency: string,
 ): boolean {
   if (typeof object === "string") {
     const matchers = generatePatternMatcher(dependency);
@@ -162,7 +155,7 @@ export function scanForDependency(
 
   if (object && typeof object === "object") {
     return Object.values(object).some((value) =>
-      scanForDependency(value, dependency)
+      scanForDependency(value, dependency),
     );
   }
 
@@ -172,7 +165,7 @@ export function scanForDependency(
 export async function isDependencyUsedInFile(
   dependency: string,
   filePath: string,
-  context: DependencyContext
+  context: DependencyContext,
 ): Promise<boolean> {
   // Don't consider dependencies as "used" just because they're in package.json
   // Only check actual source code files for dependency usage
@@ -211,9 +204,9 @@ export async function isDependencyUsedInFile(
     const dynamicImportRegex = new RegExp(
       `${DEPENDENCY_PATTERNS.DYNAMIC_IMPORT_BASE}${dependency.replaceAll(
         /[/@-]/g,
-        "[/@-]"
+        "[/@-]",
       )}${DEPENDENCY_PATTERNS.DYNAMIC_IMPORT_END}`,
-      "i"
+      "i",
     );
     if (dynamicImportRegex.test(content)) {
       return true;
@@ -262,7 +255,7 @@ export async function isDependencyUsedInFile(
           }
         },
         TSExternalModuleReference(
-          importPath: NodePath<TSExternalModuleReference>
+          importPath: NodePath<TSExternalModuleReference>,
         ) {
           const importSource = importPath.node.expression.value;
           if (matchesDependency(importSource, dependency)) {
@@ -278,12 +271,12 @@ export async function isDependencyUsedInFile(
         if (
           dependency.startsWith(base) &&
           patterns.some((pattern: string) =>
-            micromatch.isMatch(dependency, pattern)
+            micromatch.isMatch(dependency, pattern),
           )
         ) {
           const searchPattern = new RegExp(
             `\\b${dependency.replaceAll(/[/@-]/g, "[/@-]")}\\b`,
-            "i"
+            "i",
           );
           if (searchPattern.test(content)) {
             return true;
@@ -298,12 +291,12 @@ export async function isDependencyUsedInFile(
       if (
         dependency.startsWith(base) &&
         patterns.some((pattern: string) =>
-          micromatch.isMatch(dependency, pattern)
+          micromatch.isMatch(dependency, pattern),
         )
       ) {
         const searchPattern = new RegExp(
           `\\b${dependency.replaceAll(/[/@-]/g, "[/@-]")}\\b`,
-          "i"
+          "i",
         );
         if (searchPattern.test(content)) {
           return true;
@@ -386,7 +379,7 @@ export function generatePatternMatcher(dependency: string): RegExp[] {
   const patterns: RegExp[] = [];
   const escapedDep = dependency.replaceAll(
     /[$()*+.?[\\\]^{|}]/g,
-    String.raw`\$&`
+    String.raw`\$&`,
   );
 
   for (const pattern of COMMON_PATTERNS) {
@@ -404,7 +397,7 @@ export function generatePatternMatcher(dependency: string): RegExp[] {
         for (const suffix of suffixes) {
           patterns.push(
             new RegExp(`^${escapedDep}[-./]${suffix}$`),
-            new RegExp(`^${escapedDep}[-./]${suffix}s$`)
+            new RegExp(`^${escapedDep}[-./]${suffix}s$`),
           );
         }
         break;
@@ -414,7 +407,7 @@ export function generatePatternMatcher(dependency: string): RegExp[] {
         for (const part of parts) {
           patterns.push(
             new RegExp(`^${escapedDep}[-./]${part}$`),
-            new RegExp(`^${part}[-./]${escapedDep}$`)
+            new RegExp(`^${part}[-./]${escapedDep}$`),
           );
         }
         break;
@@ -424,8 +417,8 @@ export function generatePatternMatcher(dependency: string): RegExp[] {
           patterns.push(
             new RegExp(
               `^${escapedDep}${pattern.match.source}`,
-              pattern.match.flags
-            )
+              pattern.match.flags,
+            ),
           );
         }
         break;
@@ -438,7 +431,7 @@ export function generatePatternMatcher(dependency: string): RegExp[] {
 
 export function matchesDependency(
   importSource: string,
-  dependency: string
+  dependency: string,
 ): boolean {
   const depWithoutScope = dependency.startsWith("@")
     ? dependency.split("/")[1]
@@ -462,7 +455,7 @@ export function processResults(
   batchResults: PromiseSettledResult<{
     result: string | null;
     hasError: boolean;
-  }>[]
+  }>[],
 ): { validResults: string[]; errors: number } {
   const validResults: string[] = [];
   let errors = 0;
@@ -528,7 +521,7 @@ export function formatNumber(n: number): string {
 
 export function safeExecSync(
   command: string[],
-  options: { cwd: string; stdio?: "inherit" | "ignore"; timeout?: number }
+  options: { cwd: string; stdio?: "inherit" | "ignore"; timeout?: number },
 ): void {
   if (!Array.isArray(command) || command.length === 0) {
     throw new Error("Invalid command array");
@@ -543,7 +536,7 @@ export function safeExecSync(
   // Validate all arguments
   if (
     !arguments_.every(
-      (argument) => typeof argument === "string" && argument.length > 0
+      (argument) => typeof argument === "string" && argument.length > 0,
     )
   ) {
     throw new Error("Invalid command arguments");
@@ -562,7 +555,7 @@ export function safeExecSync(
 }
 
 export async function detectPackageManager(
-  projectDirectory: string
+  projectDirectory: string,
 ): Promise<string> {
   if (
     await fs
@@ -583,7 +576,7 @@ export async function detectPackageManager(
 }
 
 export async function createTemporaryPackageJson(
-  package_: string
+  package_: string,
 ): Promise<string> {
   const minimalPackageJson = {
     name: "depsweep-temp",
@@ -600,7 +593,7 @@ export async function createTemporaryPackageJson(
 }
 
 export async function measurePackageInstallation(
-  packageName: string
+  packageName: string,
 ): Promise<InstallMetrics> {
   const metrics: InstallMetrics = {
     installTime: 0,
@@ -647,11 +640,11 @@ export async function measurePackageInstallation(
 }
 
 export async function getDownloadStatsFromNpm(
-  packageName: string
+  packageName: string,
 ): Promise<number | null> {
   try {
     const response = await fetch(
-      `https://api.npmjs.org/downloads/point/last-month/${packageName}`
+      `https://api.npmjs.org/downloads/point/last-month/${packageName}`,
     );
     if (!response.ok) {
       return null;
@@ -665,7 +658,7 @@ export async function getDownloadStatsFromNpm(
 }
 
 export async function getParentPackageDownloads(
-  packageJsonPath: string
+  packageJsonPath: string,
 ): Promise<{
   name: string;
   downloads: number;
@@ -682,7 +675,7 @@ export async function getParentPackageDownloads(
     const downloads = await getDownloadStatsFromNpm(name);
     if (!downloads) {
       console.log(
-        chalk.yellow(`\nUnable to find download stats for '${name}'`)
+        chalk.yellow(`\nUnable to find download stats for '${name}'`),
       );
       return null;
     }
@@ -694,7 +687,7 @@ export async function getParentPackageDownloads(
 
 export async function getYearlyDownloads(
   packageName: string,
-  months = 12
+  months = 12,
 ): Promise<{ total: number; monthsFetched: number; startDate: string } | null> {
   const monthlyDownloads: number[] = [];
   const currentDate = new Date();
@@ -705,19 +698,19 @@ export async function getYearlyDownloads(
     const start = new Date(
       currentDate.getFullYear(),
       currentDate.getMonth() - index,
-      1
+      1,
     );
     const end = new Date(
       currentDate.getFullYear(),
       currentDate.getMonth() - index + 1,
-      0
+      0,
     );
     const [startString] = start.toISOString().split("T");
     const [endString] = end.toISOString().split("T");
 
     try {
       const response = await fetch(
-        `https://api.npmjs.org/downloads/range/${startString}:${endString}/${packageName}`
+        `https://api.npmjs.org/downloads/range/${startString}:${endString}/${packageName}`,
       );
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -730,7 +723,7 @@ export async function getYearlyDownloads(
         // Sum all daily downloads for that month
         const monthTotal = data.downloads.reduce(
           (accumulator, dayItem) => accumulator + (dayItem.downloads || 0),
-          0
+          0,
         );
         monthlyDownloads.push(monthTotal);
 
@@ -743,7 +736,7 @@ export async function getYearlyDownloads(
     } catch (error) {
       console.error(
         `Failed to fetch downloads for ${startString} to ${endString}:`,
-        error
+        error,
       );
       break;
     }
@@ -773,7 +766,7 @@ export async function getYearlyDownloads(
     const trimmedStart = new Date(
       currentDate.getFullYear(),
       currentDate.getMonth() - validMonthsAgo,
-      1
+      1,
     );
     [startDate] = trimmedStart.toISOString().split("T");
   }
@@ -791,9 +784,15 @@ export function calculateImpactStats(
     total: number;
     monthsFetched: number;
     startDate: string;
-  } | null
-): any {
-  const stats: any = {};
+  } | null,
+): Record<
+  string,
+  { downloads: number; diskSpace: number; installTime: number }
+> {
+  const stats: Record<
+    string,
+    { downloads: number; diskSpace: number; installTime: number }
+  > = {};
 
   if (!yearlyData) {
     return stats;
@@ -848,7 +847,7 @@ export function calculateImpactStats(
 export function displayImpactTable(
   impactData: Record<string, { installTime: string; diskSpace: string }>,
   totalInstallTime: number,
-  totalDiskSpace: number
+  totalDiskSpace: number,
 ) {
   const table = new CliTable({
     head: ["Package", "Install Time", "Disk Space"],
@@ -861,7 +860,7 @@ export function displayImpactTable(
   });
 
   const sortedImpactData = Object.entries(impactData).sort(([a], [b]) =>
-    customSort(a, b)
+    customSort(a, b),
   );
 
   for (const [package_, data] of sortedImpactData) {
@@ -915,7 +914,7 @@ export function calculateEnvironmentalImpact(
     buildComplexity?: number;
     buildFrequency?: number;
     teamSize?: number;
-  } = {}
+  } = {},
 ): EnvironmentalImpact {
   try {
     // Comprehensive input validation
@@ -932,7 +931,7 @@ export function calculateEnvironmentalImpact(
       diskSpace,
       installTime,
       monthlyDownloads,
-      options
+      options,
     );
 
     // Validate the calculations
@@ -940,7 +939,7 @@ export function calculateEnvironmentalImpact(
     if (!validation.isValid) {
       console.warn(
         "Environmental impact validation failed:",
-        validation.errors
+        validation.errors,
       );
     }
     if (validation.warnings.length > 0) {
@@ -973,7 +972,7 @@ export function calculateEnvironmentalImpact(
 export function validateInputs(
   diskSpace: number,
   installTime: number,
-  monthlyDownloads: number | null
+  monthlyDownloads: number | null,
 ): void {
   if (typeof diskSpace !== "number" || isNaN(diskSpace)) {
     throw new Error("Disk space must be a valid number");
@@ -1068,7 +1067,7 @@ export function aggregateEnergySavings(energies: number[]): number {
   // Validate total energy savings
   if (total > 10000) {
     console.warn(
-      "Total energy savings exceed typical ranges, capping at 10,000 kWh"
+      "Total energy savings exceed typical ranges, capping at 10,000 kWh",
     );
     return 10000;
   }
@@ -1129,47 +1128,8 @@ export function createZeroEnvironmentalImpact(): EnvironmentalImpact {
   };
 }
 
-/**
- * Validates the calculated EnvironmentalImpact object.
- * Returns an object with isValid and warnings.
- */
-function validateEnvironmentalImpact(impact: EnvironmentalImpact): {
-  isValid: boolean;
-  warnings: string[];
-} {
-  const warnings: string[] = [];
-  const isValid = true;
-
-  if (impact.carbonSavings < 0) {
-    warnings.push("Carbon savings cannot be negative.");
-  }
-  if (impact.energySavings < 0) {
-    warnings.push("Energy savings cannot be negative.");
-  }
-  if (impact.waterSavings < 0) {
-    warnings.push("Water savings cannot be negative.");
-  }
-  if (impact.treesEquivalent < 0) {
-    warnings.push("Trees equivalent cannot be negative.");
-  }
-  if (impact.carMilesEquivalent < 0) {
-    warnings.push("Car miles equivalent cannot be negative.");
-  }
-  if (impact.efficiencyGain < 0) {
-    warnings.push("Efficiency gain cannot be negative.");
-  }
-  if (impact.networkSavings < 0) {
-    warnings.push("Network savings cannot be negative.");
-  }
-  if (impact.storageSavings < 0) {
-    warnings.push("Storage savings cannot be negative.");
-  }
-
-  return { isValid, warnings };
-}
-
 export function calculateCumulativeEnvironmentalImpact(
-  impacts: EnvironmentalImpact[]
+  impacts: EnvironmentalImpact[],
 ): EnvironmentalImpact {
   return impacts.reduce(
     (total, impact) => ({
@@ -1225,12 +1185,12 @@ export function calculateCumulativeEnvironmentalImpact(
         total.developerProductivityGain + impact.developerProductivityGain,
       buildTimeReduction: total.buildTimeReduction + impact.buildTimeReduction,
     }),
-    createZeroEnvironmentalImpact()
+    createZeroEnvironmentalImpact(),
   );
 }
 
 export function formatEnvironmentalImpact(
-  impact: EnvironmentalImpact
+  impact: EnvironmentalImpact,
 ): Record<string, string> {
   return {
     carbonSavings: `${impact.carbonSavings.toFixed(3)} kg CO2e`,
@@ -1246,7 +1206,7 @@ export function formatEnvironmentalImpact(
 
 export function displayEnvironmentalImpactTable(
   impact: EnvironmentalImpact,
-  title: string = "Environmental Impact"
+  title: string = "Environmental Impact",
 ) {
   const formatted = formatEnvironmentalImpact(impact);
 
@@ -1285,7 +1245,7 @@ export function displayEnvironmentalImpactTable(
       "🚀 Efficiency Gain",
       formatted.efficiencyGain,
       "Improved build and runtime performance",
-    ]
+    ],
   );
 
   console.log(chalk.green(`\n${title}`));
@@ -1294,63 +1254,63 @@ export function displayEnvironmentalImpactTable(
 
 export function generateEnvironmentalRecommendations(
   impact: EnvironmentalImpact,
-  packageCount: number
+  packageCount: number,
 ): string[] {
   const recommendations: string[] = [];
 
   if (impact.carbonSavings > 0.1) {
     recommendations.push(
       `🌍 You're saving ${impact.carbonSavings.toFixed(
-        3
+        3,
       )} kg CO2e - equivalent to ${impact.treesEquivalent.toFixed(
-        2
-      )} trees planted annually!`
+        2,
+      )} trees planted annually!`,
     );
   }
 
   if (impact.energySavings > 0.01) {
     recommendations.push(
       `⚡ Energy savings of ${impact.energySavings.toFixed(
-        3
+        3,
       )} kWh - enough to power a laptop for ${(
         impact.energySavings * 10
-      ).toFixed(1)} hours!`
+      ).toFixed(1)} hours!`,
     );
   }
 
   if (impact.waterSavings > 1) {
     recommendations.push(
       `💧 Water savings of ${impact.waterSavings.toFixed(
-        1
+        1,
       )}L - equivalent to ${(impact.waterSavings / 2).toFixed(
-        1
-      )} water bottles!`
+        1,
+      )} water bottles!`,
     );
   }
 
   if (packageCount > 5) {
     recommendations.push(
-      `🎯 Removing ${packageCount} unused dependencies significantly reduces your project's environmental footprint!`
+      `🎯 Removing ${packageCount} unused dependencies significantly reduces your project's environmental footprint!`,
     );
   }
 
   if (impact.carMilesEquivalent > 0.1) {
     recommendations.push(
       `🚗 Your CO2 savings equal driving ${impact.carMilesEquivalent.toFixed(
-        1
-      )} fewer miles - every bit helps!`
+        1,
+      )} fewer miles - every bit helps!`,
     );
   }
 
   recommendations.push(
-    `🌟 You're making a real difference! Share your environmental impact with your team to inspire others.`
+    `🌟 You're making a real difference! Share your environmental impact with your team to inspire others.`,
   );
 
   return recommendations;
 }
 
 export function displayEnvironmentalHeroMessage(
-  impact: EnvironmentalImpact
+  impact: EnvironmentalImpact,
 ): void {
   const totalSavings =
     impact.carbonSavings + impact.energySavings + impact.waterSavings;
@@ -1359,18 +1319,18 @@ export function displayEnvironmentalHeroMessage(
     console.log(chalk.green.bold("\n🏆 Environmental Hero Award! 🏆"));
     console.log(
       chalk.green(
-        "You're making a significant positive impact on the environment!"
-      )
+        "You're making a significant positive impact on the environment!",
+      ),
     );
   } else if (totalSavings > 0.1) {
     console.log(chalk.yellow.bold("\n🌱 Green Developer! 🌱"));
     console.log(
-      chalk.yellow("Every small action counts toward a sustainable future!")
+      chalk.yellow("Every small action counts toward a sustainable future!"),
     );
   } else {
     console.log(chalk.blue.bold("\n💚 Eco-Conscious Developer! 💚"));
     console.log(
-      chalk.blue("You're contributing to a cleaner, more efficient codebase!")
+      chalk.blue("You're contributing to a cleaner, more efficient codebase!"),
     );
   }
 }

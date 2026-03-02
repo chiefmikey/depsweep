@@ -91,8 +91,7 @@ describe("DepSweep CLI End-to-End Tests", () => {
 
         // Should contain environmental impact analysis
         expect(result).toContain("Environmental Impact Analysis");
-        expect(result).toContain("🌱");
-        expect(result).toContain("🌍 Total Environmental Impact");
+        expect(result).toContain("Total Environmental Impact");
       } catch (error: any) {
         // If the test fails due to dependency analysis, that's expected in test environment
         // The important thing is that the CLI runs and recognizes the flags
@@ -214,8 +213,7 @@ describe("DepSweep CLI End-to-End Tests", () => {
 
         // Should contain environmental impact analysis
         expect(result).toContain("Environmental Impact Analysis");
-        expect(result).toContain("🌱");
-        expect(result).toContain("🌍 Total Environmental Impact");
+        expect(result).toContain("Total Environmental Impact");
 
         // Should contain environmental recommendations
         expect(result).toContain("Environmental Impact Recommendations");

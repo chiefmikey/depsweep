@@ -322,12 +322,11 @@ describe("Environmental Impact Calculations", () => {
 
       expect(Array.isArray(recommendations)).toBe(true);
       expect(recommendations.length).toBeGreaterThan(0);
-      expect(recommendations.some((r) => r.includes("🌍"))).toBe(true);
-      expect(recommendations.some((r) => r.includes("⚡"))).toBe(true);
-      expect(recommendations.some((r) => r.includes("💧"))).toBe(true);
-      expect(recommendations.some((r) => r.includes("🎯"))).toBe(true);
-      expect(recommendations.some((r) => r.includes("🚗"))).toBe(true);
-      expect(recommendations.some((r) => r.includes("🌟"))).toBe(true);
+      expect(recommendations.some((r) => r.includes("Carbon savings"))).toBe(true);
+      expect(recommendations.some((r) => r.includes("Energy savings"))).toBe(true);
+      expect(recommendations.some((r) => r.includes("Water savings"))).toBe(true);
+      expect(recommendations.some((r) => r.includes("fewer miles"))).toBe(true);
+      expect(recommendations.some((r) => r.includes("measurable difference"))).toBe(true);
     });
 
     it("should generate recommendations for minimal impact", () => {
@@ -347,7 +346,7 @@ describe("Environmental Impact Calculations", () => {
       expect(Array.isArray(recommendations)).toBe(true);
       expect(recommendations.length).toBeGreaterThan(0);
       // Should still include the general encouragement message
-      expect(recommendations.some((r) => r.includes("🌟"))).toBe(true);
+      expect(recommendations.some((r) => r.includes("measurable difference"))).toBe(true);
     });
 
     it("should handle zero impact", () => {
@@ -367,7 +366,7 @@ describe("Environmental Impact Calculations", () => {
       expect(Array.isArray(recommendations)).toBe(true);
       expect(recommendations.length).toBeGreaterThan(0);
       // Should still include the general encouragement message
-      expect(recommendations.some((r) => r.includes("🌟"))).toBe(true);
+      expect(recommendations.some((r) => r.includes("measurable difference"))).toBe(true);
     });
   });
 

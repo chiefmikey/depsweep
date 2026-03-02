@@ -80,7 +80,7 @@ export function getTimeOfDayMultiplier(): number {
       return ENVIRONMENTAL_CONSTANTS.OFF_PEAK_ENERGY_MULTIPLIER;
     }
   } catch {
-    return 1.0; // Default multiplier if Date/Intl fails
+    return 1.0; // Default multiplier if Date fails
   }
 }
 

@@ -61,12 +61,12 @@ function generateCoverageReport(coverageData) {
   }
 
   // Overall coverage summary
-  console.log('🎯 Overall Coverage Summary:');
+  console.log('Overall Coverage Summary:');
   console.log('-----------------------------');
-  console.log(`📈 Statements: ${formatCoverage(total.statements.covered, total.statements.total, 100)}`);
-  console.log(`🌿 Branches:   ${formatCoverage(total.branches.covered, total.branches.total, 100)}`);
-  console.log(`⚙️  Functions:  ${formatCoverage(total.functions.covered, total.functions.total, 100)}`);
-  console.log(`📝 Lines:      ${formatCoverage(total.lines.covered, total.lines.total, 100)}`);
+  console.log(`Statements: ${formatCoverage(total.statements.covered, total.statements.total, 100)}`);
+  console.log(`Branches:   ${formatCoverage(total.branches.covered, total.branches.total, 100)}`);
+  console.log(`Functions:  ${formatCoverage(total.functions.covered, total.functions.total, 100)}`);
+  console.log(`Lines:      ${formatCoverage(total.lines.covered, total.lines.total, 100)}`);
 
   // Coverage status
   const allThresholdsMet =
@@ -75,10 +75,10 @@ function generateCoverageReport(coverageData) {
     (total.functions.covered / total.functions.total) >= 1.00 &&
     (total.lines.covered / total.lines.total) >= 1.00;
 
-  console.log(`\n${allThresholdsMet ? '✅' : '❌'} Coverage Status: ${allThresholdsMet ? 'PASSED' : 'FAILED'}`);
+  console.log(`\nCoverage Status: ${allThresholdsMet ? 'PASSED' : 'FAILED'}`);
 
   // File-by-file analysis
-  console.log('\n📁 File-by-File Coverage:');
+  console.log('\nFile-by-File Coverage:');
   console.log('-------------------------');
 
   const files = Object.keys(coverageData).filter(key => key !== 'total');
@@ -96,18 +96,18 @@ function generateCoverageReport(coverageData) {
     const linesPct = lines.total > 0 ? (lines.covered / lines.total) * 100 : 0;
 
     const avgCoverage = (statementsPct + branchesPct + functionsPct + linesPct) / 4;
-    const status = avgCoverage >= 100 ? '✅' : '❌';
+    const status = avgCoverage >= 100 ? 'PASS' : 'FAIL';
 
     console.log(`\n${status} ${file}`);
-    console.log(`   📈 Statements: ${formatCoverage(statements.covered, statements.total, 100)}`);
-    console.log(`   🌿 Branches:   ${formatCoverage(branches.covered, branches.total, 100)}`);
-    console.log(`   ⚙️  Functions:  ${formatCoverage(functions.covered, functions.total, 100)}`);
-    console.log(`   📝 Lines:      ${formatCoverage(lines.covered, lines.total, 100)}`);
-    console.log(`   📊 Average:    ${avgCoverage.toFixed(1)}%`);
+    console.log(`   Statements: ${formatCoverage(statements.covered, statements.total, 100)}`);
+    console.log(`   Branches:   ${formatCoverage(branches.covered, branches.total, 100)}`);
+    console.log(`   Functions:  ${formatCoverage(functions.covered, functions.total, 100)}`);
+    console.log(`   Lines:      ${formatCoverage(lines.covered, lines.total, 100)}`);
+    console.log(`   Average:    ${avgCoverage.toFixed(1)}%`);
   });
 
   // Recommendations
-  console.log('\n💡 Coverage Recommendations:');
+  console.log('\nCoverage Recommendations:');
   console.log('-----------------------------');
 
   const lowCoverageFiles = files.filter(file => {
@@ -117,18 +117,18 @@ function generateCoverageReport(coverageData) {
   });
 
   if (lowCoverageFiles.length > 0) {
-    console.log('🔍 Files needing more test coverage:');
+    console.log('Files needing more test coverage:');
     lowCoverageFiles.forEach(file => {
       const fileData = coverageData[file];
       const statementsPct = fileData.statements.total > 0 ? (fileData.statements.covered / fileData.statements.total) * 100 : 0;
-      console.log(`   • ${file} (${statementsPct.toFixed(1)}% statements)`);
+      console.log(`   - ${file} (${statementsPct.toFixed(1)}% statements)`);
     });
   } else {
-    console.log('🎉 All files meet minimum coverage requirements!');
+    console.log('All files meet minimum coverage requirements');
   }
 
   // Coverage trends (if available)
-  console.log('\n📈 Coverage Insights:');
+  console.log('\nCoverage Insights:');
   console.log('---------------------');
 
   const totalStatements = total.statements.total;
@@ -136,24 +136,24 @@ function generateCoverageReport(coverageData) {
   const totalFunctions = total.functions.total;
   const totalLines = total.lines.total;
 
-  console.log(`📊 Total Code Metrics:`);
-  console.log(`   • ${totalStatements} statements`);
-  console.log(`   • ${totalBranches} branches`);
-  console.log(`   • ${totalFunctions} functions`);
-  console.log(`   • ${totalLines} lines`);
+  console.log(`Total Code Metrics:`);
+  console.log(`   - ${totalStatements} statements`);
+  console.log(`   - ${totalBranches} branches`);
+  console.log(`   - ${totalFunctions} functions`);
+  console.log(`   - ${totalLines} lines`);
 
   const uncoveredStatements = totalStatements - total.statements.covered;
   const uncoveredBranches = totalBranches - total.branches.covered;
   const uncoveredFunctions = totalFunctions - total.functions.covered;
   const uncoveredLines = totalLines - total.lines.covered;
 
-  console.log(`\n🎯 Coverage Gaps:`);
-  console.log(`   • ${uncoveredStatements} uncovered statements`);
-  console.log(`   • ${uncoveredBranches} uncovered branches`);
-  console.log(`   • ${uncoveredFunctions} uncovered functions`);
-  console.log(`   • ${uncoveredLines} uncovered lines`);
+  console.log(`\nCoverage Gaps:`);
+  console.log(`   - ${uncoveredStatements} uncovered statements`);
+  console.log(`   - ${uncoveredBranches} uncovered branches`);
+  console.log(`   - ${uncoveredFunctions} uncovered functions`);
+  console.log(`   - ${uncoveredLines} uncovered lines`);
 
-  console.log('\n✨ Coverage analysis complete!');
+  console.log('\nCoverage analysis complete');
 
   // Exit with appropriate code
   process.exit(allThresholdsMet ? 0 : 1);

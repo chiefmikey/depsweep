@@ -451,7 +451,7 @@ export class PerformanceMonitor {
   }
 
   logSummary(): void {
-    console.log("\n📊 Performance Metrics:");
+    console.log("\nPerformance Metrics:");
     console.log("========================");
 
     for (const [operation, stats] of this.metrics.entries()) {

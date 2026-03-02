@@ -47,7 +47,7 @@ describe("Constants and Helper Functions", () => {
     });
 
     it("should contain environmental impact messages", () => {
-      expect(MESSAGES.environmentalImpact).toContain("🌱");
+      expect(MESSAGES.environmentalImpact).toContain("Environmental");
       expect(MESSAGES.carbonSavings).toContain("Carbon");
       expect(MESSAGES.energyEfficiency).toContain("Energy");
       expect(MESSAGES.waterSavings).toContain("Water");

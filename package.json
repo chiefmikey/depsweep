@@ -2,7 +2,7 @@
   "name": "depsweep",
   "version": "1.0.0",
   "type": "module",
-  "description": "🌱 Automated intelligent dependency cleanup with environmental impact reporting",
+  "description": "Automated intelligent dependency cleanup with environmental impact reporting",
   "main": "dist/index.js",
   "bin": {
     "depsweep": "dist/index.js"

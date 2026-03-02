@@ -62,7 +62,7 @@ jobs:
       - name: Fork target repository
         id: fork
         env:
-          GH_TOKEN: ${{ secrets.DEPSWEEP_PAT }}
+          GH_TOKEN: ${{ secrets.ADMIN_PAT }}
         run: |
           # Check if fork already exists
           if gh api "repos/chiefmikey/${{ steps.validate.outputs.name }}" --silent 2>/dev/null; then
@@ -82,7 +82,7 @@ jobs:
 
       - name: Clone fork
         env:
-          GH_TOKEN: ${{ secrets.DEPSWEEP_PAT }}
+          GH_TOKEN: ${{ secrets.ADMIN_PAT }}
         run: |
           git clone "https://x-access-token:${GH_TOKEN}@github.com/${{ steps.fork.outputs.fork }}.git" target-repo
           cd target-repo
@@ -164,7 +164,7 @@ jobs:
       - name: Commit and push
         working-directory: target-repo
         env:
-          GH_TOKEN: ${{ secrets.DEPSWEEP_PAT }}
+          GH_TOKEN: ${{ secrets.ADMIN_PAT }}
         run: |
           git add -A
           if git diff --cached --quiet; then
@@ -188,7 +188,7 @@ jobs:
       - name: Create pull request
         id: create-pr
         env:
-          GH_TOKEN: ${{ secrets.DEPSWEEP_PAT }}
+          GH_TOKEN: ${{ secrets.ADMIN_PAT }}
         run: |
           IFS=',' read -ra DEPS <<< "${{ github.event.inputs.dependencies }}"
           COUNT=${#DEPS[@]}

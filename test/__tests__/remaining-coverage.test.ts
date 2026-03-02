@@ -37,7 +37,9 @@ jest.mock("node-fetch", () => jest.fn());
 
 jest.mock("shell-escape", () => jest.fn());
 
-jest.mock("globby", () => jest.fn());
+jest.mock("globby", () => ({
+  globby: jest.fn(),
+}));
 
 jest.mock("find-up", () => ({
   findUp: jest.fn(),
@@ -420,22 +422,18 @@ describe("Remaining Coverage Tests", () => {
   });
 
   describe("getWorkspaceInfo - Edge Cases", () => {
-    it.skip("should handle workspaces with string array", async () => {
+    it("should handle workspaces with string array", async () => {
       const mockPackageJson = {
         workspaces: ["packages/*", "apps/*", "libs/*"],
       };
 
-      // Clear previous mocks
-      mockFs.readFile.mockClear();
-      mockPath.dirname.mockClear();
-      if (mockGlobby && typeof mockGlobby.mockClear === "function") {
-        mockGlobby.mockClear();
-      }
+      mockFs.readFile.mockReset();
+      mockPath.dirname.mockReset();
+      mockGlobby.mockReset();
 
       mockFs.readFile.mockResolvedValue(JSON.stringify(mockPackageJson));
       mockPath.dirname.mockReturnValue("/test");
-      // Mock globby to return workspace packages
-      (globby as any).mockResolvedValue([
+      mockGlobby.mockResolvedValue([
         "/test/packages/package-a",
         "/test/apps/app-a",
         "/test/libs/lib-a",
@@ -449,24 +447,20 @@ describe("Remaining Coverage Tests", () => {
       }
     });
 
-    it.skip("should handle workspaces with packages object", async () => {
+    it("should handle workspaces with packages object", async () => {
       const mockPackageJson = {
         workspaces: {
           packages: ["packages/*", "apps/*"],
         },
       };
 
-      // Clear previous mocks
-      mockFs.readFile.mockClear();
-      mockPath.dirname.mockClear();
-      if (mockGlobby && typeof mockGlobby.mockClear === "function") {
-        mockGlobby.mockClear();
-      }
+      mockFs.readFile.mockReset();
+      mockPath.dirname.mockReset();
+      mockGlobby.mockReset();
 
       mockFs.readFile.mockResolvedValue(JSON.stringify(mockPackageJson));
       mockPath.dirname.mockReturnValue("/test");
-      // Mock globby to return workspace packages
-      (globby as any).mockResolvedValue([
+      mockGlobby.mockResolvedValue([
         "/test/packages/package-a",
         "/test/apps/app-a",
       ]);
@@ -479,22 +473,18 @@ describe("Remaining Coverage Tests", () => {
       }
     });
 
-    it.skip("should handle empty workspaces", async () => {
+    it("should handle empty workspaces", async () => {
       const mockPackageJson = {
         workspaces: [],
       };
 
-      // Clear previous mocks
-      mockFs.readFile.mockClear();
-      mockPath.dirname.mockClear();
-      if (mockGlobby && typeof mockGlobby.mockClear === "function") {
-        mockGlobby.mockClear();
-      }
+      mockFs.readFile.mockReset();
+      mockPath.dirname.mockReset();
+      mockGlobby.mockReset();
 
       mockFs.readFile.mockResolvedValue(JSON.stringify(mockPackageJson));
       mockPath.dirname.mockReturnValue("/test");
-      // Mock globby to return empty array
-      (globby as any).mockResolvedValue([]);
+      mockGlobby.mockResolvedValue([]);
 
       const result = await getWorkspaceInfo("/test/package.json");
 
@@ -506,7 +496,7 @@ describe("Remaining Coverage Tests", () => {
   });
 
   describe("getTSConfig - Edge Cases", () => {
-    it.skip("should handle complex tsconfig.json", async () => {
+    it("should handle complex tsconfig.json", async () => {
       const mockTSConfig = {
         compilerOptions: {
           target: "es2020",
@@ -534,7 +524,7 @@ describe("Remaining Coverage Tests", () => {
       expect(result).toEqual(mockTSConfig);
     });
 
-    it.skip("should handle tsconfig.json with comments", async () => {
+    it("should handle tsconfig.json with comments", async () => {
       // Clear previous mocks
       mockFs.readFile.mockClear();
       mockPath.join.mockClear();

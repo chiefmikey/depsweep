@@ -35,7 +35,11 @@ import {
   validateEnvironmentalCalculations,
 } from "./enhanced-environmental-calculations.js";
 
-import { customSort } from "./index.js";
+export function customSort(a: string, b: string): number {
+  const aNormalized = a.replace(/^@/, "");
+  const bNormalized = b.replace(/^@/, "");
+  return aNormalized.localeCompare(bNormalized, "en", { sensitivity: "base" });
+}
 
 export function isConfigFile(filePath: string): boolean {
   if (!filePath || typeof filePath !== "string") {

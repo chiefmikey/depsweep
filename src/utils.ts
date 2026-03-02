@@ -11,6 +11,7 @@ import {
   isConfigFile,
   parseConfigFile,
   isDependencyUsedInFile,
+  customSort,
 } from "./helpers.js";
 import type {
   DependencyContext,
@@ -26,7 +27,6 @@ import {
   MemoryOptimizer,
 } from "./performance-optimizations.js";
 
-import { customSort } from "./index.js";
 
 interface DependencyInfo {
   usedInFiles: string[];

@@ -35,7 +35,9 @@ import {
   displayEnvironmentalImpactTable,
   generateEnvironmentalRecommendations,
   displayEnvironmentalHeroMessage,
+  customSort,
 } from "./helpers.js";
+export { customSort } from "./helpers.js";
 import type { EnvironmentalImpact } from "./interfaces.js";
 import {
   getSourceFiles,
@@ -78,13 +80,6 @@ function logNewlines(count = 1): void {
   for (let index = 0; index < count; index++) {
     console.log();
   }
-}
-
-// Custom sort function to handle scoped dependencies
-export function customSort(a: string, b: string): number {
-  const aNormalized = a.replace(/^@/, "");
-  const bNormalized = b.replace(/^@/, "");
-  return aNormalized.localeCompare(bNormalized, "en", { sensitivity: "base" });
 }
 
 // Main execution

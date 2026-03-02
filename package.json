@@ -8,7 +8,7 @@
     "depsweep": "dist/index.js"
   },
   "scripts": {
-    "build": "rm -rf dist && tsc",
+    "build": "rm -rf dist && tsc && chmod +x dist/index.js",
     "start": "node dist/index.js",
     "dev": "tsc --watch",
     "dev:run": "npm run build && node dist/index.js",
@@ -61,16 +61,16 @@
     "typescript",
     "javascript"
   ],
-  "author": "Your Name <your.email@example.com>",
+  "author": "Mikl Wolfe <wolfemikl@gmail.com>",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/yourusername/depsweep.git"
+    "url": "https://github.com/chiefmikey/depsweep.git"
   },
   "bugs": {
-    "url": "https://github.com/yourusername/depsweep/issues"
+    "url": "https://github.com/chiefmikey/depsweep/issues"
   },
-  "homepage": "https://github.com/yourusername/depsweep#readme",
+  "homepage": "https://github.com/chiefmikey/depsweep#readme",
   "engines": {
     "node": ">=18.0.0",
     "npm": ">=9.0.0"
@@ -100,8 +100,6 @@
     "@types/micromatch": "^4.0.9",
     "@types/node": "^24.3.0",
     "@types/shell-escape": "^0.2.3",
-    "@typescript-eslint/eslint-plugin": "^8.43.0",
-    "@typescript-eslint/parser": "^8.43.0",
     "eslint": "^9.35.0",
     "jest": "^30.1.1",
     "prettier": "^3.6.2",

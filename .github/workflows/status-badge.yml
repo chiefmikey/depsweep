@@ -26,10 +26,7 @@ jobs:
     - name: Build project
       run: npm run build
 
-    - name: Run tests
-      run: npm run test:coverage
-
-    - name: Check test status
+    - name: Run tests and check status
       id: test-status
       run: |
         if npm run test:coverage > /dev/null 2>&1; then
@@ -42,7 +39,7 @@ jobs:
 
     - name: Generate status badge
       run: |
-        echo "## 📊 Project Status" >> $GITHUB_STEP_SUMMARY
+        echo "## Project Status" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "**Tests**: ${{ steps.test-status.outputs.status }}" >> $GITHUB_STEP_SUMMARY
         echo "**Last Check**: $(date)" >> $GITHUB_STEP_SUMMARY

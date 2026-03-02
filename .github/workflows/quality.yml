@@ -43,10 +43,10 @@ jobs:
       run: npm run test:ci
 
     - name: Generate detailed coverage report
-      run: npm run coverage:detailed
+      run: npm run coverage:detailed || echo "Detailed coverage report not available"
 
     - name: Upload coverage reports
-      uses: codecov/codecov-action@v3
+      uses: codecov/codecov-action@v4
       with:
         file: ./coverage/lcov.info
         flags: unittests

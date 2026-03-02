@@ -102,3 +102,19 @@ export interface EnvironmentalReport {
   };
   recommendations: string[];
 }
+
+export interface ScanResult {
+  project: string;
+  packageManager: string;
+  totalDependencies: number;
+  unusedDependencies: string[];
+  protectedDependencies: string[];
+  impact?: {
+    totalInstallTime: number; // seconds
+    totalDiskSpace: number; // bytes
+    perPackage: Record<string, ImpactMetrics>;
+    environmentalImpact?: EnvironmentalImpact;
+  };
+  timestamp: string;
+  version: string;
+}

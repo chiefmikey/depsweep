@@ -1,0 +1,211 @@
+name: Submit PR
+
+on:
+  workflow_dispatch:
+    inputs:
+      repo:
+        description: 'Target repository (owner/repo)'
+        required: true
+        type: string
+      dependencies:
+        description: 'Comma-separated list of dependencies to remove'
+        required: true
+        type: string
+
+jobs:
+  submit-pr:
+    name: Submit Cleanup PR
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Validate inputs
+        id: validate
+        run: |
+          REPO="${{ github.event.inputs.repo }}"
+          DEPS="${{ github.event.inputs.dependencies }}"
+
+          if [ -z "$REPO" ] || [ -z "$DEPS" ]; then
+            echo "::error::Both repo and dependencies inputs are required"
+            exit 1
+          fi
+
+          OWNER=$(echo "$REPO" | cut -d'/' -f1)
+          NAME=$(echo "$REPO" | cut -d'/' -f2)
+
+          if [ -z "$OWNER" ] || [ -z "$NAME" ]; then
+            echo "::error::Invalid repo format. Use: owner/repo"
+            exit 1
+          fi
+
+          echo "owner=$OWNER" >> $GITHUB_OUTPUT
+          echo "name=$NAME" >> $GITHUB_OUTPUT
+          echo "repo=$REPO" >> $GITHUB_OUTPUT
+
+          BRANCH="depsweep/cleanup-$(date +%Y%m%d)"
+          echo "branch=$BRANCH" >> $GITHUB_OUTPUT
+
+      - name: Checkout depsweep
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Build depsweep
+        run: |
+          npm ci
+          npm run build
+
+      - name: Fork target repository
+        id: fork
+        env:
+          GH_TOKEN: ${{ secrets.DEPSWEEP_PAT }}
+        run: |
+          # Check if fork already exists
+          if gh api "repos/chiefmikey/${{ steps.validate.outputs.name }}" --silent 2>/dev/null; then
+            echo "Fork already exists"
+            echo "fork=chiefmikey/${{ steps.validate.outputs.name }}" >> $GITHUB_OUTPUT
+          else
+            gh repo fork "${{ steps.validate.outputs.repo }}" --clone=false
+            # Wait for fork to be ready
+            for i in $(seq 1 30); do
+              if gh api "repos/chiefmikey/${{ steps.validate.outputs.name }}" --silent 2>/dev/null; then
+                break
+              fi
+              sleep 2
+            done
+            echo "fork=chiefmikey/${{ steps.validate.outputs.name }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Clone fork
+        env:
+          GH_TOKEN: ${{ secrets.DEPSWEEP_PAT }}
+        run: |
+          git clone "https://x-access-token:${GH_TOKEN}@github.com/${{ steps.fork.outputs.fork }}.git" target-repo
+          cd target-repo
+          git remote add upstream "https://github.com/${{ steps.validate.outputs.repo }}.git"
+          git fetch upstream
+          git checkout -B "${{ steps.validate.outputs.branch }}" upstream/HEAD
+
+      - name: Configure git
+        working-directory: target-repo
+        run: |
+          git config user.name "chiefmikey"
+          git config user.email "wolfemikl@gmail.com"
+
+      - name: Detect package manager
+        id: detect-pm
+        working-directory: target-repo
+        run: |
+          if [ -f "pnpm-lock.yaml" ]; then
+            echo "pm=pnpm" >> $GITHUB_OUTPUT
+            echo "install=pnpm install --no-frozen-lockfile" >> $GITHUB_OUTPUT
+            echo "uninstall=pnpm remove" >> $GITHUB_OUTPUT
+          elif [ -f "yarn.lock" ]; then
+            echo "pm=yarn" >> $GITHUB_OUTPUT
+            echo "install=yarn install" >> $GITHUB_OUTPUT
+            echo "uninstall=yarn remove" >> $GITHUB_OUTPUT
+          else
+            echo "pm=npm" >> $GITHUB_OUTPUT
+            echo "install=npm install" >> $GITHUB_OUTPUT
+            echo "uninstall=npm uninstall" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Install dependencies
+        working-directory: target-repo
+        run: ${{ steps.detect-pm.outputs.install }}
+
+      - name: Remove unused dependencies
+        working-directory: target-repo
+        run: |
+          IFS=',' read -ra DEPS <<< "${{ github.event.inputs.dependencies }}"
+          for dep in "${DEPS[@]}"; do
+            dep=$(echo "$dep" | xargs)  # trim whitespace
+            if [ -n "$dep" ]; then
+              echo "Removing: $dep"
+              ${{ steps.detect-pm.outputs.uninstall }} "$dep" || echo "Warning: Failed to remove $dep"
+            fi
+          done
+
+      - name: Run depsweep scan for PR body
+        working-directory: target-repo
+        run: |
+          node ../dist/index.js --json --measure-impact --dry-run --output ../pr-report.json 2>/dev/null || true
+
+      - name: Generate PR body
+        id: pr-body
+        run: |
+          if [ -f pr-report.json ]; then
+            node scripts/generate-pr-body.js pr-report.json > pr-body.md
+          else
+            cat > pr-body.md << 'FALLBACK'
+          ## 🧹 Remove unused dependencies
+
+          This PR removes unused dependencies detected by [DepSweep](https://github.com/chiefmikey/depsweep).
+
+          ### Removed packages
+          FALLBACK
+            IFS=',' read -ra DEPS <<< "${{ github.event.inputs.dependencies }}"
+            for dep in "${DEPS[@]}"; do
+              dep=$(echo "$dep" | xargs)
+              echo "- \`$dep\`" >> pr-body.md
+            done
+            cat >> pr-body.md << 'FOOTER'
+
+          ---
+
+          > 🌱 Generated by [DepSweep](https://github.com/chiefmikey/depsweep) — Reducing software's environmental footprint, one dependency at a time.
+          FOOTER
+          fi
+
+      - name: Commit and push
+        working-directory: target-repo
+        env:
+          GH_TOKEN: ${{ secrets.DEPSWEEP_PAT }}
+        run: |
+          git add -A
+          if git diff --cached --quiet; then
+            echo "::error::No changes to commit. Dependencies may not have been found."
+            exit 1
+          fi
+
+          # Count removed deps for commit message
+          IFS=',' read -ra DEPS <<< "${{ github.event.inputs.dependencies }}"
+          COUNT=${#DEPS[@]}
+
+          git commit -m "chore: remove $COUNT unused dependencies (depsweep)
+
+          Removed: ${{ github.event.inputs.dependencies }}
+
+          Detected by DepSweep automated dependency analysis.
+          See: https://github.com/chiefmikey/depsweep"
+
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${{ steps.fork.outputs.fork }}.git" "${{ steps.validate.outputs.branch }}" --force
+
+      - name: Create pull request
+        id: create-pr
+        env:
+          GH_TOKEN: ${{ secrets.DEPSWEEP_PAT }}
+        run: |
+          IFS=',' read -ra DEPS <<< "${{ github.event.inputs.dependencies }}"
+          COUNT=${#DEPS[@]}
+
+          PR_URL=$(gh pr create \
+            --repo "${{ steps.validate.outputs.repo }}" \
+            --head "chiefmikey:${{ steps.validate.outputs.branch }}" \
+            --title "chore: remove $COUNT unused dependencies (depsweep)" \
+            --body-file pr-body.md)
+
+          echo "pr_url=$PR_URL" >> $GITHUB_OUTPUT
+          echo "::notice::PR created: $PR_URL"
+
+      - name: Summary
+        run: |
+          echo "## ✅ PR Submitted" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Target:** \`${{ steps.validate.outputs.repo }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**PR:** ${{ steps.create-pr.outputs.pr_url }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Dependencies removed:** \`${{ github.event.inputs.dependencies }}\`" >> $GITHUB_STEP_SUMMARY

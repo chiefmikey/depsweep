@@ -38,7 +38,11 @@ import {
   customSort,
 } from "./helpers.js";
 export { customSort } from "./helpers.js";
-import type { EnvironmentalImpact } from "./interfaces.js";
+import type {
+  EnvironmentalImpact,
+  ImpactMetrics,
+  ScanResult,
+} from "./interfaces.js";
 import {
   getSourceFiles,
   findClosestPackageJson,
@@ -86,6 +90,7 @@ function logNewlines(count = 1): void {
 async function main(): Promise<void> {
   const performanceMonitor = PerformanceMonitor.getInstance();
   const memoryOptimizer = MemoryOptimizer.getInstance();
+  let savedConsoleLog: typeof console.log | undefined;
 
   try {
     performanceMonitor.startTimer("totalExecution");
@@ -97,6 +102,7 @@ async function main(): Promise<void> {
 
     const projectDirectory = path.dirname(packageJsonPath);
     const context = await getPackageContext(packageJsonPath);
+    const packageManager = await detectPackageManager(projectDirectory);
 
     const packageJsonString =
       (await fs.readFile(packageJsonPath, "utf8")) || "{}";
@@ -124,6 +130,8 @@ async function main(): Promise<void> {
       .option("-m, --measure-impact", "measure unused dependency impact")
       .option("-d, --dry-run", "run without making changes")
       .option("-n, --no-progress", "disable the progress bar")
+      .option("--json", "output results as JSON")
+      .option("-o, --output <file>", "write results to file")
       .version(packageJson.version, "--version", "display installed version")
       .addHelpText("after", CLI_STRINGS.EXAMPLE_TEXT);
 
@@ -144,6 +152,14 @@ async function main(): Promise<void> {
     if (options.help) {
       program.outputHelp();
       return;
+    }
+
+    // JSON-to-stdout mode: suppress all non-JSON console output
+    const jsonToStdout = options.json && !options.output;
+    if (jsonToStdout) {
+      options.progress = false;
+      savedConsoleLog = console.log;
+      console.log = () => {};
     }
 
     console.log(chalk.cyan(MESSAGES.title));
@@ -346,6 +362,73 @@ async function main(): Promise<void> {
     // Update unusedDependencies to only include truly unused (non-protected)
     // When aggressive flag is set, this includes protected dependencies
     unusedDependencies = trulyUnused;
+
+    // === JSON OUTPUT MODE ===
+    if (options.json) {
+      const scanResult: ScanResult = {
+        project: packageJson.name || path.basename(projectDirectory),
+        packageManager,
+        totalDependencies: dependencies.length,
+        unusedDependencies: [...unusedDependencies],
+        protectedDependencies: [...protectedUnused],
+        timestamp: new Date().toISOString(),
+        version: "1.0.0",
+      };
+
+      if (unusedDependencies.length > 0 && options.measureImpact) {
+        let totalInstallTime = 0;
+        let totalDiskSpace = 0;
+        const perPackage: Record<string, ImpactMetrics> = {};
+        const environmentalImpacts: EnvironmentalImpact[] = [];
+        const parentInfo = await getParentPackageDownloads(packageJsonPath);
+
+        for (const dep of unusedDependencies) {
+          try {
+            const metrics = await measurePackageInstallation(dep);
+            totalInstallTime += metrics.installTime;
+            totalDiskSpace += metrics.diskSpace;
+            const envImpact = calculateEnvironmentalImpact(
+              metrics.diskSpace,
+              metrics.installTime,
+              parentInfo?.downloads || null,
+            );
+            perPackage[dep] = {
+              installTime: metrics.installTime,
+              diskSpace: metrics.diskSpace,
+              errors: metrics.errors,
+              environmentalImpact: envImpact,
+            };
+            environmentalImpacts.push(envImpact);
+          } catch (error) {
+            perPackage[dep] = {
+              installTime: 0,
+              diskSpace: 0,
+              errors: [String(error)],
+            };
+          }
+        }
+
+        scanResult.impact = {
+          totalInstallTime,
+          totalDiskSpace,
+          perPackage,
+          environmentalImpact:
+            calculateCumulativeEnvironmentalImpact(environmentalImpacts),
+        };
+      }
+
+      const json = JSON.stringify(scanResult, null, 2);
+      if (savedConsoleLog) {
+        console.log = savedConsoleLog;
+      }
+      if (options.output) {
+        await fs.writeFile(options.output, json, "utf8");
+        console.log(chalk.green(`Report written to ${options.output}`));
+      } else {
+        process.stdout.write(json + "\n");
+      }
+      return;
+    }
 
     // Show results and handle package removal
     if (unusedDependencies.length === 0 && safeUnused.length === 0) {
@@ -634,9 +717,6 @@ async function main(): Promise<void> {
       const rl = readline.createInterface({ input, output });
       activeReadline = rl;
 
-      // Detect package manager once
-      const packageManager = await detectPackageManager(projectDirectory);
-
       const answer = await rl.question(chalk.blue(MESSAGES.promptRemove));
       if (answer.toLowerCase() === "y") {
         // Build uninstall command
@@ -695,6 +775,9 @@ async function main(): Promise<void> {
       );
     }
   } catch (error) {
+    if (savedConsoleLog) {
+      console.log = savedConsoleLog;
+    }
     cleanup();
     console.error(chalk.red(MESSAGES.fatalError), error);
     process.exit(1);

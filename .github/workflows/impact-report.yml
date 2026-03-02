@@ -9,6 +9,8 @@ on:
         type: choice
         options:
           - npm
+          - yarn
+          - pnpm
         default: 'npm'
       package_name:
         description: 'Package Name'
@@ -24,6 +26,7 @@ jobs:
   impact:
     name: Create Report
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -39,22 +42,48 @@ jobs:
           npm ci
           npm run build
 
-      - name: Install
+      - name: Install target package
         run: |
           mkdir impact-report
           cd impact-report
           npm init -y
-          npm install ${{ github.event.inputs.package_name }} --verbose
-          ls node_modules/${{ github.event.inputs.package_name }}
+          case "${{ github.event.inputs.package_manager }}" in
+            yarn)
+              npm install -g yarn
+              yarn add ${{ github.event.inputs.package_name }}
+              ;;
+            pnpm)
+              npm install -g pnpm
+              pnpm add ${{ github.event.inputs.package_name }}
+              ;;
+            *)
+              npm install ${{ github.event.inputs.package_name }}
+              ;;
+          esac
 
-      - name: Run
+      - name: Run depsweep
         working-directory: impact-report
         run: |
-          node --trace-warnings ../dist/index.js --measure-impact --ignore ../package.json ${{ github.event.inputs.verbose && '--verbose' || '' }} 2>../error.log > ../output.txt || {
-            echo "Error running depsweep. Error log:"
-            cat ../error.log
-            exit 1
-          }
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          cat ../output.txt >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
+          node ../dist/index.js \
+            --json \
+            --measure-impact \
+            --dry-run \
+            --output ../report.json \
+            ${{ github.event.inputs.verbose && '--verbose' || '' }} \
+            2>../error.log || {
+              echo "::error::DepSweep scan failed"
+              cat ../error.log
+              exit 1
+            }
+
+      - name: Generate report
+        run: |
+          node scripts/generate-report.js report.json > report.md
+          cat report.md >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload report
+        uses: actions/upload-artifact@v4
+        with:
+          name: depsweep-impact-${{ github.event.inputs.package_name }}
+          path: report.json
+          retention-days: 90

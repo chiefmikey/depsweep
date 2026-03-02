@@ -44,7 +44,7 @@ function createTestEnvironmentalImpact(
     totalFinancialValue: 0,
 
     // Regional variations
-    carbonIntensityUsed: 0.456,
+    carbonIntensityUsed: 0.445,
     regionalMultiplier: 1.0,
 
     // Time-based factors
@@ -111,8 +111,9 @@ describe("Environmental Impact Calculations", () => {
     });
 
     it("should scale linearly with input values", () => {
-      const impact1 = calculateEnvironmentalImpact(100, 50, 30);
-      const impact2 = calculateEnvironmentalImpact(200, 100, 60);
+      // Use null monthlyDownloads to avoid non-linear CI/CD energy interaction
+      const impact1 = calculateEnvironmentalImpact(100, 50, null);
+      const impact2 = calculateEnvironmentalImpact(200, 100, null);
 
       expect(impact2.carbonSavings).toBeCloseTo(impact1.carbonSavings * 2, 3);
       expect(impact2.energySavings).toBeCloseTo(impact1.energySavings * 2, 3);

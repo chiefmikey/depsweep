@@ -25,8 +25,8 @@ describe("Constants Loading Debug", () => {
         constants.ENVIRONMENTAL_CONSTANTS.CARBON_INTENSITY_AP
       );
 
-      expect(constants.ENVIRONMENTAL_CONSTANTS.CARBON_INTENSITY_NA).toBe(0.387);
-      expect(constants.ENVIRONMENTAL_CONSTANTS.CARBON_INTENSITY_EU).toBe(0.298);
+      expect(constants.ENVIRONMENTAL_CONSTANTS.CARBON_INTENSITY_NA).toBe(0.37);
+      expect(constants.ENVIRONMENTAL_CONSTANTS.CARBON_INTENSITY_EU).toBe(0.213);
       expect(constants.ENVIRONMENTAL_CONSTANTS.CARBON_INTENSITY_AP).toBe(0.521);
     } catch (error) {
       console.error("Error loading constants:", error);

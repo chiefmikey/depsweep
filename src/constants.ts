@@ -392,30 +392,30 @@ export const COMMANDS = {
 };
 
 export const ENVIRONMENTAL_CONSTANTS = {
-  // Energy consumption per GB of data transfer (kWh) - Updated 2025
-  // Source: International Energy Agency (IEA) - Data Centers and Networks Report 2024
-  // Includes transmission, routing, and end-user device energy
-  ENERGY_PER_GB: 0.072,
+  // Energy consumption per GB of data transfer (kWh)
+  // Sources: IEA Data Centers Report 2024, LBNL US Data Center Energy Report 2024
+  // Data center ops ~0.055 kWh/GB + network ~0.059 kWh/GB; 0.06 is midpoint of 0.055-0.066 range
+  ENERGY_PER_GB: 0.06,
 
-  // Carbon intensity of electricity (kg CO2e per kWh) - Global average 2025
-  // Source: International Energy Agency (IEA) - CO2 Emissions from Fuel Combustion 2024
-  // Weighted average of global electricity mix (coal, gas, nuclear, renewables)
-  CARBON_INTENSITY: 0.456,
+  // Carbon intensity of electricity (kg CO2e per kWh) - Global average
+  // Source: IEA Electricity 2025 report — 2024 global avg was 445 g CO2/kWh
+  // https://www.iea.org/reports/electricity-2025/emissions
+  CARBON_INTENSITY: 0.445,
 
-  // Water usage per kWh (liters) - Data center cooling systems 2025
-  // Source: Uptime Institute - Data Center Water Usage Report 2024
-  // Includes direct cooling, evaporation, and indirect water for power generation
-  WATER_PER_KWH: 1.92,
+  // Water usage per kWh (liters) - Data center cooling + upstream power generation
+  // Source: Uptime Institute, industry avg WUE ~1.8 L/kWh (hyperscalers are 0.2-0.3)
+  // https://dgtlinfra.com/data-center-water-usage/
+  WATER_PER_KWH: 1.8,
 
   // Trees needed to absorb 1 kg of CO2 per year
-  // Source: USDA Forest Service - Carbon Sequestration in Forests 2024
-  // Based on mature tree species in temperate climates
-  TREES_PER_KG_CO2: 0.042,
+  // Source: USDA Forest Service — mature tree absorbs ~22 kg CO2/year → 1/22 ≈ 0.045
+  // https://www.fs.usda.gov/about-agency/features/trees-are-climate-change-carbon-storage-heroes
+  TREES_PER_KG_CO2: 0.045,
 
-  // CO2 emissions per mile driven (kg CO2e) - US average 2025
-  // Source: EPA - Greenhouse Gas Emissions from Transportation 2024
-  // Includes fuel production, vehicle manufacturing, and operation
-  CO2_PER_CAR_MILE: 0.387,
+  // CO2 emissions per mile driven (kg CO2e) - US average
+  // Source: EPA — typical passenger vehicle emits ~404 g CO2/mile
+  // https://www.epa.gov/greenvehicles/greenhouse-gas-emissions-typical-passenger-vehicle
+  CO2_PER_CAR_MILE: 0.404,
 
   // Energy efficiency improvement from removing unused deps (%)
   // Source: Multiple studies on build optimization and dependency management
@@ -471,9 +471,11 @@ export const ENVIRONMENTAL_CONSTANTS = {
   REGISTRY_ENERGY_PER_DOWNLOAD: 0.000_05,
 
   // === CARBON OFFSET COSTS ===
-  // Cost per kg CO2e for carbon offset (USD) - Updated 2025
-  // Source: Carbon Trust - Carbon Pricing Report 2024
-  CARBON_OFFSET_COST_PER_KG: 0.85,
+  // Social Cost of Carbon (USD per kg CO2e)
+  // Source: EPA 2024 — Social Cost of Carbon ~$190/tonne = $0.19/kg
+  // VCM market avg is ~$6/tonne but SCC better reflects true externality cost
+  // https://www.epa.gov/energy/greenhouse-gas-equivalencies-calculator-calculations-and-references
+  CARBON_OFFSET_COST_PER_KG: 0.19,
 
   // === WATER TREATMENT COSTS ===
   // Cost per liter of water treatment (USD) - Updated 2025
@@ -492,15 +494,17 @@ export const ENVIRONMENTAL_CONSTANTS = {
 
   // === REGIONAL VARIATIONS ===
   // North America carbon intensity (kg CO2e per kWh)
-  // Source: EPA - Regional Electricity Grid Analysis 2024
-  CARBON_INTENSITY_NA: 0.387,
+  // Source: EIA 2023 — US avg 0.81 lbs CO2/kWh = 0.37 kg/kWh
+  // https://www.eia.gov/tools/faqs/faq.php?id=74&t=11
+  CARBON_INTENSITY_NA: 0.37,
 
   // Europe carbon intensity (kg CO2e per kWh)
-  // Source: European Environment Agency - Grid Analysis 2024
-  CARBON_INTENSITY_EU: 0.298,
+  // Source: Ember European Electricity Review 2025 — EU avg 213 g CO2/kWh in 2024
+  // https://ember-energy.org/latest-insights/european-electricity-review-2025/
+  CARBON_INTENSITY_EU: 0.213,
 
   // Asia Pacific carbon intensity (kg CO2e per kWh)
-  // Source: IEA - Regional Energy Analysis 2024
+  // Source: IEA Regional Energy Analysis 2024 — weighted avg China/India/Japan/Australia
   CARBON_INTENSITY_AP: 0.521,
 
   // === TIME-BASED FACTORS ===

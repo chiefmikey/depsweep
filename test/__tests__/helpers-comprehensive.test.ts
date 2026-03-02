@@ -107,7 +107,7 @@ function createTestEnvironmentalImpact(
     totalFinancialValue: 0,
 
     // Regional variations
-    carbonIntensityUsed: 0.456,
+    carbonIntensityUsed: 0.445,
     regionalMultiplier: 1.0,
 
     // Time-based factors

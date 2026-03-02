@@ -70,8 +70,8 @@ jest.mock("../../src/constants.js", () => ({
     noPackageJson: "No package.json found",
   },
   ENVIRONMENTAL_CONSTANTS: {
-    CARBON_INTENSITY: 0.5,
-    WATER_PER_KWH: 2.5,
+    CARBON_INTENSITY: 0.445,
+    WATER_PER_KWH: 1.8,
     TREE_CARBON_CAPACITY: 22,
     CAR_MILES_PER_KG_CO2: 0.4,
     NETWORK_ENERGY_PER_MB: 0.001,
@@ -79,20 +79,20 @@ jest.mock("../../src/constants.js", () => ({
     EWASTE_ENERGY_PER_GB: 0.0005,
     EFFICIENCY_ENERGY_PER_HOUR: 0.1,
     SERVER_EFFICIENCY_ENERGY_PER_GB: 0.003,
-    ENERGY_PER_GB: 0.072,
+    ENERGY_PER_GB: 0.06,
     STORAGE_ENERGY_PER_GB_YEAR: 0.00028,
     EWASTE_IMPACT_PER_GB: 0.0005,
     SERVER_UTILIZATION_IMPROVEMENT: 0.15,
     // Regional carbon intensity constants
-    CARBON_INTENSITY_NA: 0.387,
-    CARBON_INTENSITY_EU: 0.298,
+    CARBON_INTENSITY_NA: 0.37,
+    CARBON_INTENSITY_EU: 0.213,
     CARBON_INTENSITY_AP: 0.521,
     // Time-based multipliers
     PEAK_ENERGY_MULTIPLIER: 1.45,
     OFF_PEAK_ENERGY_MULTIPLIER: 0.78,
     // Additional constants needed for calculations
-    TREES_PER_KG_CO2: 0.042,
-    CO2_PER_CAR_MILE: 0.387,
+    TREES_PER_KG_CO2: 0.045,
+    CO2_PER_CAR_MILE: 0.404,
     CI_CD_ENERGY_PER_BUILD: 0.004,
     REGISTRY_ENERGY_PER_DOWNLOAD: 0.00005,
     LIFECYCLE_ENERGY_MULTIPLIER: 2.1,
@@ -102,7 +102,7 @@ jest.mock("../../src/constants.js", () => ({
     MEMORY_ENERGY_PER_GB: 0.008,
     LATENCY_ENERGY_PER_MB: 0.0001,
     BUILD_SYSTEM_ENERGY_PER_HOUR: 0.25,
-    CARBON_OFFSET_COST_PER_KG: 0.85,
+    CARBON_OFFSET_COST_PER_KG: 0.19,
     WATER_TREATMENT_COST_PER_LITER: 0.0025,
     BUILD_TIME_PRODUCTIVITY_GAIN: 8,
     EFFICIENCY_IMPROVEMENT: 18.5,
@@ -176,7 +176,7 @@ function createTestEnvironmentalImpact(
     totalFinancialValue: 0,
 
     // Regional variations
-    carbonIntensityUsed: 0.456,
+    carbonIntensityUsed: 0.445,
     regionalMultiplier: 1.0,
 
     // Time-based factors

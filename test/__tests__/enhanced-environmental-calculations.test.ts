@@ -77,10 +77,10 @@ describe("Enhanced Environmental Calculations", () => {
 
   describe("Regional Carbon Intensity", () => {
     it("should return correct carbon intensity for each region", () => {
-      expect(getRegionalCarbonIntensity("NA")).toBe(0.387);
-      expect(getRegionalCarbonIntensity("EU")).toBe(0.298);
+      expect(getRegionalCarbonIntensity("NA")).toBe(0.37);
+      expect(getRegionalCarbonIntensity("EU")).toBe(0.213);
       expect(getRegionalCarbonIntensity("AP")).toBe(0.521);
-      expect(getRegionalCarbonIntensity("GLOBAL")).toBe(0.456);
+      expect(getRegionalCarbonIntensity("GLOBAL")).toBe(0.445);
     });
   });
 
@@ -171,7 +171,7 @@ describe("Enhanced Environmental Calculations", () => {
 
   describe("CI/CD Energy Calculation", () => {
     it("should calculate CI/CD energy with monthly downloads", () => {
-      const energy = calculateCICDEnergy(3000, 1.0); // 3000 downloads/month
+      const energy = calculateCICDEnergy(3000, 1.0, 1.0); // 3000 downloads/month, 1 hour install, 1x build freq
       expect(energy).toBeGreaterThan(0);
     });
 
@@ -219,9 +219,9 @@ describe("Enhanced Environmental Calculations", () => {
     it("should calculate financial value of savings", () => {
       const value = calculateFinancialValue(100, 500); // 100 kg CO2, 500 L water
 
-      expect(value.carbonOffsetValue).toBe(85); // 100 * 0.85
+      expect(value.carbonOffsetValue).toBe(19); // 100 * 0.19
       expect(value.waterTreatmentValue).toBe(1.25); // 500 * 0.0025
-      expect(value.totalValue).toBe(86.25);
+      expect(value.totalValue).toBe(20.25);
     });
   });
 
@@ -298,7 +298,7 @@ describe("Enhanced Environmental Calculations", () => {
       expect(impact.totalFinancialValue).toBeGreaterThan(0);
 
       // Check regional factors
-      expect(impact.carbonIntensityUsed).toBe(0.387); // NA region
+      expect(impact.carbonIntensityUsed).toBe(0.37); // NA region
       expect(impact.regionalMultiplier).toBe(1.1);
 
       // Check time-based factors
@@ -373,7 +373,7 @@ describe("Enhanced Environmental Calculations", () => {
         carbonOffsetValue: 0,
         waterTreatmentValue: 0,
         totalFinancialValue: 0,
-        carbonIntensityUsed: 0.456,
+        carbonIntensityUsed: 0.445,
         regionalMultiplier: 1.0,
         peakEnergySavings: 0,
         offPeakEnergySavings: 0,

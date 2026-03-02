@@ -79,12 +79,8 @@ export function getTimeOfDayMultiplier(): number {
     } else {
       return ENVIRONMENTAL_CONSTANTS.OFF_PEAK_ENERGY_MULTIPLIER;
     }
-  } catch (error) {
-    console.log(
-      "DEBUG: getTimeOfDayMultiplier error, defaulting to 1.0:",
-      error,
-    );
-    return 1.0; // Default multiplier if Date fails
+  } catch {
+    return 1.0; // Default multiplier if Date/Intl fails
   }
 }
 
@@ -142,21 +138,32 @@ export function calculateBuildEnergy(
 }
 
 /**
- * Enhanced CI/CD energy calculation
+ * CI/CD energy calculation — marginal energy from installing this dep across
+ * all downstream installs.
+ *
+ * Model: ~50% of npm downloads are CI. Each CI install wastes `installTimeHours`
+ * running this dep's install scripts/resolution at BUILD_SYSTEM_ENERGY_PER_HOUR.
+ * This replaces the prior formula that equated downloads to full CI builds
+ * (wildly inflating energy by treating each download as a separate 0.12 kWh build).
  */
 export function calculateCICDEnergy(
   monthlyDownloads: number | null,
+  installTimeHours: number = 0,
   buildFrequency: number = 1.0,
 ): number {
-  if (!monthlyDownloads || monthlyDownloads <= 0) return 0;
+  if (!monthlyDownloads || monthlyDownloads <= 0 || installTimeHours <= 0)
+    return 0;
 
   // Cap monthly downloads to prevent overflow
-  const cappedDownloads = Math.min(monthlyDownloads, 1e9); // Cap at 1B downloads
-  const dailyBuilds = Math.max(1, cappedDownloads / 30);
-  const baseEnergy =
-    dailyBuilds * ENVIRONMENTAL_CONSTANTS.CI_CD_ENERGY_PER_BUILD;
+  const cappedDownloads = Math.min(monthlyDownloads, 1e9);
+  // ~50% of npm installs are CI, marginal energy = install time × power draw
+  const ciFraction = 0.5;
+  const marginalEnergyPerInstall =
+    installTimeHours *
+    ENVIRONMENTAL_CONSTANTS.BUILD_SYSTEM_ENERGY_PER_HOUR *
+    ciFraction;
   const frequencyMultiplier = Math.max(0.5, Math.min(2.0, buildFrequency));
-  return Math.max(0, baseEnergy * frequencyMultiplier);
+  return Math.max(0, cappedDownloads * marginalEnergyPerInstall * frequencyMultiplier);
 }
 
 /**
@@ -328,6 +335,7 @@ export function calculateComprehensiveEnvironmentalImpact(
   );
   const ciCdEnergy = calculateCICDEnergy(
     monthlyDownloads,
+    installTimeHours,
     options.buildFrequency,
   );
   const registryEnergy = calculateRegistryEnergy(monthlyDownloads);

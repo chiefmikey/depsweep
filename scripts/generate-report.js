@@ -45,12 +45,12 @@ function formatDate(iso) {
 function num(v, decimals) {
   if (v == null || Number.isNaN(v)) return '0';
   if (decimals != null) return Number(v).toFixed(decimals);
-  return String(v);
+  return Number(v).toFixed(2);
 }
 
 function dollar(v) {
   if (v == null || Number.isNaN(v)) return '$0.00';
-  return `$${Number(v)}`;
+  return `$${Number(v).toFixed(2)}`;
 }
 
 // ---------------------------------------------------------------------------

@@ -17,8 +17,10 @@ jobs:
     steps:
       - name: Parse issue title
         id: parse
+        env:
+          ISSUE_TITLE: ${{ github.event.issue.title }}
         run: |
-          TITLE="${{ github.event.issue.title }}"
+          TITLE="$ISSUE_TITLE"
           # Extract owner/repo from "depsweep: owner/repo" or "depsweep:owner/repo"
           REPO=$(echo "$TITLE" | sed 's/^depsweep:\s*//')
           OWNER=$(echo "$REPO" | cut -d'/' -f1)
@@ -38,9 +40,10 @@ jobs:
         if: steps.parse.outputs.repo
         env:
           GH_TOKEN: ${{ secrets.ADMIN_PAT }}
+          TARGET_REPO: ${{ steps.parse.outputs.repo }}
         run: |
-          if ! gh api "repos/${{ steps.parse.outputs.repo }}" --silent 2>/dev/null; then
-            echo "error=Repository ${{ steps.parse.outputs.repo }} not found or not accessible" >> $GITHUB_OUTPUT
+          if ! gh api "repos/$TARGET_REPO" --silent 2>/dev/null; then
+            echo "error=Repository $TARGET_REPO not found or not accessible" >> $GITHUB_OUTPUT
             exit 0
           fi
           echo "valid=true" >> $GITHUB_OUTPUT
@@ -49,39 +52,48 @@ jobs:
         if: steps.parse.outputs.error || (steps.validate.outcome == 'success' && steps.validate.outputs.error)
         env:
           GH_TOKEN: ${{ github.token }}
+          PARSE_ERROR: ${{ steps.parse.outputs.error }}
+          VALIDATE_ERROR: ${{ steps.validate.outputs.error }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          REPO: ${{ github.repository }}
         run: |
-          ERROR="${{ steps.parse.outputs.error }}${{ steps.validate.outputs.error }}"
-          gh issue comment "${{ github.event.issue.number }}" \
-            --repo "${{ github.repository }}" \
+          ERROR="${PARSE_ERROR}${VALIDATE_ERROR}"
+          gh issue comment "$ISSUE_NUMBER" \
+            --repo "$REPO" \
             --body "**Scan failed:** $ERROR
 
           Please use the format: \`depsweep: owner/repo\`
 
           Example: \`depsweep: expressjs/express\`"
 
-          gh label create "depsweep-error" --color "D73A4A" --description "DepSweep scan error" --repo "${{ github.repository }}" --force 2>/dev/null || true
-          gh issue edit "${{ github.event.issue.number }}" \
-            --repo "${{ github.repository }}" \
+          gh label create "depsweep-error" --color "D73A4A" --description "DepSweep scan error" --repo "$REPO" --force 2>/dev/null || true
+          gh issue edit "$ISSUE_NUMBER" \
+            --repo "$REPO" \
             --add-label "depsweep-error" 2>/dev/null || true
 
       - name: Add scanning label
         if: steps.validate.outputs.valid == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          REPO: ${{ github.repository }}
         run: |
-          gh label create "depsweep-scan" --color "0E8A16" --description "DepSweep scan in progress" --repo "${{ github.repository }}" --force 2>/dev/null || true
-          gh issue edit "${{ github.event.issue.number }}" \
-            --repo "${{ github.repository }}" \
+          gh label create "depsweep-scan" --color "0E8A16" --description "DepSweep scan in progress" --repo "$REPO" --force 2>/dev/null || true
+          gh issue edit "$ISSUE_NUMBER" \
+            --repo "$REPO" \
             --add-label "depsweep-scan"
 
       - name: Post scanning comment
         if: steps.validate.outputs.valid == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          REPO: ${{ github.repository }}
+          TARGET_REPO: ${{ steps.parse.outputs.repo }}
         run: |
-          gh issue comment "${{ github.event.issue.number }}" \
-            --repo "${{ github.repository }}" \
-            --body "**Scanning** \`${{ steps.parse.outputs.repo }}\`...
+          gh issue comment "$ISSUE_NUMBER" \
+            --repo "$REPO" \
+            --body "**Scanning** \`$TARGET_REPO\`...
 
           This may take a few minutes depending on the project size."
 
@@ -99,15 +111,16 @@ jobs:
       - name: Build depsweep
         if: steps.validate.outputs.valid == 'true'
         run: |
-          npm ci
+          npm ci --ignore-scripts
           npm run build
 
       - name: Clone target repository
         if: steps.validate.outputs.valid == 'true'
         env:
           GH_TOKEN: ${{ secrets.ADMIN_PAT }}
+          TARGET_REPO: ${{ steps.parse.outputs.repo }}
         run: |
-          git clone --depth 1 "https://x-access-token:${GH_TOKEN}@github.com/${{ steps.parse.outputs.repo }}.git" target-repo
+          git clone --depth 1 "https://x-access-token:${GH_TOKEN}@github.com/${TARGET_REPO}.git" target-repo
 
       - name: Detect package manager
         if: steps.validate.outputs.valid == 'true'
@@ -116,26 +129,29 @@ jobs:
         run: |
           if [ -f "pnpm-lock.yaml" ]; then
             echo "pm=pnpm" >> $GITHUB_OUTPUT
-            echo "install=pnpm install --frozen-lockfile" >> $GITHUB_OUTPUT
+            echo "install=pnpm install --frozen-lockfile --ignore-scripts" >> $GITHUB_OUTPUT
           elif [ -f "yarn.lock" ]; then
             echo "pm=yarn" >> $GITHUB_OUTPUT
-            echo "install=yarn install --frozen-lockfile" >> $GITHUB_OUTPUT
+            echo "install=yarn install --frozen-lockfile --ignore-scripts" >> $GITHUB_OUTPUT
           else
             echo "pm=npm" >> $GITHUB_OUTPUT
-            echo "install=npm ci" >> $GITHUB_OUTPUT
+            echo "install=npm ci --ignore-scripts" >> $GITHUB_OUTPUT
           fi
 
       - name: Install target dependencies
         id: install
         if: steps.validate.outputs.valid == 'true'
         working-directory: target-repo
+        env:
+          INSTALL_CMD: ${{ steps.detect-pm.outputs.install }}
+          PKG_MANAGER: ${{ steps.detect-pm.outputs.pm }}
         run: |
-          ${{ steps.detect-pm.outputs.install }} || {
+          $INSTALL_CMD || {
             # Fallback: try without frozen lockfile
-            case "${{ steps.detect-pm.outputs.pm }}" in
-              pnpm) pnpm install --no-frozen-lockfile ;;
-              yarn) yarn install ;;
-              *) npm install ;;
+            case "$PKG_MANAGER" in
+              pnpm) pnpm install --no-frozen-lockfile --ignore-scripts ;;
+              yarn) yarn install --ignore-scripts ;;
+              *) npm install --ignore-scripts ;;
             esac
           }
         continue-on-error: true
@@ -144,18 +160,21 @@ jobs:
         if: steps.install.outcome == 'failure'
         env:
           GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          REPO: ${{ github.repository }}
+          TARGET_REPO: ${{ steps.parse.outputs.repo }}
         run: |
-          gh issue comment "${{ github.event.issue.number }}" \
-            --repo "${{ github.repository }}" \
-            --body "**Scan failed:** Could not install dependencies for \`${{ steps.parse.outputs.repo }}\`.
+          gh issue comment "$ISSUE_NUMBER" \
+            --repo "$REPO" \
+            --body "**Scan failed:** Could not install dependencies for \`$TARGET_REPO\`.
 
           This usually means the project has private/unpublished dependencies that are not available on the public npm registry.
 
           Please check that all dependencies in \`package.json\` are publicly available and try again."
 
-          gh label create "depsweep-error" --color "D73A4A" --description "DepSweep scan error" --repo "${{ github.repository }}" --force 2>/dev/null || true
-          gh issue edit "${{ github.event.issue.number }}" \
-            --repo "${{ github.repository }}" \
+          gh label create "depsweep-error" --color "D73A4A" --description "DepSweep scan error" --repo "$REPO" --force 2>/dev/null || true
+          gh issue edit "$ISSUE_NUMBER" \
+            --repo "$REPO" \
             --add-label "depsweep-error" 2>/dev/null || true
 
       - name: Run depsweep scan
@@ -185,10 +204,13 @@ jobs:
         if: steps.scan.outputs.success == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          REPO: ${{ github.repository }}
+          TARGET_REPO: ${{ steps.parse.outputs.repo }}
         run: |
           # Post report as issue comment
-          gh issue comment "${{ github.event.issue.number }}" \
-            --repo "${{ github.repository }}" \
+          gh issue comment "$ISSUE_NUMBER" \
+            --repo "$REPO" \
             --body-file report.md
 
           # Add to job summary
@@ -199,14 +221,14 @@ jobs:
           if [ "$UNUSED_COUNT" -gt "0" ]; then
             DEPS=$(node -e "const r=JSON.parse(require('fs').readFileSync('report.json','utf8')); console.log(r.unusedDependencies.join(','))")
 
-            gh issue comment "${{ github.event.issue.number }}" \
-              --repo "${{ github.repository }}" \
+            gh issue comment "$ISSUE_NUMBER" \
+              --repo "$REPO" \
               --body "---
 
           **Want to submit a PR to remove these dependencies?**
 
-          A repository maintainer can trigger the [Submit PR workflow](https://github.com/${{ github.repository }}/actions/workflows/submit-pr.yml) with:
-          - **repo:** \`${{ steps.parse.outputs.repo }}\`
+          A repository maintainer can trigger the [Submit PR workflow](https://github.com/$REPO/actions/workflows/submit-pr.yml) with:
+          - **repo:** \`$TARGET_REPO\`
           - **dependencies:** \`$DEPS\`"
           fi
 
@@ -222,35 +244,42 @@ jobs:
         if: steps.scan.outputs.error
         env:
           GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          REPO: ${{ github.repository }}
+          SCAN_ERROR: ${{ steps.scan.outputs.error }}
+          SCAN_DETAILS: ${{ steps.scan.outputs.details }}
         run: |
-          gh issue comment "${{ github.event.issue.number }}" \
-            --repo "${{ github.repository }}" \
-            --body "**Scan failed:** ${{ steps.scan.outputs.error }}
+          gh issue comment "$ISSUE_NUMBER" \
+            --repo "$REPO" \
+            --body "**Scan failed:** $SCAN_ERROR
 
           <details>
           <summary>Error details</summary>
 
           \`\`\`
-          ${{ steps.scan.outputs.details }}
+          $SCAN_DETAILS
           \`\`\`
 
           </details>
 
           Please check that the repository has a valid \`package.json\` and try again."
 
-          gh label create "depsweep-error" --color "D73A4A" --description "DepSweep scan error" --repo "${{ github.repository }}" --force 2>/dev/null || true
-          gh issue edit "${{ github.event.issue.number }}" \
-            --repo "${{ github.repository }}" \
+          gh label create "depsweep-error" --color "D73A4A" --description "DepSweep scan error" --repo "$REPO" --force 2>/dev/null || true
+          gh issue edit "$ISSUE_NUMBER" \
+            --repo "$REPO" \
             --add-label "depsweep-error" 2>/dev/null || true
 
       - name: Close issue
         if: steps.scan.outputs.success == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
         run: |
-          gh issue comment "${{ github.event.issue.number }}" \
-            --repo "${{ github.repository }}" \
-            --body "**Scan complete!** The report has been posted above and is available as a [downloadable artifact](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})."
-          gh issue close "${{ github.event.issue.number }}" \
-            --repo "${{ github.repository }}" \
+          gh issue comment "$ISSUE_NUMBER" \
+            --repo "$REPO" \
+            --body "**Scan complete!** The report has been posted above and is available as a [downloadable artifact](https://github.com/$REPO/actions/runs/$RUN_ID)."
+          gh issue close "$ISSUE_NUMBER" \
+            --repo "$REPO" \
             --reason completed

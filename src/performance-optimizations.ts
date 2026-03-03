@@ -167,27 +167,30 @@ export class OptimizedDependencyAnalyzer {
       return cached;
     }
 
+    const escaped = dependency.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const patterns = [
       new RegExp(
-        `\\b${dependency.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`,
+        `(?:^|[\\s'"` + "`" + `({[,])${escaped}(?:$|[\\s'"` + "`" + `)}\\],;/])`,
+        "gm",
+      ),
+      new RegExp(
+        `from\\s+['"]${escaped}['"]`,
         "g",
       ),
       new RegExp(
-        `from\\s+['"]${dependency.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}['"]`,
+        `import\\s+.*\\s+from\\s+['"]${escaped}['"]`,
         "g",
       ),
       new RegExp(
-        `import\\s+.*\\s+from\\s+['"]${dependency.replace(
-          /[.*+?^${}()|[\]\\]/g,
-          "\\$&",
-        )}['"]`,
+        `require\\(['"]${escaped}['"]\\)`,
         "g",
       ),
       new RegExp(
-        `require\\(['"]${dependency.replace(
-          /[.*+?^${}()|[\]\\]/g,
-          "\\$&",
-        )}['"]\\)`,
+        `import\\s+['"]${escaped}['"]`,
+        "g",
+      ),
+      new RegExp(
+        `import\\s*\\(\\s*['"]${escaped}['"]`,
         "g",
       ),
     ];

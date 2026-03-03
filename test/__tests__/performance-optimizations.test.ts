@@ -122,7 +122,7 @@ describe("Performance Optimizations", () => {
       const patterns2 = analyzer.getCompiledPatterns("react");
 
       expect(patterns1).toBe(patterns2); // Should return same cached instance
-      expect(patterns1).toHaveLength(4);
+      expect(patterns1).toHaveLength(6);
       expect(patterns1[0]).toBeInstanceOf(RegExp);
     });
 

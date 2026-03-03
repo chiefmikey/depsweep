@@ -231,6 +231,65 @@ export async function getDependencyInfo(
 
   info.usedInFiles = usedFiles;
 
+  // Check package.json config fields for dependency name references.
+  // package.json is excluded from getSourceFiles(), so it never reaches
+  // isDependencyUsedInFile(). We compensate here by scanning known config
+  // fields that embed dependency names (e.g. eslintConfig, prettier, babel).
+  const packageJsonConfig = context.configs?.["package.json"];
+  if (info.usedInFiles.length === 0 && packageJsonConfig) {
+    // Well-known config fields that commonly reference dependency names.
+    const CONFIG_FIELDS = [
+      "eslintConfig",
+      "prettier",
+      "stylelint",
+      "babel",
+      "jest",
+      "browserslist",
+    ] as const;
+
+    // Standard package.json fields that must never be treated as config.
+    const STANDARD_PKG_FIELDS = new Set([
+      "name", "version", "description", "main", "module", "browser",
+      "exports", "imports", "bin", "man", "files", "directories",
+      "scripts", "dependencies", "devDependencies", "peerDependencies",
+      "peerDependenciesMeta", "optionalDependencies", "bundledDependencies",
+      "bundleDependencies", "engines", "os", "cpu", "private", "publishConfig",
+      "workspaces", "repository", "bugs", "homepage", "license", "author",
+      "contributors", "funding", "keywords", "type", "types", "typings",
+      "sideEffects", "unpkg", "jsdelivr",
+    ]);
+
+    let foundInConfig = false;
+
+    // Check each known config field.
+    for (const field of CONFIG_FIELDS) {
+      if (packageJsonConfig[field] !== undefined) {
+        const fieldValue = packageJsonConfig[field];
+        // For string values, do a direct includes check; for objects/arrays
+        // delegate to the existing recursive scanForDependency utility.
+        const matched =
+          typeof fieldValue === "string"
+            ? fieldValue.includes(dependency)
+            : scanForDependency(fieldValue, dependency);
+        if (matched) {
+          foundInConfig = true;
+          break;
+        }
+      }
+    }
+
+    // Also check any top-level key that matches the dependency name exactly
+    // (e.g., a "commitlint" dep may have a top-level "commitlint" config key).
+    if (!foundInConfig && packageJsonConfig[dependency] !== undefined && !STANDARD_PKG_FIELDS.has(dependency)) {
+      foundInConfig = true;
+    }
+
+    if (foundInConfig) {
+      const packageJsonPath = path.join(context.projectRoot, "package.json");
+      info.usedInFiles.push(`${packageJsonPath} (config fields)`);
+    }
+  }
+
   // Check subdependencies with optimized processing
   if (subdepsArray.length > 0) {
     for (const [index, subdep] of subdepsArray.entries()) {
@@ -506,6 +565,7 @@ export async function getSourceFiles(
   const files = await globby(["**/*"], {
     cwd: projectDirectory,
     gitignore: true,
+    dot: true,
     ignore: [
       FILE_PATTERNS.NODE_MODULES,
       "dist",

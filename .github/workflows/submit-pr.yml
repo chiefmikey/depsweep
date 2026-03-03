@@ -21,9 +21,12 @@ jobs:
     steps:
       - name: Validate inputs
         id: validate
+        env:
+          INPUT_REPO: ${{ github.event.inputs.repo }}
+          INPUT_DEPS: ${{ github.event.inputs.dependencies }}
         run: |
-          REPO="${{ github.event.inputs.repo }}"
-          DEPS="${{ github.event.inputs.dependencies }}"
+          REPO="$INPUT_REPO"
+          DEPS="$INPUT_DEPS"
 
           if [ -z "$REPO" ] || [ -z "$DEPS" ]; then
             echo "::error::Both repo and dependencies inputs are required"
@@ -63,32 +66,37 @@ jobs:
         id: fork
         env:
           GH_TOKEN: ${{ secrets.ADMIN_PAT }}
+          REPO_NAME: ${{ steps.validate.outputs.name }}
+          REPO_FULL: ${{ steps.validate.outputs.repo }}
         run: |
           # Check if fork already exists
-          if gh api "repos/chiefmikey/${{ steps.validate.outputs.name }}" --silent 2>/dev/null; then
+          if gh api "repos/chiefmikey/$REPO_NAME" --silent 2>/dev/null; then
             echo "Fork already exists"
-            echo "fork=chiefmikey/${{ steps.validate.outputs.name }}" >> $GITHUB_OUTPUT
+            echo "fork=chiefmikey/$REPO_NAME" >> $GITHUB_OUTPUT
           else
-            gh repo fork "${{ steps.validate.outputs.repo }}" --clone=false
+            gh repo fork "$REPO_FULL" --clone=false
             # Wait for fork to be ready
             for i in $(seq 1 30); do
-              if gh api "repos/chiefmikey/${{ steps.validate.outputs.name }}" --silent 2>/dev/null; then
+              if gh api "repos/chiefmikey/$REPO_NAME" --silent 2>/dev/null; then
                 break
               fi
               sleep 2
             done
-            echo "fork=chiefmikey/${{ steps.validate.outputs.name }}" >> $GITHUB_OUTPUT
+            echo "fork=chiefmikey/$REPO_NAME" >> $GITHUB_OUTPUT
           fi
 
       - name: Clone fork
         env:
           GH_TOKEN: ${{ secrets.ADMIN_PAT }}
+          FORK_REPO: ${{ steps.fork.outputs.fork }}
+          UPSTREAM_REPO: ${{ steps.validate.outputs.repo }}
+          BRANCH: ${{ steps.validate.outputs.branch }}
         run: |
-          git clone "https://x-access-token:${GH_TOKEN}@github.com/${{ steps.fork.outputs.fork }}.git" target-repo
+          git clone "https://x-access-token:${GH_TOKEN}@github.com/${FORK_REPO}.git" target-repo
           cd target-repo
-          git remote add upstream "https://github.com/${{ steps.validate.outputs.repo }}.git"
+          git remote add upstream "https://github.com/${UPSTREAM_REPO}.git"
           git fetch upstream
-          git checkout -B "${{ steps.validate.outputs.branch }}" upstream/HEAD
+          git checkout -B "$BRANCH" upstream/HEAD
 
       - name: Configure git
         working-directory: target-repo
@@ -116,15 +124,20 @@ jobs:
 
       - name: Install dependencies
         working-directory: target-repo
-        run: ${{ steps.detect-pm.outputs.install }}
+        env:
+          INSTALL_CMD: ${{ steps.detect-pm.outputs.install }}
+        run: $INSTALL_CMD
 
       - name: Run depsweep scan for PR body
         working-directory: target-repo
         run: |
+          npm install --ignore-scripts 2>/dev/null || true
           node ../dist/index.js --json --measure-impact --dry-run --output ../pr-report.json 2>/dev/null || true
 
       - name: Generate PR body
         id: pr-body
+        env:
+          INPUT_DEPS: ${{ github.event.inputs.dependencies }}
         run: |
           if [ -f pr-report.json ]; then
             node scripts/generate-pr-body.js pr-report.json > pr-body.md
@@ -136,7 +149,7 @@ jobs:
 
           ### Removed packages
           FALLBACK
-            IFS=',' read -ra DEPS <<< "${{ github.event.inputs.dependencies }}"
+            IFS=',' read -ra DEPS <<< "$INPUT_DEPS"
             for dep in "${DEPS[@]}"; do
               dep=$(echo "$dep" | xargs)
               echo "- \`$dep\`" >> pr-body.md
@@ -151,13 +164,16 @@ jobs:
 
       - name: Remove unused dependencies
         working-directory: target-repo
+        env:
+          INPUT_DEPS: ${{ github.event.inputs.dependencies }}
+          UNINSTALL_CMD: ${{ steps.detect-pm.outputs.uninstall }}
         run: |
-          IFS=',' read -ra DEPS <<< "${{ github.event.inputs.dependencies }}"
+          IFS=',' read -ra DEPS <<< "$INPUT_DEPS"
           for dep in "${DEPS[@]}"; do
             dep=$(echo "$dep" | xargs)  # trim whitespace
             if [ -n "$dep" ]; then
               echo "Removing: $dep"
-              ${{ steps.detect-pm.outputs.uninstall }} "$dep" || echo "Warning: Failed to remove $dep"
+              $UNINSTALL_CMD "$dep" || echo "Warning: Failed to remove $dep"
             fi
           done
 
@@ -165,15 +181,18 @@ jobs:
         working-directory: target-repo
         env:
           GH_TOKEN: ${{ secrets.ADMIN_PAT }}
+          INPUT_DEPS: ${{ github.event.inputs.dependencies }}
+          FORK_REPO: ${{ steps.fork.outputs.fork }}
+          BRANCH: ${{ steps.validate.outputs.branch }}
         run: |
-          git add -A
+          git add package.json package-lock.json yarn.lock pnpm-lock.yaml 2>/dev/null; git add -u
           if git diff --cached --quiet; then
             echo "::error::No changes to commit. Dependencies may not have been found."
             exit 1
           fi
 
           # Count removed deps for commit message
-          IFS=',' read -ra DEPS <<< "${{ github.event.inputs.dependencies }}"
+          IFS=',' read -ra DEPS <<< "$INPUT_DEPS"
           COUNT=${#DEPS[@]}
 
           if [ "$COUNT" -eq 1 ]; then
@@ -184,19 +203,22 @@ jobs:
 
           git commit -m "chore: remove $COUNT unused $NOUN (depsweep)
 
-          Removed: ${{ github.event.inputs.dependencies }}
+          Removed: $INPUT_DEPS
 
           Detected by DepSweep automated dependency analysis.
           See: https://github.com/chiefmikey/depsweep"
 
-          git push "https://x-access-token:${GH_TOKEN}@github.com/${{ steps.fork.outputs.fork }}.git" "${{ steps.validate.outputs.branch }}" --force
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${FORK_REPO}.git" "$BRANCH" --force
 
       - name: Create pull request
         id: create-pr
         env:
           GH_TOKEN: ${{ secrets.ADMIN_PAT }}
+          INPUT_DEPS: ${{ github.event.inputs.dependencies }}
+          TARGET_REPO: ${{ steps.validate.outputs.repo }}
+          BRANCH: ${{ steps.validate.outputs.branch }}
         run: |
-          IFS=',' read -ra DEPS <<< "${{ github.event.inputs.dependencies }}"
+          IFS=',' read -ra DEPS <<< "$INPUT_DEPS"
           COUNT=${#DEPS[@]}
 
           if [ "$COUNT" -eq 1 ]; then
@@ -206,8 +228,8 @@ jobs:
           fi
 
           PR_URL=$(gh pr create \
-            --repo "${{ steps.validate.outputs.repo }}" \
-            --head "chiefmikey:${{ steps.validate.outputs.branch }}" \
+            --repo "$TARGET_REPO" \
+            --head "chiefmikey:$BRANCH" \
             --title "chore: remove $COUNT unused $NOUN (depsweep)" \
             --body-file pr-body.md)
 
@@ -215,9 +237,13 @@ jobs:
           echo "::notice::PR created: $PR_URL"
 
       - name: Summary
+        env:
+          TARGET_REPO: ${{ steps.validate.outputs.repo }}
+          PR_URL: ${{ steps.create-pr.outputs.pr_url }}
+          INPUT_DEPS: ${{ github.event.inputs.dependencies }}
         run: |
           echo "## ✅ PR Submitted" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Target:** \`${{ steps.validate.outputs.repo }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "**PR:** ${{ steps.create-pr.outputs.pr_url }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Dependencies removed:** \`${{ github.event.inputs.dependencies }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Target:** \`$TARGET_REPO\`" >> $GITHUB_STEP_SUMMARY
+          echo "**PR:** $PR_URL" >> $GITHUB_STEP_SUMMARY
+          echo "**Dependencies removed:** \`$INPUT_DEPS\`" >> $GITHUB_STEP_SUMMARY

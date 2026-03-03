@@ -22,12 +22,18 @@ jobs:
         run: |
           TITLE="$ISSUE_TITLE"
           # Extract owner/repo from "depsweep: owner/repo" or "depsweep:owner/repo"
-          REPO=$(echo "$TITLE" | sed 's/^depsweep:\s*//')
+          REPO=$(echo "$TITLE" | sed 's/^depsweep:\s*//' | tr -d '\n\r')
           OWNER=$(echo "$REPO" | cut -d'/' -f1)
           NAME=$(echo "$REPO" | cut -d'/' -f2)
 
           if [ -z "$OWNER" ] || [ -z "$NAME" ]; then
             echo "error=Invalid format. Use: depsweep: owner/repo" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Strict validation: owner/repo must be alphanumeric with .-_
+          if ! echo "$REPO" | grep -qE '^[a-zA-Z0-9._-]+/[a-zA-Z0-9._-]+$'; then
+            echo "error=Invalid repository format. Only alphanumeric characters, dots, hyphens, and underscores are allowed." >> $GITHUB_OUTPUT
             exit 0
           fi
 

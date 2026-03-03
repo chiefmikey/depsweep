@@ -229,8 +229,12 @@ export class OptimizedDependencyAnalyzer {
       }
 
       // Use compiled patterns for efficient matching
+      // Reset lastIndex before each test() — g flag advances it across calls
       const patterns = this.getCompiledPatterns(dependency);
-      const isUsed = patterns.some((pattern) => pattern.test(content));
+      const isUsed = patterns.some((pattern) => {
+        pattern.lastIndex = 0;
+        return pattern.test(content);
+      });
 
       this.analysisCache.set(cacheKey, isUsed);
       return isUsed;

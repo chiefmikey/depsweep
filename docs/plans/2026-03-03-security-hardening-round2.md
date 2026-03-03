@@ -1,9 +1,10 @@
 # Plan: Security Hardening Round 2 + Detection Bug Fixes
 
 _Date: 2026-03-03_
-_Status: IN PROGRESS_
-_LastCompletedStep: 0_
+_Status: COMPLETED_
+_LastCompletedStep: 7_
 _TotalSteps: 7_
+_Completed: 2026-03-03_
 
 ## Goal
 
@@ -32,4 +33,9 @@ Fix remaining critical/high security issues in submit-pr.yml, fix regex lastInde
 ### Step 7: Commit
 
 ## Execution Journal
-_Populated during execution._
+
+- All submit-pr.yml fixes applied in single rewrite: --ignore-scripts (8 occurrences), PAT scrub, permissions block, input validation (repo + dep names), fork sync, --depth 1 clone
+- scan-request.yml: Added strict regex validation + newline stripping
+- performance-optimizations.ts: Added lastIndex reset before pattern.test()
+- Build: clean. Tests: 387 passed, 1 skipped. Lint: 0 errors.
+- Verified with awk scan: zero ${{ }} in run blocks, all fixes confirmed.

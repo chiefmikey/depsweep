@@ -176,7 +176,13 @@ jobs:
           IFS=',' read -ra DEPS <<< "${{ github.event.inputs.dependencies }}"
           COUNT=${#DEPS[@]}
 
-          git commit -m "chore: remove $COUNT unused dependencies (depsweep)
+          if [ "$COUNT" -eq 1 ]; then
+            NOUN="dependency"
+          else
+            NOUN="dependencies"
+          fi
+
+          git commit -m "chore: remove $COUNT unused $NOUN (depsweep)
 
           Removed: ${{ github.event.inputs.dependencies }}
 
@@ -193,10 +199,16 @@ jobs:
           IFS=',' read -ra DEPS <<< "${{ github.event.inputs.dependencies }}"
           COUNT=${#DEPS[@]}
 
+          if [ "$COUNT" -eq 1 ]; then
+            NOUN="dependency"
+          else
+            NOUN="dependencies"
+          fi
+
           PR_URL=$(gh pr create \
             --repo "${{ steps.validate.outputs.repo }}" \
             --head "chiefmikey:${{ steps.validate.outputs.branch }}" \
-            --title "chore: remove $COUNT unused dependencies (depsweep)" \
+            --title "chore: remove $COUNT unused $NOUN (depsweep)" \
             --body-file pr-body.md)
 
           echo "pr_url=$PR_URL" >> $GITHUB_OUTPUT

@@ -126,6 +126,7 @@ jobs:
           fi
 
       - name: Install target dependencies
+        id: install
         if: steps.validate.outputs.valid == 'true'
         working-directory: target-repo
         run: |
@@ -137,9 +138,28 @@ jobs:
               *) npm install ;;
             esac
           }
+        continue-on-error: true
+
+      - name: Handle install failure
+        if: steps.install.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue comment "${{ github.event.issue.number }}" \
+            --repo "${{ github.repository }}" \
+            --body "**Scan failed:** Could not install dependencies for \`${{ steps.parse.outputs.repo }}\`.
+
+          This usually means the project has private/unpublished dependencies that are not available on the public npm registry.
+
+          Please check that all dependencies in \`package.json\` are publicly available and try again."
+
+          gh label create "depsweep-error" --color "D73A4A" --description "DepSweep scan error" --repo "${{ github.repository }}" --force 2>/dev/null || true
+          gh issue edit "${{ github.event.issue.number }}" \
+            --repo "${{ github.repository }}" \
+            --add-label "depsweep-error" 2>/dev/null || true
 
       - name: Run depsweep scan
-        if: steps.validate.outputs.valid == 'true'
+        if: steps.validate.outputs.valid == 'true' && steps.install.outcome == 'success'
         id: scan
         working-directory: target-repo
         run: |

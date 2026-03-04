@@ -370,13 +370,35 @@ export async function getDependencyInfo(
     });
     for (const configFile of vitestConfigFiles) {
       const content = await OptimizedFileReader.getInstance().readFile(configFile);
-      if (
-        content.includes(`provider: '${providerName}'`) ||
-        content.includes(`provider: "${providerName}"`) ||
-        content.includes(`provider: \`${providerName}\``)
-      ) {
+      const providerRegex = new RegExp(`provider\\s*:\\s*['"\`]${providerName}['"\`]`);
+      if (providerRegex.test(content)) {
         info.usedInFiles.push(`${configFile} (vitest coverage provider)`);
         break;
+      }
+    }
+  }
+
+  // Jest environment detection.
+  // Jest dynamically loads jest-environment-{name} based on testEnvironment config.
+  // e.g., testEnvironment: 'jsdom' → jest-environment-jsdom
+  if (info.usedInFiles.length === 0 && dependency.startsWith("jest-environment-")) {
+    const envName = dependency.slice("jest-environment-".length);
+    const envRegex = new RegExp(`testEnvironment\\s*:\\s*['"\`]${envName}['"\`]`);
+    // Check jest config files and package.json jest field
+    const jestConfigFiles = sourceFiles.filter((f) => {
+      const base = path.basename(f);
+      return base.startsWith("jest.config") || base.startsWith(".jest");
+    });
+    const pkgJest = context.configs?.["package.json"]?.jest;
+    const pkgTestEnv = pkgJest && typeof pkgJest === "object" ? String((pkgJest as Record<string, unknown>).testEnvironment || "") : "";
+    if (pkgTestEnv.toLowerCase() === envName.toLowerCase()) {
+      info.usedInFiles.push(`${path.join(context.projectRoot, "package.json")} (jest testEnvironment)`);
+    }
+    for (const configFile of jestConfigFiles) {
+      if (info.usedInFiles.length > 0) break;
+      const content = await OptimizedFileReader.getInstance().readFile(configFile);
+      if (envRegex.test(content)) {
+        info.usedInFiles.push(`${configFile} (jest testEnvironment)`);
       }
     }
   }
@@ -401,7 +423,7 @@ export async function getDependencyInfo(
 
     for (const conv of PLUGIN_CONVENTIONS) {
       if (dependency.startsWith(conv.prefix) && topLevelDependencies.has(conv.parent)) {
-        const shortName = dependency.slice(conv.prefix.length).split("-")[0];
+        const shortName = dependency.slice(conv.prefix.length);
 
         // Check config files for short name
         if (conv.configPattern) {

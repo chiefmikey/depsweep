@@ -558,7 +558,7 @@ export function safeExecSync(
       encoding: "utf8",
     });
   } catch (error) {
-    throw new Error(`Command execution failed: ${(error as Error).message}`);
+    throw new Error(`Command execution failed: ${(error as Error).message}`, { cause: error });
   }
 }
 

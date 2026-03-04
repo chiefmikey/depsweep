@@ -118,6 +118,7 @@ export const PROTECTED_DEPENDENCIES = {
     "prettier",
     "stylelint",
     "husky",
+    "yorkie",
     "lint-staged",
     "commitlint",
     "semantic-release",

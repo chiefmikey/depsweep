@@ -252,6 +252,7 @@ export async function getDependencyInfo(
       "ava",
       "nyc",
       "c8",
+      "gitHooks",
     ] as const;
 
     // Standard package.json fields that must never be treated as config.
@@ -399,6 +400,33 @@ export async function getDependencyInfo(
           if (foundInScripts) {
             const packageJsonPath = path.join(context.projectRoot, "package.json");
             info.usedInFiles.push(`${packageJsonPath} (${conv.parent} plugin:scripts)`);
+          }
+        }
+
+        // Check source files for short name (e.g., eslint --format codeframe in Makefile.source.ts)
+        if (info.usedInFiles.length === 0) {
+          const shortUsedFiles = await dependencyAnalyzer.processFilesInBatches(
+            sourceFiles, shortName, context,
+          );
+          if (shortUsedFiles.length > 0) {
+            info.usedInFiles.push(`${shortUsedFiles[0]} (${conv.parent} plugin:source)`);
+          }
+        }
+
+        // Check for ESLint plugin:NAME/config extends syntax (e.g., plugin:mdx/recommended)
+        if (info.usedInFiles.length === 0 && conv.prefix === "eslint-plugin-") {
+          const pluginShortName = dependency.slice(conv.prefix.length);
+          const eslintConfigFiles = sourceFiles.filter((f) => {
+            const base = path.basename(f);
+            return base.startsWith("eslint.config") || base === ".eslintrc.js" ||
+              base === ".eslintrc.cjs" || base === ".eslintrc.json" || base === ".eslintrc.yml";
+          });
+          for (const configFile of eslintConfigFiles) {
+            const content = await OptimizedFileReader.getInstance().readFile(configFile);
+            if (content.includes(`plugin:${pluginShortName}/`) || content.includes(`plugin:${pluginShortName}'`) || content.includes(`plugin:${pluginShortName}"`)) {
+              info.usedInFiles.push(`${configFile} (eslint plugin:${pluginShortName})`);
+              break;
+            }
           }
         }
 
@@ -575,10 +603,12 @@ function validatePackageJson(packageJson: any): { valid: boolean; error?: string
         return { valid: false, error: `${field} must be an object` };
       }
 
-      // Validate dependency names
+      // Log warnings for invalid dependency names but don't abort the entire scan.
+      // Yarn workspace protocol links (e.g., "$repo-utils": "link:./scripts") use
+      // non-standard names that fail PACKAGE_NAME_REGEX but don't invalidate the file.
       for (const depName of Object.keys(packageJson[field])) {
         if (typeof depName !== 'string' || !FILE_PATTERNS.PACKAGE_NAME_REGEX.test(depName)) {
-          return { valid: false, error: `Invalid dependency name in ${field}: ${depName}` };
+          console.warn(chalk.yellow(`Skipping invalid dependency name in ${field}: ${depName}`));
         }
       }
     }
@@ -611,14 +641,19 @@ export async function getDependencies(
       return [];
     }
 
+    // Filter helper: valid package name AND not an npm: alias (structural deps, not imported)
+    const isValidDep = (dep: string, field: Record<string, string>) =>
+      FILE_PATTERNS.PACKAGE_NAME_REGEX.test(dep) &&
+      !(typeof field[dep] === "string" && field[dep].startsWith("npm:"));
+
     const dependencies = packageJson.dependencies && typeof packageJson.dependencies === 'object'
-      ? Object.keys(packageJson.dependencies).filter(dep => FILE_PATTERNS.PACKAGE_NAME_REGEX.test(dep))
+      ? Object.keys(packageJson.dependencies).filter(dep => isValidDep(dep, packageJson.dependencies))
       : [];
     const devDependencies = packageJson.devDependencies && typeof packageJson.devDependencies === 'object'
-      ? Object.keys(packageJson.devDependencies).filter(dep => FILE_PATTERNS.PACKAGE_NAME_REGEX.test(dep))
+      ? Object.keys(packageJson.devDependencies).filter(dep => isValidDep(dep, packageJson.devDependencies))
       : [];
     const peerDependencies = packageJson.peerDependencies && typeof packageJson.peerDependencies === 'object'
-      ? Object.keys(packageJson.peerDependencies).filter(dep => FILE_PATTERNS.PACKAGE_NAME_REGEX.test(dep))
+      ? Object.keys(packageJson.peerDependencies).filter(dep => isValidDep(dep, packageJson.peerDependencies))
       : [];
     // optionalDependencies are excluded — they exist to trigger platform-specific
     // binary installation and are never directly imported in source code.

@@ -39,3 +39,7 @@ Fix remaining critical/high security issues in submit-pr.yml, fix regex lastInde
 - performance-optimizations.ts: Added lastIndex reset before pattern.test()
 - Build: clean. Tests: 387 passed, 1 skipped. Lint: 0 errors.
 - Verified with awk scan: zero ${{ }} in run blocks, all fixes confirmed.
+- Round 3: Added scripts checking to getDependencyInfo() — fixes false positives for script-only deps (nyc, rimraf, cross-env)
+- Round 3: Added PAT scrub to scan-request.yml clone step (was missing, submit-pr.yml already had it)
+- Round 3: Verified 0% false positive rate on express.js (44 deps) and react-app (13 deps)
+- Round 3: Full security audit passes on both workflows — all 7 checks green

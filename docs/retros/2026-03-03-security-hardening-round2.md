@@ -25,6 +25,22 @@ After the first round of security fixes (env vars for ${{ }}, --ignore-scripts i
 4. **GITHUB_OUTPUT newline injection** — `echo "key=value" >> $GITHUB_OUTPUT` is vulnerable if the value contains newlines. Strip with `tr -d '\n\r'` or use heredoc delimiter syntax.
 5. **Input validation is defense in depth** — even though workflow_dispatch inputs are manually triggered, validating format prevents accidental or malicious flag injection.
 
+## Round 3 — Scripts Checking & Final PAT Scrub
+
+After a second "is it ready?" audit, two remaining issues were found:
+1. **Scripts not checked** — `OptimizedDependencyAnalyzer` ignores `_context` entirely, so npm scripts were never scanned. Tools like `nyc` (only in scripts) got falsely flagged.
+2. **PAT not scrubbed in scan-request.yml** — submit-pr.yml had the fix but scan-request.yml was missed.
+
+### Fixes Applied
+- Added scripts checking to `getDependencyInfo()` in `utils.ts` — checks `context.scripts` values for dependency name when no source file matches found
+- Added `git remote set-url origin` after clone in scan-request.yml
+
+### Verification
+- Express.js: 0 false positives (44 deps, `nyc` correctly detected via scripts)
+- React app: 0 false positives (13 deps, `react-scripts` correctly detected via scripts)
+- False positive rate: 33% → 0%
+- All 7 security checks pass on both workflows
+
 ## Remaining Known Limitations
 
 These are accepted risks, not blockers:

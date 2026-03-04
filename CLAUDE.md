@@ -26,16 +26,23 @@ npm run lint           # eslint src/**/*.ts
 
 ## Detection Flow
 
-1. `getSourceFiles()` in utils.ts collects project files via globby
-2. `getDependencyInfo()` in utils.ts dispatches to `OptimizedDependencyAnalyzer.processFilesInBatches()`
-3. For `@types/` packages: uses `helpers.ts:isTypePackageUsed()` with peer dep checks
-4. For regular packages: uses `performance-optimizations.ts:isDependencyUsedInFile()` (regex only)
-5. `helpers.ts:isDependencyUsedInFile()` has full AST+config scanning but is ONLY used for @types
+1. `getSourceFiles()` in utils.ts collects project files via globby (dot: true for dotfiles)
+2. `getDependencies()` in utils.ts excludes `optionalDependencies` (platform-only, never imported)
+3. `getDependencyInfo()` in utils.ts runs a multi-layer detection pipeline:
+   - Layer 1: `OptimizedDependencyAnalyzer.processFilesInBatches()` — 8 regex patterns against all source files
+   - Layer 2: Package.json config field scanning (eslintConfig, prettier, stylelint, babel, jest, browserslist, commitlint, lint-staged, husky, mocha, ava, nyc, c8)
+   - Layer 3: Package.json scripts scanning — npm scripts containing dependency name
+   - Layer 4: Binary name resolution — reads `bin` field from `node_modules/<dep>/package.json`, checks scripts AND source files
+   - Layer 5: Framework plugin conventions — karma-*, grunt-*, gulp-*, eslint-formatter-*, eslint-plugin-*, eslint-config-* auto-discovery
+   - Layer 6: Peer dependency awareness — if dep is required peer of another installed dep, mark as used
+   - Layer 7: Subdependency checking — if any subdep is used, parent is marked as used
+4. For `@types/` packages: uses `helpers.ts:isTypePackageUsed()` with peer dep checks + AST
+5. Protected dependencies: name/pattern matching against curated lists in constants.ts
 
 ## GitHub Actions Workflows
 
 - `scan-request.yml` — Issue-triggered (`depsweep: owner/repo`), scans target project
-- `submit-pr.yml` — workflow_dispatch, opens PR removing unused deps on target repo
+- `submit-pr.yml` — workflow_dispatch, opens PR removing unused deps (supports dry_run mode)
 - `impact-report.yml` — Manual environmental impact report
 - Uses `ADMIN_PAT` secret for cross-repo operations
 

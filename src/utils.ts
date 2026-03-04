@@ -475,7 +475,7 @@ export async function getDependencies(
     let packageJson: any;
     try {
       packageJson = JSON.parse(packageJsonString);
-    } catch (parseError) {
+    } catch {
       console.error(chalk.red(`Invalid JSON in package.json: ${packageJsonPath}`));
       return [];
     }
@@ -514,7 +514,7 @@ export async function getDependencies(
     uniqueDependencies.sort(customSort);
 
     return uniqueDependencies;
-  } catch (error) {
+  } catch {
     console.error(chalk.red(`Error reading package.json: ${packageJsonPath}`));
     return [];
   }

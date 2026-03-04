@@ -32,18 +32,13 @@ import {
 } from "./constants.js";
 import type {
   DependencyContext,
-  ProgressOptions,
-  DependencyInfo,
   EnvironmentalImpact,
-  ImpactMetrics,
-  EnvironmentalReport,
 } from "./interfaces.js";
 import {
   calculateComprehensiveEnvironmentalImpact,
   validateEnvironmentalCalculations,
-  formatEnvironmentalImpact as formatEnhancedImpact,
 } from "./enhanced-environmental-calculations.js";
-import { findSubDependencies } from "./utils.js";
+
 
 // Custom sort function for scoped dependencies (defined here to avoid circular imports)
 export function customSort(a: string, b: string): number {
@@ -665,7 +660,7 @@ export async function measurePackageInstallation(
     const nodeModulesPath = path.join(temporaryDirectory, "node_modules");
     try {
       metrics.diskSpace = getDirectorySize(nodeModulesPath);
-    } catch (error) {
+    } catch (_error) {
       metrics.errors?.push('Failed to measure disk space');
     }
 
@@ -813,7 +808,7 @@ export async function getParentPackageDownloads(
     let packageJson: any;
     try {
       packageJson = JSON.parse(packageJsonString);
-    } catch (parseError) {
+    } catch (_parseError) {
       if (verbose) {
         console.error(chalk.red("Invalid package.json format"));
       }
@@ -848,7 +843,7 @@ export async function getParentPackageDownloads(
       repository: typeof repository === 'object' ? repository : undefined,
       homepage: typeof homepage === 'string' ? homepage : undefined
     };
-  } catch (error) {
+  } catch (_error) {
     // Silently handle errors - don't expose internal details
     return null;
   }
@@ -931,7 +926,7 @@ export async function getYearlyDownloads(
         }
         monthsFetched++;
       }
-    } catch (error) {
+    } catch (_error) {
       consecutiveErrors++;
       if (consecutiveErrors >= maxConsecutiveErrors) {
         break;
@@ -1319,45 +1314,6 @@ export function createZeroEnvironmentalImpact(): EnvironmentalImpact {
     developerProductivityGain: 0,
     buildTimeReduction: 0,
   };
-}
-
-/**
- * Validates the calculated EnvironmentalImpact object.
- * Returns an object with isValid and warnings.
- */
-function validateEnvironmentalImpact(impact: EnvironmentalImpact): {
-  isValid: boolean;
-  warnings: string[];
-} {
-  const warnings: string[] = [];
-  const isValid = true;
-
-  if (impact.carbonSavings < 0) {
-    warnings.push("Carbon savings cannot be negative.");
-  }
-  if (impact.energySavings < 0) {
-    warnings.push("Energy savings cannot be negative.");
-  }
-  if (impact.waterSavings < 0) {
-    warnings.push("Water savings cannot be negative.");
-  }
-  if (impact.treesEquivalent < 0) {
-    warnings.push("Trees equivalent cannot be negative.");
-  }
-  if (impact.carMilesEquivalent < 0) {
-    warnings.push("Car miles equivalent cannot be negative.");
-  }
-  if (impact.efficiencyGain < 0) {
-    warnings.push("Efficiency gain cannot be negative.");
-  }
-  if (impact.networkSavings < 0) {
-    warnings.push("Network savings cannot be negative.");
-  }
-  if (impact.storageSavings < 0) {
-    warnings.push("Storage savings cannot be negative.");
-  }
-
-  return { isValid, warnings };
 }
 
 export function calculateCumulativeEnvironmentalImpact(

@@ -433,8 +433,11 @@ describe("Protected Dependencies", () => {
 
     it("should handle scoped packages", () => {
       expect(isProtectedDependency("@angular/core")).toBe(true);
-      expect(isProtectedDependency("@vue/runtime")).toBe(true);
+      expect(isProtectedDependency("@vue/runtime-core")).toBe(true);
       expect(isProtectedDependency("@types/node")).toBe(true);
+      // Packages not explicitly listed should NOT be protected
+      expect(isProtectedDependency("@vue/runtime")).toBe(false);
+      expect(isProtectedDependency("@types/ip")).toBe(false);
     });
 
     it("should handle edge cases", () => {

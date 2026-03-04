@@ -114,88 +114,29 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
-      - name: Build depsweep
+      - name: Install depsweep
         if: steps.validate.outputs.valid == 'true'
         run: |
           npm ci --ignore-scripts
           npm run build
 
-      - name: Clone target repository
+      - name: Setup pnpm
         if: steps.validate.outputs.valid == 'true'
-        env:
-          GH_TOKEN: ${{ secrets.ADMIN_PAT }}
-          TARGET_REPO: ${{ steps.parse.outputs.repo }}
-        run: |
-          git clone --depth 1 "https://x-access-token:${GH_TOKEN}@github.com/${TARGET_REPO}.git" target-repo
-          cd target-repo && git remote set-url origin "https://github.com/${TARGET_REPO}.git"
-
-      - name: Detect package manager
-        if: steps.validate.outputs.valid == 'true'
-        id: detect-pm
-        working-directory: target-repo
-        run: |
-          if [ -f "pnpm-lock.yaml" ]; then
-            echo "pm=pnpm" >> $GITHUB_OUTPUT
-            echo "install=pnpm install --frozen-lockfile --ignore-scripts" >> $GITHUB_OUTPUT
-          elif [ -f "yarn.lock" ]; then
-            echo "pm=yarn" >> $GITHUB_OUTPUT
-            echo "install=yarn install --frozen-lockfile --ignore-scripts" >> $GITHUB_OUTPUT
-          else
-            echo "pm=npm" >> $GITHUB_OUTPUT
-            echo "install=npm ci --ignore-scripts" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Install target dependencies
-        id: install
-        if: steps.validate.outputs.valid == 'true'
-        working-directory: target-repo
-        env:
-          INSTALL_CMD: ${{ steps.detect-pm.outputs.install }}
-          PKG_MANAGER: ${{ steps.detect-pm.outputs.pm }}
-        run: |
-          $INSTALL_CMD || {
-            # Fallback: try without frozen lockfile
-            case "$PKG_MANAGER" in
-              pnpm) pnpm install --no-frozen-lockfile --ignore-scripts ;;
-              yarn) yarn install --ignore-scripts ;;
-              *) npm install --ignore-scripts ;;
-            esac
-          }
-        continue-on-error: true
-
-      - name: Handle install failure
-        if: steps.install.outcome == 'failure'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          ISSUE_NUMBER: ${{ github.event.issue.number }}
-          REPO: ${{ github.repository }}
-          TARGET_REPO: ${{ steps.parse.outputs.repo }}
-        run: |
-          gh issue comment "$ISSUE_NUMBER" \
-            --repo "$REPO" \
-            --body "**Scan failed:** Could not install dependencies for \`$TARGET_REPO\`.
-
-          This usually means the project has private/unpublished dependencies that are not available on the public npm registry.
-
-          Please check that all dependencies in \`package.json\` are publicly available and try again."
-
-          gh label create "depsweep-error" --color "D73A4A" --description "DepSweep scan error" --repo "$REPO" --force 2>/dev/null || true
-          gh issue edit "$ISSUE_NUMBER" \
-            --repo "$REPO" \
-            --add-label "depsweep-error" 2>/dev/null || true
+        run: npm install -g pnpm
 
       - name: Run depsweep scan
-        if: steps.validate.outputs.valid == 'true' && steps.install.outcome == 'success'
+        if: steps.validate.outputs.valid == 'true'
         id: scan
-        working-directory: target-repo
+        env:
+          TARGET_REPO: ${{ steps.parse.outputs.repo }}
         run: |
-          node ../dist/index.js --json --measure-impact --dry-run --output ../report.json 2>../scan-errors.log || true
+          node dist/index.js "$TARGET_REPO" --json --measure-impact --output report.json 2>scan-errors.log || true
 
-          if [ ! -f ../report.json ]; then
+          if [ ! -f report.json ]; then
             echo "error=Scan failed to produce results" >> $GITHUB_OUTPUT
-            if [ -f ../scan-errors.log ]; then
+            if [ -f scan-errors.log ]; then
               echo "details<<EOF" >> $GITHUB_OUTPUT
-              head -50 ../scan-errors.log >> $GITHUB_OUTPUT
+              head -50 scan-errors.log >> $GITHUB_OUTPUT
               echo "EOF" >> $GITHUB_OUTPUT
             fi
           else

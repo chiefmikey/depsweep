@@ -160,7 +160,8 @@ describe("DepSweep CLI End-to-End Tests", () => {
         });
         fail("Should have thrown an error for invalid flag");
       } catch (error: any) {
-        expect(error.message).toContain("No package.json found");
+        // Commander exits with error on unknown options
+        expect(error.status).not.toBe(0);
       }
     });
 

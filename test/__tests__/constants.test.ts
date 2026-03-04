@@ -201,8 +201,10 @@ describe("Constants and Helper Functions", () => {
     it("should identify scoped packages as protected", () => {
       expect(isProtectedDependency("@types/node")).toBe(true);
       expect(isProtectedDependency("@testing-library/react")).toBe(true);
-      expect(isProtectedDependency("@vue/cli")).toBe(true);
       expect(isProtectedDependency("@angular/core")).toBe(true);
+      // Only explicitly listed scoped packages should be protected
+      expect(isProtectedDependency("@vue/cli")).toBe(false);
+      expect(isProtectedDependency("@types/ip")).toBe(false);
     });
 
     it("should handle wildcard patterns correctly", () => {

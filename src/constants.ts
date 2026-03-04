@@ -305,13 +305,6 @@ export function isProtectedDependency(dependency: string): boolean {
       return new RegExp(`^${pattern}$`).test(dependency);
     }
 
-    // Scoped package matching
-    if (protectedDep.startsWith("@") && dependency.startsWith("@")) {
-      const protectedScope = protectedDep.split("/")[0];
-      const dependencyScope = dependency.split("/")[0];
-      if (protectedScope === dependencyScope) return true;
-    }
-
     return false;
   });
 }

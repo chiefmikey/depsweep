@@ -358,6 +358,29 @@ export async function getDependencyInfo(
     }
   }
 
+  // Vitest coverage provider detection.
+  // vitest dynamically loads @vitest/coverage-{provider} based on config string.
+  // e.g., coverage: { provider: 'v8' } → @vitest/coverage-v8
+  if (info.usedInFiles.length === 0 && dependency.startsWith("@vitest/coverage-")) {
+    const providerName = dependency.slice("@vitest/coverage-".length);
+    const vitestConfigPatterns = ["vitest.config", "vite.config"];
+    const vitestConfigFiles = sourceFiles.filter((f) => {
+      const base = path.basename(f);
+      return vitestConfigPatterns.some((p) => base.startsWith(p));
+    });
+    for (const configFile of vitestConfigFiles) {
+      const content = await OptimizedFileReader.getInstance().readFile(configFile);
+      if (
+        content.includes(`provider: '${providerName}'`) ||
+        content.includes(`provider: "${providerName}"`) ||
+        content.includes(`provider: \`${providerName}\``)
+      ) {
+        info.usedInFiles.push(`${configFile} (vitest coverage provider)`);
+        break;
+      }
+    }
+  }
+
   // Framework plugin convention detection.
   // Tools like karma auto-discover karma-* packages. Check if the plugin's short
   // name appears in a config file for the parent tool.
@@ -373,6 +396,7 @@ export async function getDependencyInfo(
       { prefix: "eslint-formatter-", parent: "eslint" },
       { prefix: "eslint-plugin-", parent: "eslint" },
       { prefix: "eslint-config-", parent: "eslint" },
+      { prefix: "eslint-import-resolver-", parent: "eslint" },
     ];
 
     for (const conv of PLUGIN_CONVENTIONS) {
@@ -425,6 +449,28 @@ export async function getDependencyInfo(
             const content = await OptimizedFileReader.getInstance().readFile(configFile);
             if (content.includes(`plugin:${pluginShortName}/`) || content.includes(`plugin:${pluginShortName}'`) || content.includes(`plugin:${pluginShortName}"`)) {
               info.usedInFiles.push(`${configFile} (eslint plugin:${pluginShortName})`);
+              break;
+            }
+          }
+        }
+
+        // Check for ESLint import resolver pattern: 'import/resolver': { NAME: ... }
+        // e.g., eslint-import-resolver-typescript loaded via { typescript: true }
+        if (info.usedInFiles.length === 0 && conv.prefix === "eslint-import-resolver-") {
+          const resolverName = dependency.slice(conv.prefix.length);
+          const eslintConfigFiles = sourceFiles.filter((f) => {
+            const base = path.basename(f);
+            return base.startsWith("eslint.config") || base === ".eslintrc.js" ||
+              base === ".eslintrc.cjs" || base === ".eslintrc.json" || base === ".eslintrc.yml";
+          });
+          for (const configFile of eslintConfigFiles) {
+            const content = await OptimizedFileReader.getInstance().readFile(configFile);
+            if (
+              content.includes(`'${resolverName}'`) ||
+              content.includes(`"${resolverName}"`) ||
+              content.includes(`${resolverName}:`)
+            ) {
+              info.usedInFiles.push(`${configFile} (eslint import resolver)`);
               break;
             }
           }
@@ -736,8 +782,10 @@ export async function getSourceFiles(
     cwd: projectDirectory,
     gitignore: true,
     dot: true,
+    followSymbolicLinks: false,
     ignore: [
       FILE_PATTERNS.NODE_MODULES,
+      "**/node_modules/**",
       "dist",
       "coverage",
       "build",

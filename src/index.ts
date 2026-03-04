@@ -1,9 +1,13 @@
 #!/usr/bin/env node
 
+import { execSync, type ExecSyncOptions } from "node:child_process";
+import { existsSync } from "node:fs";
 import * as fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { stdin as input, stdout as output } from "node:process";
 import * as readline from "node:readline/promises";
+import { fileURLToPath } from "node:url";
 
 import chalk from "chalk";
 import cliProgress from "cli-progress";
@@ -86,11 +90,94 @@ function logNewlines(count = 1): void {
   }
 }
 
+// Get depsweep's own version from its package.json
+async function getDepsweepVersion(): Promise<string> {
+  try {
+    const __dirname = path.dirname(fileURLToPath(import.meta.url));
+    const pkgPath = path.join(__dirname, "..", "package.json");
+    const content = await fs.readFile(pkgPath, "utf8");
+    return JSON.parse(content).version ?? "0.0.0";
+  } catch {
+    return "0.0.0";
+  }
+}
+
+// Clone a GitHub repo and install dependencies for isolated scanning
+async function cloneAndInstall(
+  target: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- console override
+  log: (...args: any[]) => void,
+): Promise<string> {
+  const tmpDir = path.join(
+    os.tmpdir(),
+    `depsweep-${target.replace("/", "-")}-${Date.now()}`,
+  );
+
+  log(chalk.blue(`Cloning ${target}...`));
+  const execOpts: ExecSyncOptions = { stdio: "pipe", timeout: 120_000 };
+  try {
+    execSync(
+      `git clone --depth 1 https://github.com/${target}.git ${tmpDir}`,
+      execOpts,
+    );
+  } catch {
+    throw new Error(`Failed to clone ${target}. Check the repository exists and is public.`);
+  }
+
+  // Scrub any auth from remote URL
+  try {
+    execSync(
+      `git -C ${tmpDir} remote set-url origin https://github.com/${target}.git`,
+      execOpts,
+    );
+  } catch {
+    // non-critical
+  }
+
+  // Detect package manager and install
+  log(chalk.blue("Installing dependencies..."));
+  try {
+    if (existsSync(path.join(tmpDir, "pnpm-lock.yaml"))) {
+      execSync("pnpm install --no-frozen-lockfile --ignore-scripts", {
+        ...execOpts,
+        cwd: tmpDir,
+        timeout: 300_000,
+      });
+    } else if (existsSync(path.join(tmpDir, "yarn.lock"))) {
+      execSync("yarn install --ignore-scripts", {
+        ...execOpts,
+        cwd: tmpDir,
+        timeout: 300_000,
+      });
+    } else {
+      execSync("npm install --ignore-scripts", {
+        ...execOpts,
+        cwd: tmpDir,
+        timeout: 300_000,
+      });
+    }
+  } catch {
+    // Fallback: try npm install without lockfile
+    try {
+      execSync("npm install --ignore-scripts", {
+        ...execOpts,
+        cwd: tmpDir,
+        timeout: 300_000,
+      });
+    } catch {
+      log(chalk.yellow("Warning: dependency installation failed. Results may be incomplete."));
+    }
+  }
+
+  return tmpDir;
+}
+
 // Main execution
 async function main(): Promise<void> {
   const performanceMonitor = PerformanceMonitor.getInstance();
   const memoryOptimizer = MemoryOptimizer.getInstance();
   let savedConsoleLog: typeof console.log | undefined;
+  let isolatedCloneDir: string | null = null;
 
   try {
     performanceMonitor.startTimer("totalExecution");
@@ -98,16 +185,8 @@ async function main(): Promise<void> {
     process.on("SIGINT", cleanup);
     process.on("SIGTERM", cleanup);
 
-    const packageJsonPath = await findClosestPackageJson(process.cwd());
-
-    const projectDirectory = path.dirname(packageJsonPath);
-    const context = await getPackageContext(packageJsonPath);
-    const packageManager = await detectPackageManager(projectDirectory);
-
-    const packageJsonString =
-      (await fs.readFile(packageJsonPath, "utf8")) || "{}";
-    const packageJson = JSON.parse(packageJsonString);
-
+    // Set up Commander FIRST to parse arguments before resolving project
+    const depsweepVersion = await getDepsweepVersion();
     const program = new Command();
 
     // Configure program output and prevent exit
@@ -120,8 +199,9 @@ async function main(): Promise<void> {
     // Configure the CLI program
     program
       .name(CLI_STRINGS.CLI_NAME)
-      .usage("[options]")
+      .usage("[options] [owner/repo]")
       .description(CLI_STRINGS.CLI_DESCRIPTION)
+      .argument("[target]", "GitHub owner/repo to scan remotely (e.g., facebook/react)")
 
       .option("-v, --verbose", "display detailed usage information")
       .option("-a, --aggressive", "allow removal of protected dependencies")
@@ -132,8 +212,8 @@ async function main(): Promise<void> {
       .option("-n, --no-progress", "disable the progress bar")
       .option("--json", "output results as JSON")
       .option("-o, --output <file>", "write results to file")
-      .version(packageJson.version, "--version", "display installed version")
-      .addHelpText("after", CLI_STRINGS.EXAMPLE_TEXT);
+      .version(depsweepVersion, "--version", "display installed version")
+      .addHelpText("after", "\nExample:\n  $ depsweep -v --measure-impact\n  $ depsweep facebook/react --json --dry-run");
 
     program.exitOverride(() => {
       // Don't throw or exit - just let the help display
@@ -162,6 +242,31 @@ async function main(): Promise<void> {
       console.log = () => {};
     }
 
+    // Determine project directory: remote (owner/repo) or local
+    const target = program.args[0];
+    const isRemote = target && /^[a-zA-Z0-9._-]+\/[a-zA-Z0-9._-]+$/.test(target);
+
+    let packageJsonPath: string;
+    let projectDirectory: string;
+
+    if (isRemote) {
+      // Isolated mode: clone, install, scan
+      isolatedCloneDir = await cloneAndInstall(target, console.log);
+      packageJsonPath = path.join(isolatedCloneDir, "package.json");
+      projectDirectory = isolatedCloneDir;
+      options.dryRun = true; // Always dry-run for remote repos
+    } else {
+      packageJsonPath = await findClosestPackageJson(process.cwd());
+      projectDirectory = path.dirname(packageJsonPath);
+    }
+
+    const context = await getPackageContext(packageJsonPath);
+    const packageManager = await detectPackageManager(projectDirectory);
+
+    const packageJsonString =
+      (await fs.readFile(packageJsonPath, "utf8")) || "{}";
+    const packageJson = JSON.parse(packageJsonString);
+
     console.log(chalk.cyan(MESSAGES.title));
     logNewlines();
     console.log(chalk.blue(`Package.json found at: ${packageJsonPath}`));
@@ -178,6 +283,30 @@ async function main(): Promise<void> {
 
     const dependencies = await getDependencies(packageJsonPath);
     dependencies.sort(customSort);
+
+    // Early exit for JSON mode with 0 dependencies (e.g., monorepo root)
+    if (dependencies.length === 0 && options.json) {
+      const scanResult: ScanResult = {
+        project: packageJson.name || path.basename(projectDirectory),
+        packageManager,
+        totalDependencies: 0,
+        unusedDependencies: [],
+        protectedDependencies: [],
+        timestamp: new Date().toISOString(),
+        version: "1.0.0",
+      };
+      const json = JSON.stringify(scanResult, null, 2);
+      if (savedConsoleLog) {
+        console.log = savedConsoleLog;
+      }
+      if (options.output) {
+        await fs.writeFile(options.output, json, "utf8");
+        console.log(chalk.green(`Report written to ${options.output}`));
+      } else {
+        process.stdout.write(json + "\n");
+      }
+      return;
+    }
 
     // Filter out any file you don't want to count (e.g., binaries):
     const allFiles = await getSourceFiles(
@@ -782,9 +911,18 @@ async function main(): Promise<void> {
     if (savedConsoleLog) {
       console.log = savedConsoleLog;
     }
-    cleanup();
     console.error(chalk.red(MESSAGES.fatalError), error);
+    cleanup();
     process.exit(1);
+  } finally {
+    // Clean up isolated clone directory
+    if (isolatedCloneDir) {
+      try {
+        await fs.rm(isolatedCloneDir, { recursive: true, force: true });
+      } catch {
+        // Best-effort cleanup
+      }
+    }
   }
 }
 

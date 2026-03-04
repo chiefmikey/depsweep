@@ -11,6 +11,11 @@ on:
         description: 'Comma-separated list of dependencies to remove'
         required: true
         type: string
+      dry_run:
+        description: 'Preview changes without opening a PR'
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   submit-pr:
@@ -198,7 +203,34 @@ jobs:
             fi
           done
 
+      - name: Preview changes
+        working-directory: target-repo
+        run: |
+          git add package.json package-lock.json yarn.lock pnpm-lock.yaml 2>/dev/null; git add -u
+          if git diff --cached --quiet; then
+            echo "::error::No changes to commit. Dependencies may not have been found."
+            exit 1
+          fi
+          echo "## Changes Preview" >> $GITHUB_STEP_SUMMARY
+          echo '```diff' >> $GITHUB_STEP_SUMMARY
+          git diff --cached --stat >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Dry run summary
+        if: inputs.dry_run == true
+        env:
+          TARGET_REPO: ${{ steps.validate.outputs.repo }}
+          INPUT_DEPS: ${{ github.event.inputs.dependencies }}
+        run: |
+          echo "## Dry Run Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Target:** \`$TARGET_REPO\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Dependencies that would be removed:** \`$INPUT_DEPS\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "> No PR was created. Re-run with **dry_run** unchecked to submit the PR." >> $GITHUB_STEP_SUMMARY
+
       - name: Commit and push
+        if: inputs.dry_run != true
         working-directory: target-repo
         env:
           GH_TOKEN: ${{ secrets.ADMIN_PAT }}
@@ -206,12 +238,6 @@ jobs:
           FORK_REPO: ${{ steps.fork.outputs.fork }}
           BRANCH: ${{ steps.validate.outputs.branch }}
         run: |
-          git add package.json package-lock.json yarn.lock pnpm-lock.yaml 2>/dev/null; git add -u
-          if git diff --cached --quiet; then
-            echo "::error::No changes to commit. Dependencies may not have been found."
-            exit 1
-          fi
-
           # Count removed deps for commit message
           IFS=',' read -ra DEPS <<< "$INPUT_DEPS"
           COUNT=${#DEPS[@]}
@@ -232,6 +258,7 @@ jobs:
           git push "https://x-access-token:${GH_TOKEN}@github.com/${FORK_REPO}.git" "$BRANCH" --force
 
       - name: Create pull request
+        if: inputs.dry_run != true
         id: create-pr
         env:
           GH_TOKEN: ${{ secrets.ADMIN_PAT }}
@@ -258,6 +285,7 @@ jobs:
           echo "::notice::PR created: $PR_URL"
 
       - name: Summary
+        if: inputs.dry_run != true
         env:
           TARGET_REPO: ${{ steps.validate.outputs.repo }}
           PR_URL: ${{ steps.create-pr.outputs.pr_url }}

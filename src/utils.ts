@@ -245,6 +245,13 @@ export async function getDependencyInfo(
       "babel",
       "jest",
       "browserslist",
+      "commitlint",
+      "lint-staged",
+      "husky",
+      "mocha",
+      "ava",
+      "nyc",
+      "c8",
     ] as const;
 
     // Standard package.json fields that must never be treated as config.
@@ -300,6 +307,123 @@ export async function getDependencyInfo(
     if (foundInScripts) {
       const packageJsonPath = path.join(context.projectRoot, "package.json");
       info.usedInFiles.push(`${packageJsonPath} (scripts)`);
+    }
+  }
+
+  // Check if dep's CLI binary name (often different from package name) is used in scripts.
+  // e.g., @commitlint/cli installs binary "commitlint", npm-run-all2 installs "run-s"/"run-p".
+  if (info.usedInFiles.length === 0 && context.scripts) {
+    try {
+      const depPkgPath = path.join(context.projectRoot, "node_modules", dependency, "package.json");
+      const depPkgContent = await fs.readFile(depPkgPath, "utf8");
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- parsing external JSON
+      const depPkg: any = JSON.parse(depPkgContent);
+      const binNames: string[] = [];
+      if (typeof depPkg.bin === "string") {
+        const baseName = dependency.startsWith("@") ? dependency.split("/")[1] : dependency;
+        if (baseName) binNames.push(baseName);
+      } else if (depPkg.bin && typeof depPkg.bin === "object") {
+        binNames.push(...Object.keys(depPkg.bin));
+      }
+      if (binNames.length > 0) {
+        // Check package.json scripts for binary names
+        const scriptValues = Object.values(context.scripts) as string[];
+        const foundBin = binNames.some((bin) =>
+          scriptValues.some((script) => typeof script === "string" && script.includes(bin)),
+        );
+        if (foundBin) {
+          const packageJsonPath = path.join(context.projectRoot, "package.json");
+          info.usedInFiles.push(`${packageJsonPath} (scripts:bin)`);
+        }
+
+        // Also scan source files for binary names (catches .husky/ hooks,
+        // Makefiles, shell scripts, and CLI argument conventions).
+        if (info.usedInFiles.length === 0) {
+          for (const bin of binNames) {
+            const binUsedFiles = await dependencyAnalyzer.processFilesInBatches(
+              sourceFiles,
+              bin,
+              context,
+            );
+            if (binUsedFiles.length > 0) {
+              info.usedInFiles.push(`${binUsedFiles[0]} (bin)`);
+              break;
+            }
+          }
+        }
+      }
+    } catch {
+      // node_modules not available or dep not installed, skip
+    }
+  }
+
+  // Framework plugin convention detection.
+  // Tools like karma auto-discover karma-* packages. Check if the plugin's short
+  // name appears in a config file for the parent tool.
+  if (info.usedInFiles.length === 0) {
+    const PLUGIN_CONVENTIONS: Array<{
+      prefix: string;
+      parent: string;
+      configPattern?: RegExp;
+    }> = [
+      { prefix: "karma-", parent: "karma", configPattern: /karma\.conf/ },
+      { prefix: "grunt-", parent: "grunt", configPattern: /[Gg]runtfile/ },
+      { prefix: "gulp-", parent: "gulp", configPattern: /gulpfile/ },
+      { prefix: "eslint-formatter-", parent: "eslint" },
+      { prefix: "eslint-plugin-", parent: "eslint" },
+      { prefix: "eslint-config-", parent: "eslint" },
+    ];
+
+    for (const conv of PLUGIN_CONVENTIONS) {
+      if (dependency.startsWith(conv.prefix) && topLevelDependencies.has(conv.parent)) {
+        const shortName = dependency.slice(conv.prefix.length).split("-")[0];
+
+        // Check config files for short name
+        if (conv.configPattern) {
+          const configFiles = sourceFiles.filter((f) => conv.configPattern!.test(path.basename(f)));
+          for (const configFile of configFiles) {
+            const content = await OptimizedFileReader.getInstance().readFile(configFile);
+            if (content.toLowerCase().includes(shortName.toLowerCase())) {
+              info.usedInFiles.push(`${configFile} (${conv.parent} plugin)`);
+              break;
+            }
+          }
+        }
+
+        // Also check scripts for short name (e.g., eslint --format friendly)
+        if (info.usedInFiles.length === 0 && context.scripts) {
+          const scriptValues = Object.values(context.scripts) as string[];
+          const foundInScripts = scriptValues.some(
+            (s) => typeof s === "string" && s.toLowerCase().includes(shortName.toLowerCase()),
+          );
+          if (foundInScripts) {
+            const packageJsonPath = path.join(context.projectRoot, "package.json");
+            info.usedInFiles.push(`${packageJsonPath} (${conv.parent} plugin:scripts)`);
+          }
+        }
+
+        if (info.usedInFiles.length > 0) break;
+      }
+    }
+  }
+
+  // Peer dependency awareness: if another installed dep requires this as a peer,
+  // it shouldn't be flagged as unused.
+  if (info.usedInFiles.length === 0) {
+    for (const otherDep of topLevelDependencies) {
+      if (otherDep === dependency) continue;
+      try {
+        const otherPkgPath = path.join(context.projectRoot, "node_modules", otherDep, "package.json");
+        const otherPkgContent = await fs.readFile(otherPkgPath, "utf8");
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- parsing external JSON
+        const otherPkg: any = JSON.parse(otherPkgContent);
+        if (otherPkg.peerDependencies && dependency in otherPkg.peerDependencies) {
+          info.usedInFiles.push(`${otherPkgPath} (required peer)`);
+          break;
+        }
+      } catch {
+        // skip
+      }
     }
   }
 

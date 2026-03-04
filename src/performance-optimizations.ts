@@ -197,6 +197,10 @@ export class OptimizedDependencyAnalyzer {
         `(?:require|import)\\s*\\(?\\s*['"]${escaped}!`,
         "g",
       ),
+      new RegExp(
+        `node_modules/${escaped}/`,
+        "g",
+      ),
     ];
 
     this.filePatternCache.set(cacheKey, patterns);

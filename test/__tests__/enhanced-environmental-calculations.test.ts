@@ -187,9 +187,9 @@ describe("Enhanced Environmental Calculations", () => {
   });
 
   describe("Registry Energy Calculation", () => {
-    it("should calculate registry energy with monthly downloads", () => {
+    it("should return 0 regardless of downloads (removing your dep does not reduce global registry load)", () => {
       const energy = calculateRegistryEnergy(1000);
-      expect(energy).toBe(0.05); // 1000 * 0.00005
+      expect(energy).toBe(0);
     });
 
     it("should return 0 for null downloads", () => {
@@ -289,7 +289,7 @@ describe("Enhanced Environmental Calculations", () => {
       expect(impact.latencyEnergy).toBeGreaterThan(0);
       expect(impact.buildEnergy).toBeGreaterThan(0);
       expect(impact.ciCdEnergy).toBeGreaterThan(0);
-      expect(impact.registryEnergy).toBeGreaterThan(0);
+      expect(impact.registryEnergy).toBe(0); // registry energy is always 0 — removing your dep doesn't reduce global registry load
       expect(impact.lifecycleEnergy).toBeGreaterThan(0);
 
       // Check financial impact
@@ -445,7 +445,8 @@ describe("Enhanced Environmental Calculations", () => {
         null
       );
 
-      expect(impact.ciCdEnergy).toBe(0);
+      // Private projects (null downloads) still have CI builds (~60/month)
+      expect(impact.ciCdEnergy).toBeGreaterThan(0);
       expect(impact.registryEnergy).toBe(0);
     });
   });

@@ -1319,6 +1319,12 @@ export function createZeroEnvironmentalImpact(): EnvironmentalImpact {
 export function calculateCumulativeEnvironmentalImpact(
   impacts: EnvironmentalImpact[]
 ): EnvironmentalImpact {
+  if (impacts.length === 0) return createZeroEnvironmentalImpact();
+
+  // Use first impact's non-summable values as the baseline (all impacts
+  // share the same region/time detection, so they should be consistent)
+  const first = impacts[0];
+
   return impacts.reduce(
     (total, impact) => ({
       // Primary metrics
@@ -1348,27 +1354,28 @@ export function calculateCumulativeEnvironmentalImpact(
       totalFinancialValue:
         total.totalFinancialValue + impact.totalFinancialValue,
 
-      // Regional variations (use the first impact's values as they should be consistent)
-      carbonIntensityUsed: total.carbonIntensityUsed,
-      regionalMultiplier: total.regionalMultiplier,
+      // Regional variations — use first impact's detected values, not zero defaults
+      carbonIntensityUsed: first.carbonIntensityUsed,
+      regionalMultiplier: first.regionalMultiplier,
 
       // Time-based factors
       peakEnergySavings: total.peakEnergySavings + impact.peakEnergySavings,
       offPeakEnergySavings:
         total.offPeakEnergySavings + impact.offPeakEnergySavings,
-      timeOfDayMultiplier: total.timeOfDayMultiplier,
+      timeOfDayMultiplier: first.timeOfDayMultiplier,
 
       // Renewable energy impact
       renewableEnergySavings:
         total.renewableEnergySavings + impact.renewableEnergySavings,
       fossilFuelSavings: total.fossilFuelSavings + impact.fossilFuelSavings,
-      renewablePercentage: total.renewablePercentage,
+      renewablePercentage: first.renewablePercentage,
 
       // Additional environmental metrics
       ewasteReduction: total.ewasteReduction + impact.ewasteReduction,
-      serverUtilizationImprovement:
-        total.serverUtilizationImprovement +
+      serverUtilizationImprovement: Math.max(
+        total.serverUtilizationImprovement,
         impact.serverUtilizationImprovement,
+      ),
       developerProductivityGain:
         total.developerProductivityGain + impact.developerProductivityGain,
       buildTimeReduction: total.buildTimeReduction + impact.buildTimeReduction,

@@ -138,48 +138,57 @@ export function calculateBuildEnergy(
 }
 
 /**
- * CI/CD energy calculation — marginal energy from installing this dep across
- * all downstream installs.
+ * CI/CD energy calculation — marginal energy saved by not installing this dep
+ * in the project's own CI pipeline.
  *
- * Model: ~50% of npm downloads are CI. Each CI install wastes `installTimeHours`
- * running this dep's install scripts/resolution at BUILD_SYSTEM_ENERGY_PER_HOUR.
- * This replaces the prior formula that equated downloads to full CI builds
- * (wildly inflating energy by treating each download as a separate 0.12 kWh build).
+ * Parent package npm downloads are NOT used as a multiplier because:
+ * 1. DevDependencies are not installed by downstream consumers (`npm install pkg`
+ *    only installs `dependencies`, not `devDependencies`)
+ * 2. Even for regular deps, the locally-measured install time doesn't represent
+ *    the marginal cost in a consumer's dependency resolution
+ * 3. Using downloads as a multiplier inflated results by 4-5 orders of magnitude
+ *    (e.g., jQuery at 81M downloads/month → 33.6 tonnes CO2e for removing 51MB)
+ *
+ * Instead, we estimate the project's own CI build frequency:
+ * - Published npm package (has downloads): ~100 builds/month
+ * - Private project (no downloads): ~60 builds/month (~2/day weekdays)
  */
 export function calculateCICDEnergy(
   monthlyDownloads: number | null,
   installTimeHours: number = 0,
   buildFrequency: number = 1.0,
 ): number {
-  if (!monthlyDownloads || monthlyDownloads <= 0 || installTimeHours <= 0)
-    return 0;
+  if (installTimeHours <= 0) return 0;
 
-  // Cap monthly downloads to prevent overflow
-  const cappedDownloads = Math.min(monthlyDownloads, 1e9);
-  // ~50% of npm installs are CI, marginal energy = install time × power draw
-  const ciFraction = 0.5;
-  const marginalEnergyPerInstall =
-    installTimeHours *
-    ENVIRONMENTAL_CONSTANTS.BUILD_SYSTEM_ENERGY_PER_HOUR *
-    ciFraction;
+  // Estimate the project's own CI build frequency
+  const ciBuildsPerMonth =
+    monthlyDownloads && monthlyDownloads > 0 ? 100 : 60;
+
+  // Marginal energy per build = install time for this dep × power draw
+  const marginalEnergyPerBuild =
+    installTimeHours * ENVIRONMENTAL_CONSTANTS.BUILD_SYSTEM_ENERGY_PER_HOUR;
+
   const frequencyMultiplier = Math.max(0.5, Math.min(2.0, buildFrequency));
-  return Math.max(0, cappedDownloads * marginalEnergyPerInstall * frequencyMultiplier);
+  return Math.max(
+    0,
+    ciBuildsPerMonth * marginalEnergyPerBuild * frequencyMultiplier,
+  );
 }
 
 /**
- * Enhanced registry energy calculation
+ * Registry energy calculation.
+ *
+ * Removing an unused dependency from YOUR project does not reduce the global
+ * npm registry load — the package is still hosted and downloaded by other
+ * projects. The marginal registry energy savings is effectively zero.
+ *
+ * The only savings (your CI/dev not fetching the tarball) is already captured
+ * in the transfer energy and CI/CD energy calculations.
  */
 export function calculateRegistryEnergy(
-  monthlyDownloads: number | null,
+  _monthlyDownloads: number | null,
 ): number {
-  if (!monthlyDownloads || monthlyDownloads <= 0) return 0;
-
-  // Cap monthly downloads to prevent overflow
-  const cappedDownloads = Math.min(monthlyDownloads, 1e9); // Cap at 1B downloads
-  return Math.max(
-    0,
-    cappedDownloads * ENVIRONMENTAL_CONSTANTS.REGISTRY_ENERGY_PER_DOWNLOAD,
-  );
+  return 0;
 }
 
 /**

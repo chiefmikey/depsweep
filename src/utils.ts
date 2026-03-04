@@ -290,6 +290,19 @@ export async function getDependencyInfo(
     }
   }
 
+  // Check package.json scripts for dependency name references.
+  // Tools like nyc, rimraf, cross-env are only referenced in scripts.
+  if (info.usedInFiles.length === 0 && context.scripts) {
+    const scriptValues = Object.values(context.scripts) as string[];
+    const foundInScripts = scriptValues.some(
+      (script) => typeof script === "string" && script.includes(dependency),
+    );
+    if (foundInScripts) {
+      const packageJsonPath = path.join(context.projectRoot, "package.json");
+      info.usedInFiles.push(`${packageJsonPath} (scripts)`);
+    }
+  }
+
   // Check subdependencies with optimized processing
   if (subdepsArray.length > 0) {
     for (const [index, subdep] of subdepsArray.entries()) {

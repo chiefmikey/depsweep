@@ -127,6 +127,7 @@ jobs:
           TARGET_REPO: ${{ steps.parse.outputs.repo }}
         run: |
           git clone --depth 1 "https://x-access-token:${GH_TOKEN}@github.com/${TARGET_REPO}.git" target-repo
+          cd target-repo && git remote set-url origin "https://github.com/${TARGET_REPO}.git"
 
       - name: Detect package manager
         if: steps.validate.outputs.valid == 'true'

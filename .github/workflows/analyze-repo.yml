@@ -44,12 +44,12 @@ jobs:
 
     steps:
     - name: Checkout DepSweep
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
       with:
         path: depsweep
 
     - name: Setup Node.js
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@v6
       with:
         node-version: ${{ env.NODE_VERSION }}
         cache: 'npm'
@@ -141,7 +141,7 @@ jobs:
 
     - name: Clone target repository
       if: steps.repo-info.outputs.is_github_repo == 'true'
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
       with:
         repository: ${{ steps.repo-info.outputs.repo_owner }}/${{ steps.repo-info.outputs.repo_name }}
         ref: ${{ steps.repo-info.outputs.branch }}

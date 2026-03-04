@@ -496,15 +496,13 @@ export async function getDependencies(
     const peerDependencies = packageJson.peerDependencies && typeof packageJson.peerDependencies === 'object'
       ? Object.keys(packageJson.peerDependencies).filter(dep => FILE_PATTERNS.PACKAGE_NAME_REGEX.test(dep))
       : [];
-    const optionalDependencies = packageJson.optionalDependencies && typeof packageJson.optionalDependencies === 'object'
-      ? Object.keys(packageJson.optionalDependencies).filter(dep => FILE_PATTERNS.PACKAGE_NAME_REGEX.test(dep))
-      : [];
+    // optionalDependencies are excluded — they exist to trigger platform-specific
+    // binary installation and are never directly imported in source code.
 
     const allDependencies = [
       ...dependencies,
       ...devDependencies,
       ...peerDependencies,
-      ...optionalDependencies,
     ];
 
     // Remove duplicates

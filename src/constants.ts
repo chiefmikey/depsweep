@@ -407,9 +407,9 @@ export const ENVIRONMENTAL_CONSTANTS = {
   TREES_PER_KG_CO2: 0.045,
 
   // CO2 emissions per mile driven (kg CO2e) - US average
-  // Source: EPA — typical passenger vehicle emits ~404 g CO2/mile
+  // Source: EPA — typical passenger vehicle emits ~400 g CO2/mile (8,887 g CO2/gal ÷ 22.2 mpg)
   // https://www.epa.gov/greenvehicles/greenhouse-gas-emissions-typical-passenger-vehicle
-  CO2_PER_CAR_MILE: 0.404,
+  CO2_PER_CAR_MILE: 0.4,
 
   // Energy efficiency improvement from removing unused deps (%)
   // Note: not currently used in per-package calculations (cannot be meaningfully
@@ -423,8 +423,8 @@ export const ENVIRONMENTAL_CONSTANTS = {
   NETWORK_ENERGY_PER_MB: 0.000_12,
 
   // Storage energy per GB stored per year (kWh)
-  // Estimate based on typical SSD power consumption (~0.3W per TB idle)
-  STORAGE_ENERGY_PER_GB_YEAR: 0.000_28,
+  // Estimate: ~0.3W per TB idle SSD → 0.0003W/GB × 8760h = 2.63 Wh = 0.0026 kWh/GB/year
+  STORAGE_ENERGY_PER_GB_YEAR: 0.0026,
 
   // E-waste impact per GB of unnecessary software (kg CO2e)
   // Estimate: marginal contribution to hardware wear from unnecessary storage
@@ -440,20 +440,20 @@ export const ENVIRONMENTAL_CONSTANTS = {
 
   // === ADDITIONAL ENVIRONMENTAL FACTORS ===
   // CPU energy per GB processed (kWh)
-  // Estimate: energy for unpacking, parsing, and processing installed packages
-  CPU_ENERGY_PER_GB: 0.015,
+  // Estimate: ~10W CPU for ~0.05s per GB of package extraction → 0.00015 kWh/GB
+  CPU_ENERGY_PER_GB: 0.00015,
 
   // Memory energy per GB stored (kWh)
-  // Estimate: DRAM power for package metadata and caching during install
-  MEMORY_ENERGY_PER_GB: 0.008,
+  // Estimate: ~1W/GB DRAM active for ~0.3s during install → 0.00008 kWh/GB
+  MEMORY_ENERGY_PER_GB: 0.00008,
 
   // Network latency energy per MB (kWh)
   // Note: included in ENERGY_PER_GB, retained for reference only
   LATENCY_ENERGY_PER_MB: 0.000_08,
 
   // Build system energy per hour (kWh)
-  // Estimate: typical CI runner power draw (~250W for a cloud VM)
-  BUILD_SYSTEM_ENERGY_PER_HOUR: 0.25,
+  // Estimate: 2-vCPU cloud CI runner ~15W (share of server power including PUE)
+  BUILD_SYSTEM_ENERGY_PER_HOUR: 0.015,
 
   // CI/CD energy per build (kWh)
   // Estimate: average energy for a full CI build cycle
@@ -499,15 +499,16 @@ export const ENVIRONMENTAL_CONSTANTS = {
   CARBON_INTENSITY_EU: 0.213,
 
   // Asia Pacific carbon intensity (kg CO2e per kWh)
-  // Source: IEA Regional Energy Analysis 2024 — weighted avg China/India/Japan/Australia
-  CARBON_INTENSITY_AP: 0.521,
+  // Estimate: generation-weighted avg of China (~565), India (~713), Japan (~450),
+  // Australia (~500), South Korea (~415) from Ember 2024 country-level data
+  CARBON_INTENSITY_AP: 0.555,
 
   // === TIME-BASED FACTORS ===
   // Peak energy multiplier (during high demand)
-  // Source: Energy Information Administration - Demand Analysis 2024
+  // Estimate: typical peak-to-average grid ratio ~1.45 (not used in current calculations)
   PEAK_ENERGY_MULTIPLIER: 1.45,
 
   // Off-peak energy multiplier (during low demand)
-  // Source: Energy Information Administration - Demand Analysis 2024
+  // Estimate: typical off-peak ratio ~0.78 (not used in current calculations)
   OFF_PEAK_ENERGY_MULTIPLIER: 0.78,
 };

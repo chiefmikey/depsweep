@@ -79,7 +79,7 @@ describe("Enhanced Environmental Calculations", () => {
     it("should return correct carbon intensity for each region", () => {
       expect(getRegionalCarbonIntensity("NA")).toBe(0.37);
       expect(getRegionalCarbonIntensity("EU")).toBe(0.213);
-      expect(getRegionalCarbonIntensity("AP")).toBe(0.521);
+      expect(getRegionalCarbonIntensity("AP")).toBe(0.555);
       expect(getRegionalCarbonIntensity("GLOBAL")).toBe(0.445);
     });
   });
@@ -113,30 +113,30 @@ describe("Enhanced Environmental Calculations", () => {
   describe("CPU Energy Calculation", () => {
     it("should calculate CPU energy with default complexity", () => {
       const energy = calculateCPUEnergy(10); // 10 GB
-      expect(energy).toBe(0.15); // 10 * 0.015
+      expect(energy).toBeCloseTo(0.0015, 6); // 10 * 0.00015
     });
 
     it("should apply complexity multiplier", () => {
       const energy = calculateCPUEnergy(10, 2.0); // 2x complexity
-      expect(energy).toBe(0.3); // 10 * 0.015 * 2.0
+      expect(energy).toBeCloseTo(0.003, 6); // 10 * 0.00015 * 2.0
     });
 
     it("should handle edge cases", () => {
       expect(calculateCPUEnergy(0)).toBe(0);
       expect(calculateCPUEnergy(-5)).toBe(0);
-      expect(calculateCPUEnergy(10, 0.5)).toBe(0.075);
+      expect(calculateCPUEnergy(10, 0.5)).toBeCloseTo(0.00075, 6);
     });
   });
 
   describe("Memory Energy Calculation", () => {
     it("should calculate memory energy with default frequency", () => {
       const energy = calculateMemoryEnergy(10); // 10 GB
-      expect(energy).toBe(0.08); // 10 * 0.008
+      expect(energy).toBeCloseTo(0.0008, 6); // 10 * 0.00008
     });
 
     it("should apply frequency multiplier", () => {
       const energy = calculateMemoryEnergy(10, 2.0); // 2x frequency
-      expect(energy).toBe(0.16); // 10 * 0.008 * 2.0
+      expect(energy).toBeCloseTo(0.0016, 6); // 10 * 0.00008 * 2.0
     });
 
     it("should handle edge cases", () => {
@@ -160,12 +160,12 @@ describe("Enhanced Environmental Calculations", () => {
   describe("Build Energy Calculation", () => {
     it("should calculate build energy with default complexity", () => {
       const energy = calculateBuildEnergy(2); // 2 hours
-      expect(energy).toBe(0.5); // 2 * 0.25
+      expect(energy).toBeCloseTo(0.03, 6); // 2 * 0.015
     });
 
     it("should apply complexity multiplier", () => {
       const energy = calculateBuildEnergy(2, 2.0); // 2x complexity
-      expect(energy).toBe(1.0); // 2 * 0.25 * 2.0
+      expect(energy).toBeCloseTo(0.06, 6); // 2 * 0.015 * 2.0
     });
   });
 
@@ -284,9 +284,9 @@ describe("Enhanced Environmental Calculations", () => {
 
       // Check detailed breakdown
       expect(impact.transferEnergy).toBeGreaterThan(0);
-      expect(impact.cpuEnergy).toBeGreaterThan(0);
-      expect(impact.memoryEnergy).toBeGreaterThan(0);
-      expect(impact.latencyEnergy).toBe(0); // included in ENERGY_PER_GB, not counted separately
+      expect(impact.cpuEnergy).toBe(0); // included in CI runner power draw (ciCdEnergy)
+      expect(impact.memoryEnergy).toBe(0); // included in CI runner power draw (ciCdEnergy)
+      expect(impact.latencyEnergy).toBe(0); // included in ENERGY_PER_GB
       expect(impact.buildEnergy).toBeGreaterThan(0);
       expect(impact.ciCdEnergy).toBeGreaterThan(0);
       expect(impact.registryEnergy).toBe(0); // removing your dep doesn't reduce global registry load
@@ -298,7 +298,7 @@ describe("Enhanced Environmental Calculations", () => {
       expect(impact.totalFinancialValue).toBeGreaterThan(0);
 
       // Check regional factors
-      expect(impact.carbonIntensityUsed).toBe(0.37); // NA region
+      expect(impact.carbonIntensityUsed).toBe(0.37); // NA region intensity
       expect(impact.regionalMultiplier).toBe(1.1);
 
       // Check time-based factors

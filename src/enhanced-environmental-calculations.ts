@@ -319,30 +319,28 @@ export function calculateComprehensiveEnvironmentalImpact(
   ); // Cap at 1M GB
   const installTimeHours = Math.max(0, Math.min(installTime / 3600, 8760)); // Cap at 1 year
 
-  // Calculate energy breakdown (monthly savings)
+  // Calculate energy breakdown (monthly savings estimate)
   //
-  // Only components with defensible, non-overlapping models:
-  // 1. CI/CD energy: ciBuildsPerMonth × installTime × power draw (monthly)
-  // 2. Transfer energy: data transfer per install (one-time, small)
-  // 3. Storage energy: ongoing disk storage (monthly)
+  // Two non-overlapping energy sources:
+  // 1. CI runner compute (monthly): 15W runner × install time × builds/month
+  //    - Includes CPU, memory, disk I/O on the runner machine
+  //    - This is the dominant term (~75-90% of total)
+  // 2. Transfer energy (per-install): data center + CDN + ISP infrastructure
+  //    - NOT multiplied by builds because most CI pipelines cache deps
+  //    - Conservative: counts one download, caching makes actual savings higher
+  // 3. Storage (monthly): ongoing disk footprint (negligible)
   //
   // Excluded from total (set to 0):
-  // - networkEnergy/latencyEnergy: already included in ENERGY_PER_GB (which covers
-  //   "data center ops + network" per its IEA/LBNL source comment)
+  // - cpuEnergy/memoryEnergy: already in runner's 15W power draw (ciCdEnergy)
+  // - networkEnergy/latencyEnergy: already included in ENERGY_PER_GB
   // - buildEnergy: single-build subset of ciCdEnergy (would double-count)
   // - lifecycleEnergy: 2.1x multiplier source cannot be verified
   const transferEnergy = diskSpaceGB * ENVIRONMENTAL_CONSTANTS.ENERGY_PER_GB;
   const networkEnergy = 0; // included in ENERGY_PER_GB
   const storageEnergy =
     (diskSpaceGB * ENVIRONMENTAL_CONSTANTS.STORAGE_ENERGY_PER_GB_YEAR) / 12;
-  const cpuEnergy = calculateCPUEnergy(
-    diskSpaceGB,
-    options.processingComplexity,
-  );
-  const memoryEnergy = calculateMemoryEnergy(
-    diskSpaceGB,
-    options.accessFrequency,
-  );
+  const cpuEnergy = 0; // included in CI runner's power draw (ciCdEnergy)
+  const memoryEnergy = 0; // included in CI runner's power draw (ciCdEnergy)
   const latencyEnergy = 0; // included in ENERGY_PER_GB
   const buildEnergy = calculateBuildEnergy(
     installTimeHours,
@@ -356,14 +354,7 @@ export function calculateComprehensiveEnvironmentalImpact(
   const registryEnergy = calculateRegistryEnergy(monthlyDownloads);
 
   // Total monthly energy savings — only non-overlapping components
-  // buildEnergy is excluded from sum (it's a single-build cost already
-  // captured at scale by ciCdEnergy which multiplies by ciBuildsPerMonth)
-  const baseEnergySavings =
-    transferEnergy +
-    storageEnergy +
-    cpuEnergy +
-    memoryEnergy +
-    ciCdEnergy;
+  const baseEnergySavings = transferEnergy + storageEnergy + ciCdEnergy;
 
   const lifecycleEnergy = 0; // source "Software Sustainability Institute 2024" is unverifiable
   const totalEnergySavings = baseEnergySavings;

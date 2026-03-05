@@ -150,8 +150,11 @@ describe("Coverage Gaps Tests", () => {
         yearlyData
       );
 
+      // With < 12 months of data, no yearly stats
       expect(result).not.toHaveProperty("yearly");
-      expect(result).toHaveProperty("last_6_months");
+      // CI-based stats are always available
+      expect(result).toHaveProperty("day");
+      expect(result).toHaveProperty("monthly");
     });
 
     it("should handle zero days count", () => {

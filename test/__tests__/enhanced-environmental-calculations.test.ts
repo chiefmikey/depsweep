@@ -286,11 +286,11 @@ describe("Enhanced Environmental Calculations", () => {
       expect(impact.transferEnergy).toBeGreaterThan(0);
       expect(impact.cpuEnergy).toBeGreaterThan(0);
       expect(impact.memoryEnergy).toBeGreaterThan(0);
-      expect(impact.latencyEnergy).toBeGreaterThan(0);
+      expect(impact.latencyEnergy).toBe(0); // included in ENERGY_PER_GB, not counted separately
       expect(impact.buildEnergy).toBeGreaterThan(0);
       expect(impact.ciCdEnergy).toBeGreaterThan(0);
-      expect(impact.registryEnergy).toBe(0); // registry energy is always 0 — removing your dep doesn't reduce global registry load
-      expect(impact.lifecycleEnergy).toBeGreaterThan(0);
+      expect(impact.registryEnergy).toBe(0); // removing your dep doesn't reduce global registry load
+      expect(impact.lifecycleEnergy).toBe(0); // source unverifiable, disabled
 
       // Check financial impact
       expect(impact.carbonOffsetValue).toBeGreaterThan(0);

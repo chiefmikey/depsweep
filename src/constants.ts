@@ -412,56 +412,56 @@ export const ENVIRONMENTAL_CONSTANTS = {
   CO2_PER_CAR_MILE: 0.404,
 
   // Energy efficiency improvement from removing unused deps (%)
-  // Source: Multiple studies on build optimization and dependency management
-  // Based on reduced parsing, bundling, and runtime overhead
+  // Note: not currently used in per-package calculations (cannot be meaningfully
+  // computed without knowing total project context). Retained for reference.
   EFFICIENCY_IMPROVEMENT: 18.5,
 
-  // Network energy per MB transferred (kWh) - Updated 2025
-  // Source: Greenpeace - Clicking Clean Report 2024
-  // Includes routing, switching, and transmission infrastructure
+  // Network energy per MB transferred (kWh)
+  // Estimate: routing, switching, and transmission infrastructure
+  // Note: ENERGY_PER_GB above already includes network costs per IEA/LBNL data,
+  // so this constant is retained for reference but not used in totals to avoid double-counting
   NETWORK_ENERGY_PER_MB: 0.000_12,
 
-  // Storage energy per GB stored per year (kWh) - Updated 2025
-  // Source: Storage Networking Industry Association (SNIA) - Energy Efficiency Report 2024
-  // Includes power, cooling, and infrastructure overhead
+  // Storage energy per GB stored per year (kWh)
+  // Estimate based on typical SSD power consumption (~0.3W per TB idle)
   STORAGE_ENERGY_PER_GB_YEAR: 0.000_28,
 
-  // Additional environmental factors for 2025
   // E-waste impact per GB of unnecessary software (kg CO2e)
-  // Source: UNEP - E-waste and Climate Change Report 2024
+  // Estimate: marginal contribution to hardware wear from unnecessary storage
   EWASTE_IMPACT_PER_GB: 0.000_15,
 
   // Server utilization improvement from dependency cleanup (%)
-  // Source: Google Cloud Platform - Server Efficiency Study 2024
+  // Estimate: marginal improvement from reduced disk/memory footprint
   SERVER_UTILIZATION_IMPROVEMENT: 12.3,
 
   // Build time reduction impact on developer productivity (hours saved/year)
-  // Source: Developer Productivity Research Consortium 2024
+  // Estimate: developer wait time saved per hour of build time eliminated
   BUILD_TIME_PRODUCTIVITY_GAIN: 0.8,
 
   // === ADDITIONAL ENVIRONMENTAL FACTORS ===
-  // CPU energy per GB processed (kWh) - Updated 2025
-  // Source: IEEE - Computer Architecture Energy Efficiency Report 2024
+  // CPU energy per GB processed (kWh)
+  // Estimate: energy for unpacking, parsing, and processing installed packages
   CPU_ENERGY_PER_GB: 0.015,
 
-  // Memory energy per GB stored (kWh) - Updated 2025
-  // Source: JEDEC - Memory Power Consumption Standards 2024
+  // Memory energy per GB stored (kWh)
+  // Estimate: DRAM power for package metadata and caching during install
   MEMORY_ENERGY_PER_GB: 0.008,
 
-  // Network latency energy per MB (kWh) - Updated 2025
-  // Source: Cisco - Network Energy Efficiency Study 2024
+  // Network latency energy per MB (kWh)
+  // Note: included in ENERGY_PER_GB, retained for reference only
   LATENCY_ENERGY_PER_MB: 0.000_08,
 
-  // Build system energy per hour (kWh) - Updated 2025
-  // Source: Microsoft - Build System Energy Analysis 2024
+  // Build system energy per hour (kWh)
+  // Estimate: typical CI runner power draw (~250W for a cloud VM)
   BUILD_SYSTEM_ENERGY_PER_HOUR: 0.25,
 
-  // CI/CD energy per build (kWh) - Updated 2025
-  // Source: GitHub - CI/CD Energy Consumption Report 2024
+  // CI/CD energy per build (kWh)
+  // Estimate: average energy for a full CI build cycle
   CI_CD_ENERGY_PER_BUILD: 0.12,
 
-  // Package registry energy per download (kWh) - Updated 2025
-  // Source: npm Inc. - Registry Energy Analysis 2024
+  // Package registry energy per download (kWh)
+  // Estimate: registry serving + CDN delivery per request
+  // Note: not used in calculations (removing your dep doesn't reduce global registry load)
   REGISTRY_ENERGY_PER_DOWNLOAD: 0.000_05,
 
   // === CARBON OFFSET COSTS ===
@@ -472,18 +472,19 @@ export const ENVIRONMENTAL_CONSTANTS = {
   CARBON_OFFSET_COST_PER_KG: 0.19,
 
   // === WATER TREATMENT COSTS ===
-  // Cost per liter of water treatment (USD) - Updated 2025
-  // Source: Water Environment Federation - Treatment Cost Analysis 2024
+  // Cost per liter of water treatment (USD)
+  // Estimate based on US municipal water treatment costs (~$2.50/m³)
   WATER_TREATMENT_COST_PER_LITER: 0.0025,
 
   // === RENEWABLE ENERGY FACTORS ===
-  // Renewable energy percentage in global grid - Updated 2025
-  // Source: International Renewable Energy Agency (IRENA) 2024
+  // Renewable energy percentage in global grid
+  // Source: IRENA Renewable Capacity Statistics 2024 — ~30-32% of global generation
   RENEWABLE_ENERGY_PERCENTAGE: 0.32,
 
   // === LIFECYCLE ASSESSMENT ===
-  // Software lifecycle energy multiplier - Updated 2025
-  // Source: Software Sustainability Institute - Lifecycle Analysis 2024
+  // Software lifecycle energy multiplier
+  // Note: not currently used in calculations (source unverifiable). Retained for
+  // potential future use if a defensible lifecycle model is established.
   LIFECYCLE_ENERGY_MULTIPLIER: 2.1,
 
   // === REGIONAL VARIATIONS ===

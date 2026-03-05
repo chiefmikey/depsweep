@@ -86,9 +86,9 @@ describe("Environmental Impact Calculations", () => {
       expect(impact.waterSavings).toBeGreaterThan(0);
       expect(impact.treesEquivalent).toBeGreaterThan(0);
       expect(impact.carMilesEquivalent).toBeGreaterThan(0);
-      expect(impact.efficiencyGain).toBeGreaterThan(0);
-      expect(impact.networkSavings).toBeGreaterThan(0);
-      expect(impact.storageSavings).toBeGreaterThan(0);
+      expect(impact.efficiencyGain).toBe(0); // cannot compute without total project context
+      expect(impact.networkSavings).toBe(0); // included in ENERGY_PER_GB, not counted separately
+      expect(impact.storageSavings).toBeGreaterThanOrEqual(0);
     });
 
     it("should handle zero inputs", () => {

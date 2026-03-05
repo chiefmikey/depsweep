@@ -802,7 +802,6 @@ describe("Helpers Comprehensive Tests", () => {
 
       expect(result.day).toBeDefined();
       expect(result.monthly).toBeDefined();
-      expect(result.last_12_months).toBeDefined();
       expect(result.yearly).toBeDefined();
     });
 

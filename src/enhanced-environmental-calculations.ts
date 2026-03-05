@@ -317,13 +317,22 @@ export function calculateComprehensiveEnvironmentalImpact(
     0,
     Math.min(diskSpace / (1024 * 1024 * 1024), 1e6),
   ); // Cap at 1M GB
-  const diskSpaceMB = Math.max(0, Math.min(diskSpace / (1024 * 1024), 1e9)); // Cap at 1B MB
   const installTimeHours = Math.max(0, Math.min(installTime / 3600, 8760)); // Cap at 1 year
 
-  // Calculate detailed energy breakdown
+  // Calculate energy breakdown (monthly savings)
+  //
+  // Only components with defensible, non-overlapping models:
+  // 1. CI/CD energy: ciBuildsPerMonth × installTime × power draw (monthly)
+  // 2. Transfer energy: data transfer per install (one-time, small)
+  // 3. Storage energy: ongoing disk storage (monthly)
+  //
+  // Excluded from total (set to 0):
+  // - networkEnergy/latencyEnergy: already included in ENERGY_PER_GB (which covers
+  //   "data center ops + network" per its IEA/LBNL source comment)
+  // - buildEnergy: single-build subset of ciCdEnergy (would double-count)
+  // - lifecycleEnergy: 2.1x multiplier source cannot be verified
   const transferEnergy = diskSpaceGB * ENVIRONMENTAL_CONSTANTS.ENERGY_PER_GB;
-  const networkEnergy =
-    diskSpaceMB * ENVIRONMENTAL_CONSTANTS.NETWORK_ENERGY_PER_MB;
+  const networkEnergy = 0; // included in ENERGY_PER_GB
   const storageEnergy =
     (diskSpaceGB * ENVIRONMENTAL_CONSTANTS.STORAGE_ENERGY_PER_GB_YEAR) / 12;
   const cpuEnergy = calculateCPUEnergy(
@@ -334,10 +343,7 @@ export function calculateComprehensiveEnvironmentalImpact(
     diskSpaceGB,
     options.accessFrequency,
   );
-  const latencyEnergy = calculateLatencyEnergy(
-    diskSpaceMB,
-    options.averageLatency,
-  );
+  const latencyEnergy = 0; // included in ENERGY_PER_GB
   const buildEnergy = calculateBuildEnergy(
     installTimeHours,
     options.buildComplexity,
@@ -349,25 +355,24 @@ export function calculateComprehensiveEnvironmentalImpact(
   );
   const registryEnergy = calculateRegistryEnergy(monthlyDownloads);
 
-  // Calculate total energy savings
+  // Total monthly energy savings — only non-overlapping components
+  // buildEnergy is excluded from sum (it's a single-build cost already
+  // captured at scale by ciCdEnergy which multiplies by ciBuildsPerMonth)
   const baseEnergySavings =
     transferEnergy +
-    networkEnergy +
     storageEnergy +
     cpuEnergy +
     memoryEnergy +
-    latencyEnergy +
-    buildEnergy +
-    ciCdEnergy +
-    registryEnergy;
+    ciCdEnergy;
 
-  const lifecycleEnergy = calculateLifecycleEnergy(baseEnergySavings);
-  const totalEnergySavings = baseEnergySavings + lifecycleEnergy;
+  const lifecycleEnergy = 0; // source "Software Sustainability Institute 2024" is unverifiable
+  const totalEnergySavings = baseEnergySavings;
 
-  // Apply time-of-day multiplier
-  const peakEnergySavings = totalEnergySavings * timeOfDayMultiplier;
-  const offPeakEnergySavings =
-    totalEnergySavings * ENVIRONMENTAL_CONSTANTS.OFF_PEAK_ENERGY_MULTIPLIER;
+  // Peak/off-peak fields kept for interface compatibility but not applied
+  // to primary metrics — the savings are permanent and don't depend on
+  // when the tool is run
+  const peakEnergySavings = totalEnergySavings;
+  const offPeakEnergySavings = totalEnergySavings;
 
   // Calculate environmental impacts
   const carbonSavings = Math.max(0, totalEnergySavings * carbonIntensity);
@@ -399,13 +404,14 @@ export function calculateComprehensiveEnvironmentalImpact(
     installTimeHours,
     options.teamSize,
   );
-  const buildTimeReduction = calculateBuildTimeReduction(installTime);
+  // Build time reduction = full install time saved (not 18.5% — removing
+  // a dep saves 100% of its install time, not a fraction)
+  const buildTimeReduction = Math.max(0, installTime);
 
-  // Calculate efficiency gain
-  const efficiencyGain = Math.min(
-    50,
-    ENVIRONMENTAL_CONSTANTS.EFFICIENCY_IMPROVEMENT,
-  );
+  // Efficiency gain cannot be meaningfully computed without knowing total
+  // project size. Set to 0 rather than reporting a fixed 18.5% regardless
+  // of what's being removed.
+  const efficiencyGain = 0;
 
   return {
     // Primary metrics

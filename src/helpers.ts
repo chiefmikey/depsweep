@@ -992,40 +992,31 @@ export function calculateImpactStats(
     return stats;
   }
 
-  // Compute daily average
-  const dailyAvg = total / daysCount;
+  // CI build-based savings: unused deps are only installed in the project's
+  // own CI pipeline, NOT by downstream consumers (devDeps are never installed
+  // by `npm install <package>`). Use CI build frequency, not npm downloads.
+  const ciBuildsPerMonth =
+    monthlyDownloads && monthlyDownloads > 0 ? 100 : 60;
+  const ciBuildsPerDay = ciBuildsPerMonth / 30;
 
-  // Replace with day based on up to 30 days
-  const relevantDays = Math.min(30, daysCount);
-  const daySum = dailyAvg * relevantDays;
-  const dayAverage = daySum / relevantDays;
   stats.day = {
-    downloads: Math.round(dayAverage),
-    diskSpace: diskSpace * dayAverage,
-    installTime: installTime * dayAverage,
+    downloads: Math.round(ciBuildsPerDay),
+    diskSpace: diskSpace * ciBuildsPerDay,
+    installTime: installTime * ciBuildsPerDay,
   };
 
-  // 30-day (Monthly)
   stats.monthly = {
-    downloads: Math.round(dailyAvg * 30),
-    diskSpace: diskSpace * dailyAvg * 30,
-    installTime: installTime * dailyAvg * 30,
+    downloads: ciBuildsPerMonth,
+    diskSpace: diskSpace * ciBuildsPerMonth,
+    installTime: installTime * ciBuildsPerMonth,
   };
 
-  // Last X months
-  stats[`last_${monthsFetched}_months`] = {
-    downloads: Math.round(dailyAvg * daysCount),
-    diskSpace: diskSpace * dailyAvg * daysCount,
-    installTime: installTime * dailyAvg * daysCount,
-  };
-
-  // If we have at least 12 months, add yearly
   if (monthsFetched >= 12) {
-    const yearlyDays = 12 * 30;
+    const ciBuildsPerYear = ciBuildsPerMonth * 12;
     stats.yearly = {
-      downloads: Math.round(dailyAvg * yearlyDays),
-      diskSpace: diskSpace * dailyAvg * yearlyDays,
-      installTime: installTime * dailyAvg * yearlyDays,
+      downloads: ciBuildsPerYear,
+      diskSpace: diskSpace * ciBuildsPerYear,
+      installTime: installTime * ciBuildsPerYear,
     };
   }
 
@@ -1507,8 +1498,8 @@ export function generateEnvironmentalRecommendations(
 export function displayEnvironmentalHeroMessage(
   impact: EnvironmentalImpact
 ): void {
-  const totalSavings =
-    impact.carbonSavings + impact.energySavings + impact.waterSavings;
+  // Use carbonSavings alone (kg CO2e) — adding kg + kWh + liters is meaningless
+  const totalSavings = impact.carbonSavings;
 
   if (totalSavings > 1) {
     console.log(chalk.green.bold("\nEnvironmental Impact: Significant"));

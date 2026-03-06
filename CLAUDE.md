@@ -1,64 +1,58 @@
 # DepSweep
 
-CLI tool for automated dependency cleanup with environmental impact reporting.
-TypeScript, Node.js >=18, ESM, Babel AST parsing, Commander.js CLI.
+## Project Overview
+CLI tool for automated dependency cleanup with environmental impact reporting. Scans projects for unused npm dependencies using AST analysis.
 
-## Commands
-
-```bash
-npm run build          # rm -rf dist && tsc && chmod +x dist/index.js
-npm run validate       # type-check + lint + test:coverage:check (full CI)
-npm run precommit      # lint + test:unit (quick check)
-npm test               # jest (excludes utils.test.ts)
-npm run lint           # eslint src/**/*.ts
-```
+## Tech Stack
+- **Language:** TypeScript (ESM, strict mode)
+- **Runtime:** Node.js >=20.19.0
+- **CLI:** Commander.js with JSON output mode
+- **AST:** Babel parser + traverse for import detection
+- **Testing:** Jest 30 + ts-jest
+- **Linting:** ESLint 10 (own flat config, not mikey-pro) + Prettier
 
 ## Architecture
-
 - `src/index.ts` — CLI entry, main() with Commander.js, JSON output mode
 - `src/helpers.ts` — Dep analysis (isDependencyUsedInFile w/ AST), env impact calcs
 - `src/utils.ts` — getDependencyInfo, getSourceFiles, AST file scanning
 - `src/constants.ts` — Protected deps lists, env constants, config patterns
 - `src/performance-optimizations.ts` — OptimizedDependencyAnalyzer, LRU cache
 - `src/interfaces.ts` — TypeScript types (ScanResult, ImpactMetrics, etc.)
-- `scripts/generate-report.js` — JSON→markdown for issue comments
-- `scripts/generate-pr-body.js` — JSON→markdown for PR bodies
+- `scripts/` — generate-report.js, generate-pr-body.js (JSON->markdown)
+- `test/` — Jest tests (__tests__/, __mocks__/, setup.ts)
+
+## Commands
+```bash
+npm run build          # tsc + chmod +x dist/index.js
+npm run validate       # type-check + lint + test:coverage:check (full CI)
+npm run precommit      # lint + test:unit (quick check)
+npm test               # jest (excludes utils.test.ts)
+npm run lint           # eslint src/**/*.ts
+npm run dev            # tsc --watch
+npm run dev:run        # build + run
+```
 
 ## Usage Modes
-
 - **Local scan:** `depsweep` (scans current project)
 - **Remote scan:** `depsweep owner/repo` (clones, installs, scans, cleans up — implicit --dry-run)
 - **JSON output:** `depsweep --json` or `depsweep owner/repo --json --output report.json`
 - **CI scan:** Issue titled `depsweep: owner/repo` triggers scan-request.yml
 
 ## Detection Flow
-
-1. `getSourceFiles()` in utils.ts collects project files via globby (dot: true, followSymbolicLinks: false)
-2. `getDependencies()` in utils.ts excludes `optionalDependencies` (platform-only, never imported)
-3. `getDependencyInfo()` in utils.ts runs a 9-layer detection pipeline:
-   - Layer 1: `OptimizedDependencyAnalyzer.processFilesInBatches()` — 8 regex patterns against all source files
-   - Layer 2: Package.json config field scanning (eslintConfig, prettier, stylelint, babel, jest, browserslist, commitlint, lint-staged, husky, mocha, ava, nyc, c8)
-   - Layer 3: Package.json scripts scanning — npm scripts containing dependency name
-   - Layer 4: Binary name resolution — reads `bin` field from `node_modules/<dep>/package.json`, checks scripts AND source files
-   - Layer 5: Framework plugin conventions — karma-*, grunt-*, gulp-*, eslint-formatter-*, eslint-plugin-*, eslint-config-*, eslint-import-resolver-* auto-discovery
-   - Layer 6: Vitest coverage provider detection — scans vitest/vite configs for `provider: 'v8'` → `@vitest/coverage-v8`
-   - Layer 7: ESLint import resolver detection — `'import/resolver': { typescript: ... }` → `eslint-import-resolver-typescript`
-   - Layer 8: Peer dependency awareness — if dep is required peer of another installed dep, mark as used
-   - Layer 9: Subdependency checking — if any subdep is used, parent is marked as used
-4. For `@types/` packages: uses `helpers.ts:isTypePackageUsed()` with peer dep checks + AST
-5. Protected dependencies: exact name/pattern matching against curated lists in constants.ts (no scope matching)
-
-## GitHub Actions Workflows
-
-- `scan-request.yml` — Issue-triggered (`depsweep: owner/repo`), uses isolated mode internally
-- `submit-pr.yml` — workflow_dispatch, opens PR removing unused deps (supports dry_run mode)
-- `impact-report.yml` — Manual environmental impact report
-- Uses `ADMIN_PAT` secret for cross-repo operations
+1. `getSourceFiles()` collects project files via globby
+2. `getDependencies()` excludes `optionalDependencies`
+3. `getDependencyInfo()` runs a 9-layer detection pipeline (regex, package.json config, scripts, binaries, framework plugins, vitest coverage, ESLint resolvers, peer deps, subdeps)
+4. `@types/` packages: `isTypePackageUsed()` with peer dep checks + AST
+5. Protected dependencies: exact name/pattern matching in constants.ts
 
 ## Conventions
-
 - ESM project: use `import`, never `require` in source
 - Conventional commits: `feat:`, `fix:`, `chore:`, etc.
-- No emojis in production code output (removed in recent cleanup)
-- `jest.clearAllMocks()` doesn't clear `mockResolvedValueOnce` — use `mockReset()`
 - Babel traverse CJS/ESM interop: `(traverse as any).default || traverse`
+- `jest.clearAllMocks()` doesn't clear `mockResolvedValueOnce` — use `mockReset()`
+
+## Testing
+- **Framework:** Jest 30 + ts-jest
+- **Location:** `test/__tests__/` (unit, e2e, performance)
+- **Run:** `npm test` (excludes utils.test.ts), `npm run test:unit`, `npm run test:e2e`
+- **Coverage:** `npm run test:coverage`

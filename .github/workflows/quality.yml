@@ -46,7 +46,7 @@ jobs:
       run: npm run coverage:detailed || echo "Detailed coverage report not available"
 
     - name: Upload coverage reports
-      uses: codecov/codecov-action@v5
+      uses: codecov/codecov-action@v6
       with:
         file: ./coverage/lcov.info
         flags: unittests

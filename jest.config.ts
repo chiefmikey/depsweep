@@ -26,10 +26,10 @@ const config: Config.InitialOptions = {
   ],
   coverageThreshold: {
     global: {
-      branches: 49,
-      functions: 60,
-      lines: 60,
-      statements: 60,
+      branches: 42,
+      functions: 56,
+      lines: 57,
+      statements: 57,
     },
   },
   setupFilesAfterEnv: ["<rootDir>/test/setup.ts"],

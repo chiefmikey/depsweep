@@ -34,23 +34,11 @@ describe("Constants Loading Debug", () => {
     }
   });
 
-  it("should load enhanced calculations correctly", async () => {
-    console.log("Testing enhanced calculations import...");
+  it("should have correct regional carbon intensity values", async () => {
+    const constants = await import("../../src/constants.js");
 
-    try {
-      const calc = await import(
-        "../../src/enhanced-environmental-calculations.js"
-      );
-      console.log("Enhanced calculations loaded successfully");
-      console.log("Available functions:", Object.keys(calc));
-
-      // Test a simple function
-      const region = calc.detectUserRegion();
-      console.log("detectUserRegion result:", region);
-      expect(region).toBeDefined();
-    } catch (error) {
-      console.error("Error loading enhanced calculations:", error);
-      throw error;
-    }
+    expect(constants.ENVIRONMENTAL_CONSTANTS.CARBON_INTENSITY_NA).toBe(0.37);
+    expect(constants.ENVIRONMENTAL_CONSTANTS.CARBON_INTENSITY_EU).toBe(0.213);
+    expect(constants.ENVIRONMENTAL_CONSTANTS.CARBON_INTENSITY_AP).toBe(0.555);
   });
 });

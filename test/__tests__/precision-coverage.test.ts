@@ -66,21 +66,19 @@ jest.mock("../../src/constants.js", () => ({
     ANALYSIS_COMPLETE: "Analysis complete",
   },
   ENVIRONMENTAL_CONSTANTS: {
-    CARBON_PER_GB: 0.5,
-    ENERGY_PER_GB: 0.1,
-    WATER_PER_GB: 0.01,
-    TREES_PER_KG_CO2: 0.06,
+    ENERGY_PER_GB: 0.06,
+    CARBON_INTENSITY: 0.445,
+    WATER_PER_KWH: 1.8,
+    TREES_PER_KG_CO2: 0.045,
     CO2_PER_CAR_MILE: 0.4,
+    STORAGE_ENERGY_PER_GB_YEAR: 0.0026,
+    CARBON_INTENSITY_NA: 0.37,
+    CARBON_INTENSITY_EU: 0.213,
+    CARBON_INTENSITY_AP: 0.555,
   },
 }));
 
 // Import after mocking
-import {
-  displayImpactTable,
-  calculateEnvironmentalImpact,
-  validateInputs,
-} from "../../src/helpers.js";
-
 import {
   getDependencyInfo,
   getWorkspaceInfo,
@@ -125,38 +123,8 @@ describe("Precision Coverage Tests", () => {
     }
   });
 
-  describe("helpers.ts - Precision Line Coverage", () => {
-    describe("Lines 862-863: customSort in displayImpactTable", () => {
-      it("should execute customSort function call", () => {
-        const impactData = {
-          "package-b": { installTime: "20", diskSpace: "500MB" },
-          "package-a": { installTime: "30", diskSpace: "1GB" },
-          "package-c": { installTime: "10", diskSpace: "200MB" },
-        };
-
-        const consoleSpy = jest
-          .spyOn(console, "log")
-          .mockImplementation(() => {});
-
-        // This should hit lines 862-863
-        displayImpactTable(impactData, 50, 1500000000);
-
-        expect(consoleSpy).toHaveBeenCalled();
-        consoleSpy.mockRestore();
-      });
-    });
-
-    describe("Lines 1011-1012: Error handling for negative disk space", () => {
-      it("should throw error for negative disk space", () => {
-        expect(() => {
-          validateInputs(-1000, 10, 1000);
-        }).toThrow("Disk space cannot be negative");
-      });
-    });
-  });
-
   describe("utils.ts - Precision Line Coverage", () => {
-    describe("Line 263: dependencyGraph.set", () => {
+    describe("dependencyGraph.set", () => {
       it("should set dependency graph with complex structure", async () => {
         mockFs.readFile.mockResolvedValue(
           JSON.stringify({
@@ -182,7 +150,6 @@ describe("Precision Coverage Tests", () => {
         const sourceFiles = ["/test/src/index.js"];
         const topLevelDependencies = new Set(["package-a"]);
 
-        // This should hit line 263
         const result = await getDependencyInfo(
           "package-a",
           context,
@@ -194,7 +161,7 @@ describe("Precision Coverage Tests", () => {
       });
     });
 
-    describe("Lines 330-331, 339-344: getWorkspaceInfo", () => {
+    describe("getWorkspaceInfo", () => {
       it("should handle workspaces with string array", async () => {
         mockFs.readFile.mockResolvedValue(
           JSON.stringify({
@@ -209,14 +176,13 @@ describe("Precision Coverage Tests", () => {
           "/test/packages/package-a/package.json",
         ]);
 
-        // This should hit lines 330-331, 339-344
         const result = await getWorkspaceInfo("/test/package.json");
 
         expect(result).toBeDefined();
       });
     });
 
-    describe("Lines 392-394: getTSConfig", () => {
+    describe("getTSConfig", () => {
       it("should handle complex tsconfig.json", async () => {
         const complexConfig = {
           compilerOptions: {
@@ -228,41 +194,38 @@ describe("Precision Coverage Tests", () => {
 
         mockFs.readFile.mockResolvedValue(JSON.stringify(complexConfig));
 
-        // This should hit lines 392-394
         const result = await getTSConfig("/test/tsconfig.json");
 
         expect(result).toBeDefined();
       });
     });
 
-    describe("Lines 445, 469-470: findClosestPackageJson", () => {
+    describe("findClosestPackageJson", () => {
       it("should handle nested directory structure", async () => {
         mockFindUp
           .mockResolvedValueOnce("/test/nested/package.json")
           .mockResolvedValueOnce("/test/package.json");
 
-        // This should hit lines 445, 469-470
         const result = await findClosestPackageJson("/test/nested/deep/path");
 
         expect(result).toBeDefined();
       });
     });
 
-    describe("Line 483: getSourceFiles", () => {
+    describe("getSourceFiles", () => {
       it("should find source files with patterns", async () => {
         (globby as any).mockResolvedValue([
           "/test/src/index.js",
           "/test/src/utils.ts",
         ]);
 
-        // This should hit line 483
         const result = await getSourceFiles("/test");
 
         expect(result).toBeDefined();
       });
     });
 
-    describe("Line 283: findTopLevelDependents", () => {
+    describe("findTopLevelDependents", () => {
       it("should handle recursive dependency analysis", async () => {
         mockFs.readFile.mockResolvedValue(
           JSON.stringify({
@@ -285,7 +248,6 @@ describe("Precision Coverage Tests", () => {
         const sourceFiles = ["/test/src/index.js"];
         const topLevelDependencies = new Set(["package-a"]);
 
-        // This should hit line 283
         const result = await getDependencyInfo(
           "package-c",
           context,

@@ -13,11 +13,12 @@ CLI tool for automated dependency cleanup with environmental impact reporting. S
 
 ## Architecture
 - `src/index.ts` — CLI entry, main() with Commander.js, JSON output mode
-- `src/helpers.ts` — Dep analysis (isDependencyUsedInFile w/ AST), env impact calcs
+- `src/global-impact.ts` — npm registry metadata fetcher, transitive size resolver, global impact calculator
+- `src/helpers.ts` — Dep analysis (isDependencyUsedInFile w/ AST), formatting, package manager detection
 - `src/utils.ts` — getDependencyInfo, getSourceFiles, AST file scanning
 - `src/constants.ts` — Protected deps lists, env constants, config patterns
 - `src/performance-optimizations.ts` — OptimizedDependencyAnalyzer, LRU cache
-- `src/interfaces.ts` — TypeScript types (ScanResult, ImpactMetrics, etc.)
+- `src/interfaces.ts` — TypeScript types (ScanResult, GlobalImpact, UnusedDepInfo, GlobalScanResult, etc.)
 - `scripts/` — generate-report.js, generate-pr-body.js (JSON->markdown)
 - `test/` — Jest tests (__tests__/, __mocks__/, setup.ts)
 
@@ -36,7 +37,16 @@ npm run dev:run        # build + run
 - **Local scan:** `depsweep` (scans current project)
 - **Remote scan:** `depsweep owner/repo` (clones, installs, scans, cleans up — implicit --dry-run)
 - **JSON output:** `depsweep --json` or `depsweep owner/repo --json --output report.json`
+- **Quick check:** `depsweep --quick-check` (skip transitive dep size resolution for speed)
 - **CI scan:** Issue titled `depsweep: owner/repo` triggers scan-request.yml
+
+## Environmental Impact Model
+- **Global impact** for `dependencies`: uses real npm download counts * package size * verified energy constants
+- **No impact** for `devDependencies`: not installed by consumers, would require assumptions
+- Formula: `downloads * totalSizeGB * ENERGY_PER_GB * carbonIntensity`
+- All inputs from npm APIs (downloads, unpackedSize) or verified published constants (IEA, EPA, EIA, USDA)
+- Deep mode (default): resolves full transitive dependency tree sizes from registry
+- Quick mode (`--quick-check`): direct dep unpackedSize only, skips transitive resolution
 
 ## Detection Flow
 1. `getSourceFiles()` collects project files via globby

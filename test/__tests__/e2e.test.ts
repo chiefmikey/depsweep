@@ -89,9 +89,8 @@ describe("DepSweep CLI End-to-End Tests", () => {
           timeout: 30000, // 30 second timeout
         });
 
-        // Should contain environmental impact analysis
-        expect(result).toContain("Environmental Impact Analysis");
-        expect(result).toContain("Total Environmental Impact");
+        // Should contain global environmental impact output
+        expect(result).toContain("Global Environmental Impact");
       } catch (error: any) {
         // If the test fails due to dependency analysis, that's expected in test environment
         // The important thing is that the CLI runs and recognizes the flags
@@ -212,16 +211,8 @@ describe("DepSweep CLI End-to-End Tests", () => {
           timeout: 30000,
         });
 
-        // Should contain environmental impact analysis
-        expect(result).toContain("Environmental Impact Analysis");
-        expect(result).toContain("Total Environmental Impact");
-
-        // Should contain environmental recommendations
-        expect(result).toContain("Environmental Impact Recommendations");
-        expect(result).toContain("💡");
-
-        // Should contain hero message
-        expect(result).toContain("Environmental Hero");
+        // Should contain global environmental impact output
+        expect(result).toContain("Global Environmental Impact");
       } catch (error: any) {
         // In test environment, dependency analysis might fail, but CLI should run
         expect(error.message).toContain("DepSweep");
@@ -271,68 +262,3 @@ describe("DepSweep CLI End-to-End Tests", () => {
   });
 });
 
-describe("Environmental Impact Calculation Accuracy", () => {
-  it("should calculate environmental impact with correct precision", () => {
-    // Test that the environmental impact calculations produce reasonable results
-    const testCases = [
-      {
-        diskSpace: 1073741824,
-        installTime: 30,
-        expectedEnergyMin: 0.01,
-        expectedEnergyMax: 20.0,
-      },
-      {
-        diskSpace: 2147483648,
-        installTime: 60,
-        expectedEnergyMin: 0.01,
-        expectedEnergyMax: 20.0,
-      },
-      {
-        diskSpace: 536870912,
-        installTime: 15,
-        expectedEnergyMin: 0.01,
-        expectedEnergyMax: 20.0,
-      },
-    ];
-
-    testCases.forEach(
-      ({ diskSpace, installTime, expectedEnergyMin, expectedEnergyMax }) => {
-        // Import the function directly to test calculation accuracy
-        const {
-          calculateEnvironmentalImpact,
-        } = require("../../src/helpers.js");
-
-        const result = calculateEnvironmentalImpact(
-          diskSpace,
-          installTime,
-          1000
-        );
-
-        expect(result.energySavings).toBeGreaterThanOrEqual(expectedEnergyMin);
-        expect(result.energySavings).toBeLessThanOrEqual(expectedEnergyMax);
-        expect(result.carbonSavings).toBeGreaterThan(0);
-        expect(result.waterSavings).toBeGreaterThan(0);
-        expect(result.treesEquivalent).toBeGreaterThan(0);
-        expect(result.carMilesEquivalent).toBeGreaterThan(0);
-      }
-    );
-  });
-
-  it("should maintain calculation consistency across different inputs", () => {
-    const { calculateEnvironmentalImpact } = require("../../src/helpers.js");
-
-    // Test that doubling inputs roughly doubles outputs
-    const smallInput = calculateEnvironmentalImpact(1073741824, 30, 1000);
-    const largeInput = calculateEnvironmentalImpact(2147483648, 60, 1000);
-
-    // Energy savings should roughly double (allowing for efficiency calculations)
-    const energyRatio = largeInput.energySavings / smallInput.energySavings;
-    expect(energyRatio).toBeGreaterThan(1.0);
-    expect(energyRatio).toBeLessThan(3.0);
-
-    // Carbon savings should roughly double
-    const carbonRatio = largeInput.carbonSavings / smallInput.carbonSavings;
-    expect(carbonRatio).toBeGreaterThan(1.0);
-    expect(carbonRatio).toBeLessThan(3.0);
-  });
-});

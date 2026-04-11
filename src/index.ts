@@ -26,25 +26,21 @@ import {
 import {
   safeExecSync,
   detectPackageManager,
-  measurePackageInstallation,
   getParentPackageDownloads,
-  getYearlyDownloads,
-  calculateImpactStats,
-  displayImpactTable,
   formatSize,
-  formatTime,
   formatNumber,
-  calculateEnvironmentalImpact,
-  calculateCumulativeEnvironmentalImpact,
-  displayEnvironmentalImpactTable,
-  generateEnvironmentalRecommendations,
-  displayEnvironmentalHeroMessage,
   customSort,
 } from "./helpers.js";
 export { customSort } from "./helpers.js";
+import {
+  getPackageMetadata,
+  resolveTransitiveSize,
+  calculateGlobalImpact,
+} from "./global-impact.js";
 import type {
-  EnvironmentalImpact,
-  ImpactMetrics,
+  UnusedDepInfo,
+  GlobalScanResult,
+  GlobalImpact,
   ScanResult,
 } from "./interfaces.js";
 import {
@@ -212,6 +208,7 @@ async function main(): Promise<void> {
       .option("-n, --no-progress", "disable the progress bar")
       .option("--json", "output results as JSON")
       .option("-o, --output <file>", "write results to file")
+      .option("--quick-check", "skip transitive dependency size resolution (faster)")
       .version(depsweepVersion, "--version", "display installed version")
       .addHelpText("after", "\nExample:\n  $ depsweep -v --measure-impact\n  $ depsweep facebook/react --json --dry-run");
 
@@ -505,45 +502,61 @@ async function main(): Promise<void> {
       };
 
       if (unusedDependencies.length > 0 && options.measureImpact) {
-        let totalInstallTime = 0;
-        let totalDiskSpace = 0;
-        const perPackage: Record<string, ImpactMetrics> = {};
-        const environmentalImpacts: EnvironmentalImpact[] = [];
         const parentInfo = await getParentPackageDownloads(packageJsonPath);
+        const parentDownloads = parentInfo?.downloads ?? 0;
 
-        for (const dep of unusedDependencies) {
-          try {
-            const metrics = await measurePackageInstallation(dep);
-            totalInstallTime += metrics.installTime;
-            totalDiskSpace += metrics.diskSpace;
-            const envImpact = calculateEnvironmentalImpact(
-              metrics.diskSpace,
-              metrics.installTime,
-              parentInfo?.downloads || null,
-            );
-            perPackage[dep] = {
-              installTime: metrics.installTime,
-              diskSpace: metrics.diskSpace,
-              errors: metrics.errors,
-              environmentalImpact: envImpact,
-            };
-            environmentalImpacts.push(envImpact);
-          } catch (error) {
-            perPackage[dep] = {
-              installTime: 0,
-              diskSpace: 0,
-              errors: [String(error)],
-            };
+        // Categorize each unused dep as dependency vs devDependency
+        const depSet = new Set(Object.keys(packageJson.dependencies || {}));
+        const unusedDepInfos: UnusedDepInfo[] = [];
+
+        // Fetch all metadata in parallel
+        const metadataResults = await Promise.all(
+          unusedDependencies.map((dep) => getPackageMetadata(dep)),
+        );
+
+        for (let i = 0; i < unusedDependencies.length; i++) {
+          const dep = unusedDependencies[i];
+          const category: "dependency" | "devDependency" = depSet.has(dep) ? "dependency" : "devDependency";
+          const metadata = metadataResults[i];
+          const unpackedSize = metadata?.unpackedSize ?? 0;
+
+          let impact: GlobalImpact | null = null;
+          if (category === "dependency" && parentDownloads > 0 && unpackedSize > 0) {
+            const transitiveDepsSize = metadata
+              ? await resolveTransitiveSize(metadata.dependencies, !!options.quickCheck)
+              : 0;
+            impact = calculateGlobalImpact({
+              monthlyDownloads: parentDownloads,
+              unpackedSize,
+              transitiveDepsSize,
+            });
           }
+
+          unusedDepInfos.push({ name: dep, category, unpackedSize, impact });
         }
 
-        scanResult.impact = {
-          totalInstallTime,
-          totalDiskSpace,
-          perPackage,
-          environmentalImpact:
-            calculateCumulativeEnvironmentalImpact(environmentalImpacts),
+        const globalResult: GlobalScanResult = {
+          project: packageJson.name || path.basename(projectDirectory),
+          packageManager,
+          totalDependencies: dependencies.length,
+          unusedDependencies: unusedDepInfos,
+          protectedDependencies: [...protectedUnused],
+          parentDownloads: parentDownloads > 0 ? parentDownloads : null,
+          timestamp: new Date().toISOString(),
+          version: "1.0.0",
         };
+
+        const json = JSON.stringify(globalResult, null, 2);
+        if (savedConsoleLog) {
+          console.log = savedConsoleLog;
+        }
+        if (options.output) {
+          await fs.writeFile(options.output, json, "utf8");
+          console.log(chalk.green(`Report written to ${options.output}`));
+        } else {
+          process.stdout.write(json + "\n");
+        }
+        return;
       }
 
       const json = JSON.stringify(scanResult, null, 2);
@@ -624,205 +637,105 @@ async function main(): Promise<void> {
 
       // Measure impact if requested
       if (options.measureImpact) {
-        let totalInstallTime = 0;
-        let totalDiskSpace = 0;
-        const installResults: {
-          dep: string;
-          time: number;
-          space: number;
-          errors?: string[];
-        }[] = [];
-
         const measureSpinner = ora({
           text: MESSAGES.measuringImpact,
           spinner: "dots",
         }).start();
         activeSpinner = measureSpinner;
 
+        const parentInfo = await getParentPackageDownloads(packageJsonPath, options.verbose);
+        const parentDownloads = parentInfo?.downloads ?? 0;
+
+        // Categorize each unused dep as dependency vs devDependency
+        const depSet = new Set(Object.keys(packageJson.dependencies || {}));
+        const unusedDepInfos: UnusedDepInfo[] = [];
+
+        // Fetch all metadata in parallel
+        const metadataResults = await Promise.all(
+          unusedDependencies.map((dep) => getPackageMetadata(dep)),
+        );
+
         const totalPackages = unusedDependencies.length;
         for (let index = 0; index < totalPackages; index++) {
           const dep = unusedDependencies[index];
-          try {
-            const metrics = await measurePackageInstallation(dep);
-            totalInstallTime += metrics.installTime;
-            totalDiskSpace += metrics.diskSpace;
+          const category: "dependency" | "devDependency" = depSet.has(dep) ? "dependency" : "devDependency";
+          const metadata = metadataResults[index];
+          const unpackedSize = metadata?.unpackedSize ?? 0;
 
-            installResults.push({
-              dep,
-              time: metrics.installTime,
-              space: metrics.diskSpace,
-              errors: metrics.errors,
+          let impact: GlobalImpact | null = null;
+          if (category === "dependency" && parentDownloads > 0 && unpackedSize > 0) {
+            const transitiveDepsSize = metadata
+              ? await resolveTransitiveSize(metadata.dependencies, !!options.quickCheck)
+              : 0;
+            impact = calculateGlobalImpact({
+              monthlyDownloads: parentDownloads,
+              unpackedSize,
+              transitiveDepsSize,
             });
-
-            const progress = `[${index + 1}/${totalPackages}] ${dep}`;
-            measureSpinner.text = `${MESSAGES.measuringImpact} ${progress}`;
-          } catch (error) {
-            console.error(`Error measuring ${dep}:`, error);
           }
+
+          unusedDepInfos.push({ name: dep, category, unpackedSize, impact });
+
+          measureSpinner.text = `${MESSAGES.measuringImpact} [${index + 1}/${totalPackages}] ${dep}`;
         }
 
         measureSpinner.stop();
         console.log(
-          `${
-            MESSAGES.measuringImpact
-          } [${totalPackages}/${totalPackages}] ${chalk.green("✔")}`,
+          `${MESSAGES.measuringImpact} [${totalPackages}/${totalPackages}] ${chalk.green("done")}`,
         );
 
-        const parentInfo = await getParentPackageDownloads(packageJsonPath, options.verbose);
+        // Display global impact for dependencies
+        const depsWithImpact = unusedDepInfos.filter(d => d.impact !== null);
+        const devDeps = unusedDepInfos.filter(d => d.category === "devDependency");
 
-        logNewlines();
-        console.log(
-          `${chalk.bold("Unused Dependency Impact Report:")} ${chalk.yellow(
-            parentInfo?.name,
-          )} ${chalk.blue(
-            `(${parentInfo?.homepage || parentInfo?.repository?.url || ""})`,
-          )}`,
-        );
-
-        // Create a table for detailed results
-        const impactData: Record<
-          string,
-          { installTime: string; diskSpace: string }
-        > = {};
-        for (const result of installResults) {
-          impactData[result.dep] = {
-            installTime: `${result.time.toFixed(2)}s`,
-            diskSpace: formatSize(result.space),
-          };
-        }
-
-        displayImpactTable(impactData, totalInstallTime, totalDiskSpace);
-
-        // Calculate environmental impact for each package
-        const environmentalImpacts: EnvironmentalImpact[] = [];
-        for (const result of installResults) {
-          const environmentImpact = calculateEnvironmentalImpact(
-            result.space,
-            result.time,
-            parentInfo?.downloads || null,
-          );
-          environmentalImpacts.push(environmentImpact);
-        }
-
-        // Calculate cumulative environmental impact
-        const totalEnvironmentalImpact =
-          calculateCumulativeEnvironmentalImpact(environmentalImpacts);
-
-        // Display environmental impact report
-        logNewlines();
-        console.log(chalk.green.bold(MESSAGES.environmentalImpact));
-        displayEnvironmentalImpactTable(
-          totalEnvironmentalImpact,
-          "Total Environmental Impact"
-        );
-
-        // Display per-package environmental impact
-        if (unusedDependencies.length > 1) {
+        if (depsWithImpact.length > 0) {
           logNewlines();
-          console.log(chalk.blue.bold("Per-Package Environmental Impact:"));
-          for (const [index, dep] of unusedDependencies.entries()) {
-            const impact = environmentalImpacts[index];
-            console.log(chalk.blue(`\n${dep}:`));
-            displayEnvironmentalImpactTable(impact, `Package: ${dep}`);
-          }
-        }
+          console.log(chalk.green.bold("Global Environmental Impact"));
+          console.log(chalk.dim("  All data from npm APIs and published research. Zero assumptions.\n"));
 
-        if (parentInfo) {
-          const yearlyData = await getYearlyDownloads(parentInfo.name);
-          const stats = calculateImpactStats(
-            totalDiskSpace,
-            totalInstallTime,
-            parentInfo.downloads,
-            yearlyData,
-          );
-
-          const impactTable = new CliTable({
-            head: ["Period", "Downloads", "Data Transfer", "Install Time"],
-            colWidths: [18, 20, 20, 20],
-            wordWrap: true,
-            style: { head: ["cyan"], border: ["grey"] },
-          });
-
-          if (stats.day) {
-            impactTable.push([
-              "Day",
-              `~${formatNumber(stats.day.downloads)}`,
-              formatSize(stats.day.diskSpace),
-              formatTime(stats.day.installTime),
-            ]);
+          for (const dep of depsWithImpact) {
+            const impact = dep.impact!;
+            console.log(chalk.bold(`  ${dep.name}`) + chalk.dim(` (dependency) -- ${formatSize(dep.unpackedSize)} unpacked`));
+            console.log(`    Monthly installs:    ${chalk.yellow(formatNumber(impact.monthlyDownloads))} ${chalk.dim("(npm)")}`);
+            console.log(`    Data footprint:      ${chalk.yellow(formatSize(impact.monthlyDownloads * impact.totalSizeGB * 1024 * 1024 * 1024))}${chalk.dim("/month")}`);
+            console.log(`    Energy waste:        ${chalk.red(impact.energyWasteKwh.toFixed(1) + " kWh/month")}`);
+            console.log(`    Carbon waste:        ${chalk.red(impact.carbonWasteKg.toFixed(1) + " kg CO2e/month")}`);
+            console.log(`    Water waste:         ${chalk.red(impact.waterWasteLiters.toFixed(1) + " L/month")}`);
+            console.log(`    Equivalent to:       ${chalk.yellow(impact.carMilesEquivalent.toFixed(0) + " miles driven")}`);
+            console.log();
           }
 
-          if (stats.monthly) {
-            // Ensure monthly stats are only added when not a full year
-            impactTable.push([
-              "Month",
-              formatNumber(stats.monthly.downloads),
-              formatSize(stats.monthly.diskSpace),
-              formatTime(stats.monthly.installTime),
-            ]);
-          }
+          console.log(chalk.dim("  Sources:"));
+          const firstImpact = depsWithImpact[0].impact!;
+          console.log(chalk.dim(`    Downloads:   ${firstImpact.sources.downloads}`));
+          console.log(chalk.dim(`    Pkg size:    ${firstImpact.sources.packageSize}`));
+          console.log(chalk.dim(`    Energy:      ${firstImpact.sources.energyIntensity}`));
+          console.log(chalk.dim(`    Carbon:      ${firstImpact.sources.carbonIntensity}`));
 
-          if (
-            yearlyData?.monthsFetched === 12 &&
-            stats.yearly &&
-            stats.yearly.downloads > 0
-          ) {
-            impactTable.push([
-              "Last 12 months",
-              formatNumber(stats.yearly.downloads),
-              formatSize(stats.yearly.diskSpace),
-              formatTime(stats.yearly.installTime),
-            ]);
-          } else if (
-            yearlyData?.monthsFetched &&
-            yearlyData.monthsFetched > 1 &&
-            stats[`last_${yearlyData.monthsFetched}_months`] &&
-            (stats[`last_${yearlyData.monthsFetched}_months`]?.downloads ?? 0) >
-              0
-          ) {
-            const label = `Last ${yearlyData.monthsFetched} months`;
-            const periodStats =
-              stats[`last_${yearlyData.monthsFetched}_months`];
-            impactTable.push([
-              label,
-              formatNumber(periodStats?.downloads ?? 0),
-              formatSize(periodStats?.diskSpace ?? 0),
-              formatTime(periodStats?.installTime ?? 0),
-            ]);
-          }
-
-          console.log(impactTable.toString());
-
-          // Add environmental impact recommendations and hero message
-          if (totalEnvironmentalImpact) {
+          if (options.verbose) {
             logNewlines();
-            console.log(
-              chalk.green.bold("Environmental Impact Recommendations:")
-            );
-            const recommendations = generateEnvironmentalRecommendations(
-              totalEnvironmentalImpact,
-              unusedDependencies.length,
-            );
-            for (const rec of recommendations)
-              console.log(chalk.green(`  ${rec}`));
-
-            logNewlines();
-            displayEnvironmentalHeroMessage(totalEnvironmentalImpact);
+            console.log(chalk.dim("  Formula:"));
+            console.log(chalk.dim("    totalSizeGB     = (unpackedSize + transitiveDepsSize) / 1024^3"));
+            console.log(chalk.dim("    energyWaste     = monthlyDownloads * totalSizeGB * 0.06 kWh/GB [IEA/LBNL 2024]"));
+            console.log(chalk.dim("    carbonWaste     = energyWaste * regionalCarbonIntensity [EIA/Ember]"));
+            console.log(chalk.dim("    waterWaste      = energyWaste * 1.8 L/kWh [Uptime Institute]"));
+            console.log(chalk.dim("    treesEquivalent = carbonWaste * 0.045 trees/kg [USDA Forest Service]"));
+            console.log(chalk.dim("    carMiles        = carbonWaste / 0.4 kg/mile [EPA]"));
           }
+        }
 
+        if (devDeps.length > 0) {
           logNewlines();
-          console.log(
-            `${chalk.yellow(
-              "Note:",
-            )} These results depend on your system's capabilities.\nTry a multi-architecture analysis at ${chalk.bold(
-              "https://github.com/chiefmikey/depsweep/analysis",
-            )}`,
-          );
-        } else {
+          console.log(chalk.blue.bold("Unused Dev Dependencies (no global impact):"));
+          for (const dep of devDeps) {
+            console.log(`  ${dep.name}` + chalk.dim(` -- ${formatSize(dep.unpackedSize)} unpacked`));
+          }
+          console.log(chalk.dim("  devDependencies are not installed by consumers."));
+        }
+
+        if (depsWithImpact.length === 0 && devDeps.length === 0) {
           logNewlines();
-          console.log(
-            chalk.yellow("Insufficient download data to calculate impact"),
-          );
+          console.log(chalk.yellow("No impact data available (package may not be published to npm)"));
         }
       }
 

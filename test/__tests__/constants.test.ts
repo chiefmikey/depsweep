@@ -63,18 +63,12 @@ describe("Constants and Helper Functions", () => {
       expect(ENVIRONMENTAL_CONSTANTS).toHaveProperty("WATER_PER_KWH");
       expect(ENVIRONMENTAL_CONSTANTS).toHaveProperty("TREES_PER_KG_CO2");
       expect(ENVIRONMENTAL_CONSTANTS).toHaveProperty("CO2_PER_CAR_MILE");
-      expect(ENVIRONMENTAL_CONSTANTS).toHaveProperty("EFFICIENCY_IMPROVEMENT");
-      expect(ENVIRONMENTAL_CONSTANTS).toHaveProperty("NETWORK_ENERGY_PER_MB");
       expect(ENVIRONMENTAL_CONSTANTS).toHaveProperty(
         "STORAGE_ENERGY_PER_GB_YEAR"
       );
-      expect(ENVIRONMENTAL_CONSTANTS).toHaveProperty("EWASTE_IMPACT_PER_GB");
-      expect(ENVIRONMENTAL_CONSTANTS).toHaveProperty(
-        "SERVER_UTILIZATION_IMPROVEMENT"
-      );
-      expect(ENVIRONMENTAL_CONSTANTS).toHaveProperty(
-        "BUILD_TIME_PRODUCTIVITY_GAIN"
-      );
+      expect(ENVIRONMENTAL_CONSTANTS).toHaveProperty("CARBON_INTENSITY_NA");
+      expect(ENVIRONMENTAL_CONSTANTS).toHaveProperty("CARBON_INTENSITY_EU");
+      expect(ENVIRONMENTAL_CONSTANTS).toHaveProperty("CARBON_INTENSITY_AP");
     });
 
     it("should have valid numeric values", () => {
@@ -91,17 +85,12 @@ describe("Constants and Helper Functions", () => {
       expect(ENVIRONMENTAL_CONSTANTS.TREES_PER_KG_CO2).toBeLessThan(50.0);
       expect(ENVIRONMENTAL_CONSTANTS.CO2_PER_CAR_MILE).toBeLessThan(1.0);
       expect(ENVIRONMENTAL_CONSTANTS.ENERGY_PER_GB).toBeLessThan(10.0);
-      expect(ENVIRONMENTAL_CONSTANTS.NETWORK_ENERGY_PER_MB).toBeLessThan(1.0);
       expect(ENVIRONMENTAL_CONSTANTS.STORAGE_ENERGY_PER_GB_YEAR).toBeLessThan(
         100.0
       );
-      expect(ENVIRONMENTAL_CONSTANTS.EWASTE_IMPACT_PER_GB).toBeLessThan(10.0);
-      expect(ENVIRONMENTAL_CONSTANTS.EFFICIENCY_IMPROVEMENT).toBeLessThan(
-        100.0
-      );
-      expect(
-        ENVIRONMENTAL_CONSTANTS.SERVER_UTILIZATION_IMPROVEMENT
-      ).toBeLessThan(100.0);
+      expect(ENVIRONMENTAL_CONSTANTS.CARBON_INTENSITY_NA).toBeLessThan(1.0);
+      expect(ENVIRONMENTAL_CONSTANTS.CARBON_INTENSITY_EU).toBeLessThan(1.0);
+      expect(ENVIRONMENTAL_CONSTANTS.CARBON_INTENSITY_AP).toBeLessThan(1.0);
     });
 
     it("should maintain scientific accuracy", () => {

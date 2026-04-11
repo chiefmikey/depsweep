@@ -1,15 +1,8 @@
 import {
-  calculateEnvironmentalImpact,
-  calculateCumulativeEnvironmentalImpact,
-  formatEnvironmentalImpact,
-  displayEnvironmentalImpactTable,
-  generateEnvironmentalRecommendations,
-  displayEnvironmentalHeroMessage,
   isConfigFile,
   parseConfigFile,
-  getMemoryUsage,
-  processResults,
   isDependencyUsedInFile,
+  scanForDependency,
 } from "../../src/helpers";
 import {
   getDependencyInfo,
@@ -18,11 +11,9 @@ import {
   getDependencies,
   getPackageContext,
   getSourceFiles,
-  scanForDependency,
   processFilesInParallel,
   findSubDependencies,
 } from "../../src/utils";
-import { EnvironmentalImpact } from "../../src/interfaces";
 
 // Mock external dependencies
 jest.mock("node:fs/promises");
@@ -68,104 +59,9 @@ jest.mock("node:path", () => ({
   }),
 }));
 
-// Helper function to create complete EnvironmentalImpact objects for testing
-function createTestEnvironmentalImpact(
-  overrides: Partial<EnvironmentalImpact> = {}
-): EnvironmentalImpact {
-  return {
-    // Primary metrics
-    carbonSavings: 0,
-    energySavings: 0,
-    waterSavings: 0,
-    treesEquivalent: 0,
-    carMilesEquivalent: 0,
-    efficiencyGain: 0,
-    networkSavings: 0,
-    storageSavings: 0,
-
-    // Detailed energy breakdown
-    transferEnergy: 0,
-    cpuEnergy: 0,
-    memoryEnergy: 0,
-    latencyEnergy: 0,
-    buildEnergy: 0,
-    ciCdEnergy: 0,
-    registryEnergy: 0,
-    lifecycleEnergy: 0,
-
-    // Financial impact
-    carbonOffsetValue: 0,
-    waterTreatmentValue: 0,
-    totalFinancialValue: 0,
-
-    // Regional variations
-    carbonIntensityUsed: 0.445,
-    regionalMultiplier: 1.0,
-
-    // Time-based factors
-    peakEnergySavings: 0,
-    offPeakEnergySavings: 0,
-    timeOfDayMultiplier: 1.0,
-
-    // Renewable energy impact
-    renewableEnergySavings: 0,
-    fossilFuelSavings: 0,
-    renewablePercentage: 0,
-
-    // Additional environmental metrics
-    ewasteReduction: 0,
-    serverUtilizationImprovement: 0,
-    developerProductivityGain: 0,
-    buildTimeReduction: 0,
-
-    // Apply overrides
-    ...overrides,
-  };
-}
-
 describe("Edge Cases and Error Conditions", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-  });
-
-  describe("Environmental Impact Edge Cases", () => {
-    it("should handle extremely large values", () => {
-      const result = calculateEnvironmentalImpact(
-        Number.MAX_SAFE_INTEGER,
-        Number.MAX_SAFE_INTEGER,
-        Number.MAX_SAFE_INTEGER
-      );
-      expect(result).toBeDefined();
-      expect(result.carbonSavings).toBeGreaterThanOrEqual(0);
-    });
-
-    it("should handle very small decimal values", () => {
-      const result = calculateEnvironmentalImpact(0.001, 0.001, 0.001);
-      expect(result).toBeDefined();
-      expect(result.carbonSavings).toBeGreaterThanOrEqual(0);
-    });
-
-    it("should handle NaN inputs", () => {
-      expect(() => {
-        calculateEnvironmentalImpact(NaN, 1000, 100);
-      }).toThrow();
-    });
-
-    it("should handle Infinity inputs", () => {
-      expect(() => {
-        calculateEnvironmentalImpact(Infinity, 1000, 100);
-      }).toThrow();
-    });
-
-    it("should handle very large monthly downloads", () => {
-      const result = calculateEnvironmentalImpact(
-        1024 * 1024 * 100,
-        3600,
-        1000000000
-      );
-      expect(result).toBeDefined();
-      expect(result.carbonSavings).toBeGreaterThan(0);
-    });
   });
 
   describe("File System Edge Cases", () => {
@@ -182,70 +78,9 @@ describe("Edge Cases and Error Conditions", () => {
     });
 
     it("should handle unicode file paths", () => {
-      const unicodePath = "/test/测试/package.json";
+      const unicodePath = "/test/\u6D4B\u8BD5/package.json";
       const result = isConfigFile(unicodePath);
       expect(typeof result).toBe("boolean");
-    });
-  });
-
-  describe("Memory Usage Edge Cases", () => {
-    it("should handle memory pressure scenarios", () => {
-      // Force garbage collection to test memory usage
-      if (global.gc) {
-        global.gc();
-      }
-
-      const result = getMemoryUsage();
-      expect(result).toBeDefined();
-      expect(result.used).toBeGreaterThanOrEqual(0);
-      expect(result.total).toBeGreaterThan(0);
-    });
-  });
-
-  describe("Process Results Edge Cases", () => {
-    it("should handle mixed success and failure results", () => {
-      const mixedResults = [
-        {
-          status: "fulfilled" as const,
-          value: { result: "success1", hasError: false },
-        },
-        {
-          status: "fulfilled" as const,
-          value: { result: null, hasError: true },
-        },
-        { status: "rejected" as const, reason: new Error("Error 1") },
-        {
-          status: "fulfilled" as const,
-          value: { result: "success2", hasError: false },
-        },
-        { status: "rejected" as const, reason: new Error("Error 2") },
-      ];
-
-      const result = processResults(mixedResults);
-      expect(result.validResults).toHaveLength(2);
-      expect(result.errors).toBe(1); // Only counts fulfilled promises with hasError: true
-    });
-
-    it("should handle all rejected results", () => {
-      const allRejected = [
-        { status: "rejected", reason: new Error("Error 1") },
-        { status: "rejected", reason: new Error("Error 2") },
-      ] as any;
-
-      const result = processResults(allRejected);
-      expect(result.validResults).toHaveLength(0);
-      expect(result.errors).toBe(0);
-    });
-
-    it("should handle all fulfilled with errors", () => {
-      const allErrors = [
-        { status: "fulfilled", value: { result: null, hasError: true } },
-        { status: "fulfilled", value: { result: null, hasError: true } },
-      ] as any;
-
-      const result = processResults(allErrors);
-      expect(result.validResults).toHaveLength(0);
-      expect(result.errors).toBe(2);
     });
   });
 
@@ -346,17 +181,6 @@ describe("Edge Cases and Error Conditions", () => {
 
       mockGlobby.mockRestore();
     });
-
-    it("should handle concurrent operations without race conditions", async () => {
-      const promises = Array.from({ length: 100 }, () => getMemoryUsage());
-
-      const results = await Promise.all(promises);
-      expect(results).toHaveLength(100);
-      results.forEach((result) => {
-        expect(result).toBeDefined();
-        expect(result.used).toBeGreaterThanOrEqual(0);
-      });
-    });
   });
 
   describe("Error Recovery Edge Cases", () => {
@@ -433,32 +257,6 @@ describe("Edge Cases and Error Conditions", () => {
   });
 
   describe("Boundary Value Testing", () => {
-    it("should handle boundary values for environmental calculations", () => {
-      const boundaryValues = [
-        { diskSpace: 1, installTime: 1, monthlyDownloads: 1 },
-        {
-          diskSpace: 0.000001,
-          installTime: 0.000001,
-          monthlyDownloads: 0.000001,
-        },
-        {
-          diskSpace: 999999999,
-          installTime: 999999999,
-          monthlyDownloads: 999999999,
-        },
-      ];
-
-      boundaryValues.forEach((values) => {
-        const result = calculateEnvironmentalImpact(
-          values.diskSpace,
-          values.installTime,
-          values.monthlyDownloads
-        );
-        expect(result).toBeDefined();
-        expect(result.carbonSavings).toBeGreaterThanOrEqual(0);
-      });
-    });
-
     it("should handle boundary values for file operations", () => {
       const boundaryPaths = [
         "",

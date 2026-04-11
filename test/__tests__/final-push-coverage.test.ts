@@ -1,8 +1,8 @@
 /**
  * Final Push Coverage Tests
  *
- * This file makes one final push to get as close to 100% coverage as possible
- * by targeting the most achievable uncovered lines.
+ * This file targets specific uncovered lines with precise, focused tests
+ * to push coverage as close to 100% as possible.
  */
 
 // Mock external dependencies
@@ -66,21 +66,19 @@ jest.mock("../../src/constants.js", () => ({
     ANALYSIS_COMPLETE: "Analysis complete",
   },
   ENVIRONMENTAL_CONSTANTS: {
-    CARBON_PER_GB: 0.5,
-    ENERGY_PER_GB: 0.1,
-    WATER_PER_GB: 0.01,
-    TREES_PER_KG_CO2: 0.06,
+    ENERGY_PER_GB: 0.06,
+    CARBON_INTENSITY: 0.445,
+    WATER_PER_KWH: 1.8,
+    TREES_PER_KG_CO2: 0.045,
     CO2_PER_CAR_MILE: 0.4,
+    STORAGE_ENERGY_PER_GB_YEAR: 0.0026,
+    CARBON_INTENSITY_NA: 0.37,
+    CARBON_INTENSITY_EU: 0.213,
+    CARBON_INTENSITY_AP: 0.555,
   },
 }));
 
 // Import after mocking
-import {
-  displayImpactTable,
-  calculateEnvironmentalImpact,
-  validateInputs,
-} from "../../src/helpers.js";
-
 import {
   getDependencyInfo,
   getWorkspaceInfo,
@@ -126,44 +124,6 @@ describe("Final Push Coverage Tests", () => {
   });
 
   describe("Maximum Achievable Coverage Push", () => {
-    describe("helpers.ts - Final Push", () => {
-      it("should cover customSort function call in displayImpactTable", () => {
-        const impactData = {
-          "package-z": { installTime: "100", diskSpace: "5GB" },
-          "package-a": { installTime: "10", diskSpace: "100MB" },
-          "package-m": { installTime: "50", diskSpace: "2GB" },
-        };
-
-        const consoleSpy = jest
-          .spyOn(console, "log")
-          .mockImplementation(() => {});
-
-        // This should hit the customSort function call
-        displayImpactTable(impactData, 100, 5000000000);
-
-        expect(consoleSpy).toHaveBeenCalled();
-        consoleSpy.mockRestore();
-      });
-
-      it("should cover error handling for negative disk space", () => {
-        expect(() => {
-          validateInputs(-1, 1, 1);
-        }).toThrow("Disk space cannot be negative");
-      });
-
-      it("should cover error handling for negative install time", () => {
-        expect(() => {
-          validateInputs(1, -1, 1);
-        }).toThrow("Install time cannot be negative");
-      });
-
-      it("should cover error handling for negative monthly downloads", () => {
-        expect(() => {
-          validateInputs(1, 1, -1);
-        }).toThrow("Monthly downloads must be null or a non-negative number");
-      });
-    });
-
     describe("utils.ts - Final Push", () => {
       it("should cover dependencyGraph.set with complex package structure", async () => {
         mockFs.readFile.mockResolvedValue(

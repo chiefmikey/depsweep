@@ -411,81 +411,9 @@ export const ENVIRONMENTAL_CONSTANTS = {
   // https://www.epa.gov/greenvehicles/greenhouse-gas-emissions-typical-passenger-vehicle
   CO2_PER_CAR_MILE: 0.4,
 
-  // Energy efficiency improvement from removing unused deps (%)
-  // Note: not currently used in per-package calculations (cannot be meaningfully
-  // computed without knowing total project context). Retained for reference.
-  EFFICIENCY_IMPROVEMENT: 18.5,
-
-  // Network energy per MB transferred (kWh)
-  // Estimate: routing, switching, and transmission infrastructure
-  // Note: ENERGY_PER_GB above already includes network costs per IEA/LBNL data,
-  // so this constant is retained for reference but not used in totals to avoid double-counting
-  NETWORK_ENERGY_PER_MB: 0.000_12,
-
   // Storage energy per GB stored per year (kWh)
   // Estimate: ~0.3W per TB idle SSD → 0.0003W/GB × 8760h = 2.63 Wh = 0.0026 kWh/GB/year
   STORAGE_ENERGY_PER_GB_YEAR: 0.0026,
-
-  // E-waste impact per GB of unnecessary software (kg CO2e)
-  // Estimate: marginal contribution to hardware wear from unnecessary storage
-  EWASTE_IMPACT_PER_GB: 0.000_15,
-
-  // Server utilization improvement from dependency cleanup (%)
-  // Estimate: marginal improvement from reduced disk/memory footprint
-  SERVER_UTILIZATION_IMPROVEMENT: 12.3,
-
-  // Build time reduction impact on developer productivity (hours saved/year)
-  // Estimate: developer wait time saved per hour of build time eliminated
-  BUILD_TIME_PRODUCTIVITY_GAIN: 0.8,
-
-  // === ADDITIONAL ENVIRONMENTAL FACTORS ===
-  // CPU energy per GB processed (kWh)
-  // Estimate: ~10W CPU for ~0.05s per GB of package extraction → 0.00015 kWh/GB
-  CPU_ENERGY_PER_GB: 0.00015,
-
-  // Memory energy per GB stored (kWh)
-  // Estimate: ~1W/GB DRAM active for ~0.3s during install → 0.00008 kWh/GB
-  MEMORY_ENERGY_PER_GB: 0.00008,
-
-  // Network latency energy per MB (kWh)
-  // Note: included in ENERGY_PER_GB, retained for reference only
-  LATENCY_ENERGY_PER_MB: 0.000_08,
-
-  // Build system energy per hour (kWh)
-  // Estimate: 2-vCPU cloud CI runner ~15W (share of server power including PUE)
-  BUILD_SYSTEM_ENERGY_PER_HOUR: 0.015,
-
-  // CI/CD energy per build (kWh)
-  // Estimate: average energy for a full CI build cycle
-  CI_CD_ENERGY_PER_BUILD: 0.12,
-
-  // Package registry energy per download (kWh)
-  // Estimate: registry serving + CDN delivery per request
-  // Note: not used in calculations (removing your dep doesn't reduce global registry load)
-  REGISTRY_ENERGY_PER_DOWNLOAD: 0.000_05,
-
-  // === CARBON OFFSET COSTS ===
-  // Social Cost of Carbon (USD per kg CO2e)
-  // Source: EPA 2024 — Social Cost of Carbon ~$190/tonne = $0.19/kg
-  // VCM market avg is ~$6/tonne but SCC better reflects true externality cost
-  // https://www.epa.gov/energy/greenhouse-gas-equivalencies-calculator-calculations-and-references
-  CARBON_OFFSET_COST_PER_KG: 0.19,
-
-  // === WATER TREATMENT COSTS ===
-  // Cost per liter of water treatment (USD)
-  // Estimate based on US municipal water treatment costs (~$2.50/m³)
-  WATER_TREATMENT_COST_PER_LITER: 0.0025,
-
-  // === RENEWABLE ENERGY FACTORS ===
-  // Renewable energy percentage in global grid
-  // Source: IRENA Renewable Capacity Statistics 2024 — ~30-32% of global generation
-  RENEWABLE_ENERGY_PERCENTAGE: 0.32,
-
-  // === LIFECYCLE ASSESSMENT ===
-  // Software lifecycle energy multiplier
-  // Note: not currently used in calculations (source unverifiable). Retained for
-  // potential future use if a defensible lifecycle model is established.
-  LIFECYCLE_ENERGY_MULTIPLIER: 2.1,
 
   // === REGIONAL VARIATIONS ===
   // North America carbon intensity (kg CO2e per kWh)
@@ -502,13 +430,4 @@ export const ENVIRONMENTAL_CONSTANTS = {
   // Estimate: generation-weighted avg of China (~565), India (~713), Japan (~450),
   // Australia (~500), South Korea (~415) from Ember 2024 country-level data
   CARBON_INTENSITY_AP: 0.555,
-
-  // === TIME-BASED FACTORS ===
-  // Peak energy multiplier (during high demand)
-  // Estimate: typical peak-to-average grid ratio ~1.45 (not used in current calculations)
-  PEAK_ENERGY_MULTIPLIER: 1.45,
-
-  // Off-peak energy multiplier (during low demand)
-  // Estimate: typical off-peak ratio ~0.78 (not used in current calculations)
-  OFF_PEAK_ENERGY_MULTIPLIER: 0.78,
 };

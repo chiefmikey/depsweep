@@ -37,84 +37,59 @@ export interface DependencyInfo {
   hasSubDependencyUsage: boolean;
 }
 
-// Enhanced environmental impact interfaces with comprehensive metrics
-export interface EnvironmentalImpact {
-  // === PRIMARY METRICS ===
-  carbonSavings: number; // kg CO2e
-  energySavings: number; // kWh
-  waterSavings: number; // liters
-  treesEquivalent: number;
-  carMilesEquivalent: number;
-  efficiencyGain: number; // percentage
-  networkSavings: number; // kWh
-  storageSavings: number; // kWh
-
-  // === DETAILED ENERGY BREAKDOWN ===
-  transferEnergy: number; // kWh
-  cpuEnergy: number; // kWh
-  memoryEnergy: number; // kWh
-  latencyEnergy: number; // kWh
-  buildEnergy: number; // kWh
-  ciCdEnergy: number; // kWh
-  registryEnergy: number; // kWh
-  lifecycleEnergy: number; // kWh
-
-  // === FINANCIAL IMPACT ===
-  carbonOffsetValue: number; // USD
-  waterTreatmentValue: number; // USD
-  totalFinancialValue: number; // USD
-
-  // === REGIONAL VARIATIONS ===
-  carbonIntensityUsed: number; // kg CO2e per kWh
-  regionalMultiplier: number; // Regional adjustment factor
-
-  // === TIME-BASED FACTORS ===
-  peakEnergySavings: number; // kWh (peak hours)
-  offPeakEnergySavings: number; // kWh (off-peak hours)
-  timeOfDayMultiplier: number; // Time-based adjustment
-
-  // === RENEWABLE ENERGY IMPACT ===
-  renewableEnergySavings: number; // kWh from renewable sources
-  fossilFuelSavings: number; // kWh from fossil fuels
-  renewablePercentage: number; // % of savings from renewables
-
-  // === ADDITIONAL ENVIRONMENTAL METRICS ===
-  ewasteReduction: number; // kg CO2e from e-waste reduction
-  serverUtilizationImprovement: number; // % improvement
-  developerProductivityGain: number; // hours saved per year
-  buildTimeReduction: number; // seconds saved per build
-}
-
-export interface ImpactMetrics {
-  installTime: number;
-  diskSpace: number;
-  errors?: string[];
-  environmentalImpact?: EnvironmentalImpact;
-}
-
-export interface EnvironmentalReport {
-  totalImpact: EnvironmentalImpact;
-  perPackageImpact: Record<string, EnvironmentalImpact>;
-  timeframes: {
-    daily: EnvironmentalImpact;
-    monthly: EnvironmentalImpact;
-    yearly?: EnvironmentalImpact;
-  };
-  recommendations: string[];
-}
-
 export interface ScanResult {
   project: string;
   packageManager: string;
   totalDependencies: number;
   unusedDependencies: string[];
   protectedDependencies: string[];
-  impact?: {
-    totalInstallTime: number; // seconds
-    totalDiskSpace: number; // bytes
-    perPackage: Record<string, ImpactMetrics>;
-    environmentalImpact?: EnvironmentalImpact;
+  timestamp: string;
+  version: string;
+}
+
+export type DepCategory = "dependency" | "devDependency";
+
+export interface GlobalImpact {
+  // Real data from npm
+  monthlyDownloads: number;
+  unpackedSize: number; // bytes, from registry
+  transitiveDepsSize: number; // bytes, sum of transitive dep sizes
+  totalSizeGB: number; // computed: (unpackedSize + transitiveDepsSize) / 1024^3
+
+  // Calculated impact (monthly)
+  energyWasteKwh: number;
+  carbonWasteKg: number;
+  waterWasteLiters: number;
+  treesEquivalent: number;
+  carMilesEquivalent: number;
+
+  // Regional context
+  region: string;
+  carbonIntensity: number; // kg CO2e per kWh used
+
+  // Transparency: where each value came from
+  sources: {
+    downloads: string;
+    packageSize: string;
+    energyIntensity: string;
+    carbonIntensity: string;
   };
+}
+
+export interface UnusedDepInfo {
+  name: string;
+  category: DepCategory;
+  unpackedSize: number; // bytes, from registry
+  impact: GlobalImpact | null; // null for devDependencies
+}
+
+export interface GlobalScanResult {
+  project: string;
+  packageManager: string;
+  totalDependencies: number;
+  unusedDependencies: UnusedDepInfo[];
+  protectedDependencies: string[];
+  parentDownloads: number | null;
   timestamp: string;
   version: string;
 }

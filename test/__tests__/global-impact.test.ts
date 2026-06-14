@@ -415,4 +415,255 @@ describe("calculateGlobalImpact", () => {
     expect(result.energyWasteKwh).toBe(0);
     expect(result.carbonWasteKg).toBe(0);
   });
+
+  it("should produce finite numbers when monthlyDownloads is NaN", async () => {
+    const { calculateGlobalImpact } = await import(
+      "../../src/global-impact.js"
+    );
+
+    const result = calculateGlobalImpact({
+      monthlyDownloads: NaN,
+      unpackedSize: 1_000_000,
+      transitiveDepsSize: 0,
+    });
+
+    expect(Number.isFinite(result.energyWasteKwh)).toBe(true);
+    expect(Number.isFinite(result.carbonWasteKg)).toBe(true);
+    expect(Number.isFinite(result.waterWasteLiters)).toBe(true);
+    expect(Number.isFinite(result.treesEquivalent)).toBe(true);
+    expect(Number.isFinite(result.carMilesEquivalent)).toBe(true);
+    // NaN downloads treated as 0 — impact is zero
+    expect(result.energyWasteKwh).toBe(0);
+    expect(result.monthlyDownloads).toBe(0);
+  });
+
+  it("should produce finite numbers when unpackedSize is NaN", async () => {
+    const { calculateGlobalImpact } = await import(
+      "../../src/global-impact.js"
+    );
+
+    const result = calculateGlobalImpact({
+      monthlyDownloads: 1_000_000,
+      unpackedSize: NaN,
+      transitiveDepsSize: 0,
+    });
+
+    expect(Number.isFinite(result.energyWasteKwh)).toBe(true);
+    expect(Number.isFinite(result.carbonWasteKg)).toBe(true);
+    expect(result.unpackedSize).toBe(0);
+    expect(result.totalSizeGB).toBe(0);
+  });
+
+  it("should produce finite numbers when transitiveDepsSize is NaN", async () => {
+    const { calculateGlobalImpact } = await import(
+      "../../src/global-impact.js"
+    );
+
+    const result = calculateGlobalImpact({
+      monthlyDownloads: 1_000_000,
+      unpackedSize: 100_000,
+      transitiveDepsSize: NaN,
+    });
+
+    expect(Number.isFinite(result.energyWasteKwh)).toBe(true);
+    expect(Number.isFinite(result.carbonWasteKg)).toBe(true);
+    expect(result.transitiveDepsSize).toBe(0);
+    // only unpackedSize contributes to totalSizeGB
+    expect(result.totalSizeGB).toBeCloseTo(100_000 / (1024 * 1024 * 1024), 10);
+  });
+
+  it("should produce finite numbers when monthlyDownloads is Infinity", async () => {
+    const { calculateGlobalImpact } = await import(
+      "../../src/global-impact.js"
+    );
+
+    const result = calculateGlobalImpact({
+      monthlyDownloads: Infinity,
+      unpackedSize: 1_000_000,
+      transitiveDepsSize: 0,
+    });
+
+    expect(Number.isFinite(result.energyWasteKwh)).toBe(true);
+    expect(Number.isFinite(result.carbonWasteKg)).toBe(true);
+    expect(result.monthlyDownloads).toBe(0);
+    expect(result.energyWasteKwh).toBe(0);
+  });
+});
+
+describe("getPackageMetadata timeout and abort handling", () => {
+  it("should retry after a timeout (AbortError) and succeed on second attempt", async () => {
+    const { getPackageMetadata } = await import("../../src/global-impact.js");
+    const originalFetch = globalThis.fetch;
+    let callCount = 0;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- mocking fetch for tests
+    globalThis.fetch = jest.fn(() => {
+      callCount++;
+      if (callCount === 1) {
+        const err = new Error("The operation was aborted");
+        err.name = "AbortError";
+        return Promise.reject(err);
+      }
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ dist: { unpackedSize: 3000 } }),
+      } as Response);
+    }) as any;
+
+    try {
+      const result = await getPackageMetadata("timeout-pkg", undefined, 1);
+      expect(result).not.toBeNull();
+      expect(result!.unpackedSize).toBe(3000);
+      expect(callCount).toBe(2);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("should return null after all retries are exhausted due to timeouts", async () => {
+    const { getPackageMetadata } = await import("../../src/global-impact.js");
+    const originalFetch = globalThis.fetch;
+    let callCount = 0;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- mocking fetch for tests
+    globalThis.fetch = jest.fn(() => {
+      callCount++;
+      const err = new Error("The operation was aborted");
+      err.name = "AbortError";
+      return Promise.reject(err);
+    }) as any;
+
+    try {
+      const result = await getPackageMetadata("always-timeout-pkg", undefined, 1);
+      expect(result).toBeNull();
+      expect(callCount).toBe(4); // 1 initial + 3 retries
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+});
+
+describe("getPackageMetadata retry on 429", () => {
+  it("should retry on 429 and succeed on next attempt", async () => {
+    const { getPackageMetadata } = await import("../../src/global-impact.js");
+    const originalFetch = globalThis.fetch;
+    let callCount = 0;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- mocking fetch for tests
+    globalThis.fetch = jest.fn(() => {
+      callCount++;
+      if (callCount === 1) {
+        return Promise.resolve({ ok: false, status: 429 } as Response);
+      }
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ dist: { unpackedSize: 4000 } }),
+      } as Response);
+    }) as any;
+
+    try {
+      const result = await getPackageMetadata("rate-limited-pkg", undefined, 1);
+      expect(result).not.toBeNull();
+      expect(result!.unpackedSize).toBe(4000);
+      expect(callCount).toBe(2);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("should return null after exhausting retries on persistent 429", async () => {
+    const { getPackageMetadata } = await import("../../src/global-impact.js");
+    const originalFetch = globalThis.fetch;
+    let callCount = 0;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- mocking fetch for tests
+    globalThis.fetch = jest.fn(() => {
+      callCount++;
+      return Promise.resolve({ ok: false, status: 429 } as Response);
+    }) as any;
+
+    try {
+      const result = await getPackageMetadata("always-rate-limited", undefined, 1);
+      expect(result).toBeNull();
+      expect(callCount).toBe(4); // 1 initial + 3 retries
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+});
+
+describe("getPackageMetadata edge case API responses", () => {
+  it("should return null when dist field is missing entirely", async () => {
+    const { getPackageMetadata } = await import("../../src/global-impact.js");
+    const originalFetch = globalThis.fetch;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- mocking fetch for tests
+    globalThis.fetch = jest.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ name: "some-pkg" }), // no dist field
+      } as Response),
+    ) as any;
+
+    try {
+      const result = await getPackageMetadata("no-dist-pkg");
+      expect(result).toBeNull();
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("should return null when unpackedSize is missing from dist", async () => {
+    const { getPackageMetadata } = await import("../../src/global-impact.js");
+    const originalFetch = globalThis.fetch;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- mocking fetch for tests
+    globalThis.fetch = jest.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({ dist: { tarball: "https://example.com/pkg.tgz" } }),
+      } as Response),
+    ) as any;
+
+    try {
+      const result = await getPackageMetadata("no-size-pkg");
+      expect(result).toBeNull();
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("should return null when unpackedSize is NaN (typeof number but not finite)", async () => {
+    const { getPackageMetadata } = await import("../../src/global-impact.js");
+    const originalFetch = globalThis.fetch;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- mocking fetch for tests
+    globalThis.fetch = jest.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ dist: { unpackedSize: NaN } }),
+      } as Response),
+    ) as any;
+
+    try {
+      const result = await getPackageMetadata("nan-size-pkg");
+      expect(result).toBeNull();
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("should return valid result with unpackedSize=0 (empty package is legitimate)", async () => {
+    const { getPackageMetadata } = await import("../../src/global-impact.js");
+    const originalFetch = globalThis.fetch;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- mocking fetch for tests
+    globalThis.fetch = jest.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ dist: { unpackedSize: 0 } }),
+      } as Response),
+    ) as any;
+
+    try {
+      const result = await getPackageMetadata("empty-pkg");
+      expect(result).not.toBeNull();
+      expect(result!.unpackedSize).toBe(0);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
 });

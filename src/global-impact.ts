@@ -9,8 +9,12 @@ export interface PackageMetadata {
 /**
  * Fetches a URL with exponential backoff retry logic.
  *
- * Retries on 429 (rate limit) and 5xx (server errors).
- * Does not retry on other 4xx client errors.
+ * Retries on 429 (rate limit), 5xx (server errors), network errors, and
+ * timeouts (AbortError). Does not retry on other 4xx client errors (e.g.
+ * 404 returns null immediately).
+ *
+ * The AbortController timeout is always cleared in a finally block so the
+ * timer never leaks — whether the fetch succeeds, fails, or is aborted.
  */
 async function fetchWithRetry(
   url: string,
@@ -18,12 +22,18 @@ async function fetchWithRetry(
   retryDelayMs = 1000,
 ): Promise<Response | null> {
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+    let response: Response | undefined;
     try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 10000);
-      const response = await fetch(url, { signal: controller.signal });
+      response = await fetch(url, { signal: controller.signal });
+    } catch {
+      // Network error or AbortError (timeout) — fall through to retry logic
+    } finally {
       clearTimeout(timeout);
+    }
 
+    if (response !== undefined) {
       if (response.ok) return response;
 
       // Don't retry on client errors (except 429)
@@ -34,21 +44,12 @@ async function fetchWithRetry(
       ) {
         return null;
       }
+    }
 
-      // Retry on 429, 5xx
-      if (attempt < maxRetries) {
-        const delay = Math.pow(2, attempt) * retryDelayMs;
-        await new Promise((resolve) => setTimeout(resolve, delay));
-        continue;
-      }
-      return null;
-    } catch {
-      if (attempt < maxRetries) {
-        const delay = Math.pow(2, attempt) * retryDelayMs;
-        await new Promise((resolve) => setTimeout(resolve, delay));
-        continue;
-      }
-      return null;
+    // Retry on 429, 5xx, network errors, or timeouts
+    if (attempt < maxRetries) {
+      const delay = Math.pow(2, attempt) * retryDelayMs;
+      await new Promise((resolve) => setTimeout(resolve, delay));
     }
   }
   return null;
@@ -79,8 +80,10 @@ export async function getPackageMetadata(
       dependencies?: Record<string, string>;
     };
 
-    const unpackedSize = data.dist?.unpackedSize;
-    if (typeof unpackedSize !== "number" || unpackedSize < 0) return null;
+    const rawSize = data.dist?.unpackedSize;
+    // NaN is typeof "number" but not finite — reject it along with missing/negative values
+    if (!Number.isFinite(rawSize) || (rawSize as number) < 0) return null;
+    const unpackedSize = rawSize as number;
 
     const dependencies = data.dependencies
       ? Object.keys(data.dependencies)
@@ -131,7 +134,10 @@ export async function resolveTransitiveSize(
 
     for (const metadata of results) {
       if (!metadata) continue;
-      totalSize += metadata.unpackedSize;
+      // Guard: only accumulate finite, non-negative sizes — NaN/Infinity must never enter the sum
+      if (Number.isFinite(metadata.unpackedSize) && metadata.unpackedSize >= 0) {
+        totalSize += metadata.unpackedSize;
+      }
       for (const dep of metadata.dependencies) {
         if (!visited.has(dep)) {
           queue.push(dep);
@@ -216,13 +222,29 @@ export function calculateGlobalImpact(options: {
 }): GlobalImpact {
   const region = options.region || detectRegion();
   const carbonIntensity = getRegionalCarbonIntensity(region);
-  const totalSizeBytes = options.unpackedSize + options.transitiveDepsSize;
+
+  // Clamp all API-sourced numeric inputs to finite, non-negative values before
+  // the formula. If the registry returns NaN, undefined-coerced-to-NaN, or
+  // Infinity, those must not propagate into the reported impact numbers.
+  const safeDownloads =
+    Number.isFinite(options.monthlyDownloads) && options.monthlyDownloads >= 0
+      ? options.monthlyDownloads
+      : 0;
+  const safeUnpackedSize =
+    Number.isFinite(options.unpackedSize) && options.unpackedSize >= 0
+      ? options.unpackedSize
+      : 0;
+  const safeTransitiveDepsSize =
+    Number.isFinite(options.transitiveDepsSize) &&
+    options.transitiveDepsSize >= 0
+      ? options.transitiveDepsSize
+      : 0;
+
+  const totalSizeBytes = safeUnpackedSize + safeTransitiveDepsSize;
   const totalSizeGB = totalSizeBytes / (1024 * 1024 * 1024);
 
   const energyWasteKwh =
-    options.monthlyDownloads *
-    totalSizeGB *
-    ENVIRONMENTAL_CONSTANTS.ENERGY_PER_GB;
+    safeDownloads * totalSizeGB * ENVIRONMENTAL_CONSTANTS.ENERGY_PER_GB;
   const carbonWasteKg = energyWasteKwh * carbonIntensity;
   const waterWasteLiters =
     energyWasteKwh * ENVIRONMENTAL_CONSTANTS.WATER_PER_KWH;
@@ -232,9 +254,9 @@ export function calculateGlobalImpact(options: {
     carbonWasteKg / ENVIRONMENTAL_CONSTANTS.CO2_PER_CAR_MILE;
 
   return {
-    monthlyDownloads: options.monthlyDownloads,
-    unpackedSize: options.unpackedSize,
-    transitiveDepsSize: options.transitiveDepsSize,
+    monthlyDownloads: safeDownloads,
+    unpackedSize: safeUnpackedSize,
+    transitiveDepsSize: safeTransitiveDepsSize,
     totalSizeGB,
     energyWasteKwh,
     carbonWasteKg,

@@ -823,6 +823,12 @@ export async function getSourceFiles(
     absolute: true,
   });
 
+  // Guard against unexpected non-array return (e.g., mocked fs in tests or
+  // future globby API changes) — always return a valid array.
+  if (!Array.isArray(files)) {
+    return [];
+  }
+
   return files.filter((file) => !isBinaryFileSync(file));
 }
 

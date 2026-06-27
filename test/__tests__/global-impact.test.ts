@@ -588,6 +588,191 @@ describe("getPackageMetadata retry on 429", () => {
   });
 });
 
+describe("getPackageMetadata — fetchWithRetry returns null", () => {
+  it("should return null when fetchWithRetry exhausts retries returning null (line 76)", async () => {
+    // This covers the `if (!response) return null` branch in getPackageMetadata.
+    // We use a 404 on the first call so fetchWithRetry returns null immediately
+    // (non-retryable client error), which forces line 76 to fire.
+    const { getPackageMetadata } = await import("../../src/global-impact.js");
+    const originalFetch = globalThis.fetch;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- mocking fetch for tests
+    globalThis.fetch = jest.fn(() =>
+      Promise.resolve({ ok: false, status: 410 } as Response),
+    ) as any;
+
+    try {
+      const result = await getPackageMetadata("gone-pkg", undefined, 1);
+      expect(result).toBeNull();
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+});
+
+describe("resolveTransitiveSize — empty dependencies list", () => {
+  it("should return 0 immediately when dependencies array is empty", async () => {
+    const { resolveTransitiveSize } = await import(
+      "../../src/global-impact.js"
+    );
+    // Empty deps list hits the `dependencies.length === 0` short-circuit
+    const result = await resolveTransitiveSize([], false);
+    expect(result).toBe(0);
+  });
+});
+
+describe("calculateGlobalImpact — detectRegion() timezone branches", () => {
+  it("should use NA carbon intensity when timezone is America/*", async () => {
+    const { calculateGlobalImpact } = await import(
+      "../../src/global-impact.js"
+    );
+    const { ENVIRONMENTAL_CONSTANTS } = await import(
+      "../../src/constants.js"
+    );
+    const originalIntl = globalThis.Intl;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- mocking Intl for tests
+    (globalThis as any).Intl = {
+      DateTimeFormat: () => ({
+        resolvedOptions: () => ({ timeZone: "America/New_York" }),
+      }),
+    };
+
+    try {
+      const result = calculateGlobalImpact({
+        monthlyDownloads: 1_000_000,
+        unpackedSize: 1_000_000,
+        transitiveDepsSize: 0,
+        // No region — forces detectRegion()
+      });
+      expect(result.region).toBe("NA");
+      expect(result.carbonIntensity).toBe(
+        ENVIRONMENTAL_CONSTANTS.CARBON_INTENSITY_NA,
+      );
+    } finally {
+      globalThis.Intl = originalIntl;
+    }
+  });
+
+  it("should use EU carbon intensity when timezone is Europe/*", async () => {
+    const { calculateGlobalImpact } = await import(
+      "../../src/global-impact.js"
+    );
+    const { ENVIRONMENTAL_CONSTANTS } = await import(
+      "../../src/constants.js"
+    );
+    const originalIntl = globalThis.Intl;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- mocking Intl for tests
+    (globalThis as any).Intl = {
+      DateTimeFormat: () => ({
+        resolvedOptions: () => ({ timeZone: "Europe/London" }),
+      }),
+    };
+
+    try {
+      const result = calculateGlobalImpact({
+        monthlyDownloads: 1_000_000,
+        unpackedSize: 1_000_000,
+        transitiveDepsSize: 0,
+      });
+      expect(result.region).toBe("EU");
+      expect(result.carbonIntensity).toBe(
+        ENVIRONMENTAL_CONSTANTS.CARBON_INTENSITY_EU,
+      );
+    } finally {
+      globalThis.Intl = originalIntl;
+    }
+  });
+
+  it("should use AP carbon intensity when timezone is Asia/*", async () => {
+    const { calculateGlobalImpact } = await import(
+      "../../src/global-impact.js"
+    );
+    const { ENVIRONMENTAL_CONSTANTS } = await import(
+      "../../src/constants.js"
+    );
+    const originalIntl = globalThis.Intl;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- mocking Intl for tests
+    (globalThis as any).Intl = {
+      DateTimeFormat: () => ({
+        resolvedOptions: () => ({ timeZone: "Asia/Tokyo" }),
+      }),
+    };
+
+    try {
+      const result = calculateGlobalImpact({
+        monthlyDownloads: 1_000_000,
+        unpackedSize: 1_000_000,
+        transitiveDepsSize: 0,
+      });
+      expect(result.region).toBe("AP");
+      expect(result.carbonIntensity).toBe(
+        ENVIRONMENTAL_CONSTANTS.CARBON_INTENSITY_AP,
+      );
+    } finally {
+      globalThis.Intl = originalIntl;
+    }
+  });
+
+  it("should use GLOBAL carbon intensity when timezone matches no known region", async () => {
+    const { calculateGlobalImpact } = await import(
+      "../../src/global-impact.js"
+    );
+    const { ENVIRONMENTAL_CONSTANTS } = await import(
+      "../../src/constants.js"
+    );
+    const originalIntl = globalThis.Intl;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- mocking Intl for tests
+    (globalThis as any).Intl = {
+      DateTimeFormat: () => ({
+        resolvedOptions: () => ({ timeZone: "Antarctica/Troll" }),
+      }),
+    };
+
+    try {
+      const result = calculateGlobalImpact({
+        monthlyDownloads: 1_000_000,
+        unpackedSize: 1_000_000,
+        transitiveDepsSize: 0,
+      });
+      expect(result.region).toBe("GLOBAL");
+      expect(result.carbonIntensity).toBe(
+        ENVIRONMENTAL_CONSTANTS.CARBON_INTENSITY,
+      );
+    } finally {
+      globalThis.Intl = originalIntl;
+    }
+  });
+
+  it("should fall back to NA when Intl.DateTimeFormat() throws", async () => {
+    const { calculateGlobalImpact } = await import(
+      "../../src/global-impact.js"
+    );
+    const { ENVIRONMENTAL_CONSTANTS } = await import(
+      "../../src/constants.js"
+    );
+    const originalIntl = globalThis.Intl;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- mocking Intl for tests
+    (globalThis as any).Intl = {
+      DateTimeFormat: () => {
+        throw new Error("Intl not available");
+      },
+    };
+
+    try {
+      const result = calculateGlobalImpact({
+        monthlyDownloads: 1_000_000,
+        unpackedSize: 1_000_000,
+        transitiveDepsSize: 0,
+      });
+      expect(result.region).toBe("NA");
+      expect(result.carbonIntensity).toBe(
+        ENVIRONMENTAL_CONSTANTS.CARBON_INTENSITY_NA,
+      );
+    } finally {
+      globalThis.Intl = originalIntl;
+    }
+  });
+});
+
 describe("getPackageMetadata edge case API responses", () => {
   it("should return null when dist field is missing entirely", async () => {
     const { getPackageMetadata } = await import("../../src/global-impact.js");

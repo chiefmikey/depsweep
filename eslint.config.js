@@ -1,22 +1,2 @@
-import js from '@eslint/js';
-import tseslint from 'typescript-eslint';
-
-export default tseslint.config(
-  js.configs.recommended,
-  ...tseslint.configs.recommended,
-  {
-    files: ['src/**/*.ts', 'test/**/*.ts'],
-    languageOptions: {
-      ecmaVersion: 2022,
-      sourceType: 'module',
-    },
-    rules: {
-      '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' }],
-      '@typescript-eslint/no-explicit-any': 'warn',
-      'no-console': 'off', // Allow console.log for CLI tool
-    },
-  },
-  {
-    ignores: ['dist/**', 'coverage/**', 'node_modules/**'],
-  }
-);
+// eslint-disable-next-line import-x/no-extraneous-dependencies -- mikey-pro is a devDependency by design; config files are exempt
+export { default } from 'mikey-pro/eslint';

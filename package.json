@@ -42,7 +42,15 @@
     "analyze": "npm run build && npm run analyze:bundle",
     "analyze:bundle": "webpack-bundle-analyzer dist/stats.json || echo 'Bundle analysis not available'",
     "precommit": "npm run lint && npm run test:unit",
-    "prepush": "npm run test:ci"
+    "prepush": "npm run test:ci",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx,mjs,cjs,vue,svelte}": [
+      "eslint --fix --no-error-on-unmatched-pattern",
+      "prettier --write"
+    ],
+    "*.{json,md,yaml,yml}": ["prettier --write"]
   },
   "keywords": [
     "dependencies",
@@ -93,26 +101,23 @@
     "yaml": "^2.8.1"
   },
   "devDependencies": {
-    "@eslint/js": "^10.0.1",
+    "@mikey-pro/prettier-config": "^10.3.4",
     "@types/cli-progress": "^3.11.6",
     "@types/jest": "^30.0.0",
     "@types/micromatch": "^4.0.9",
     "@types/node": "^25.3.3",
     "@types/shell-escape": "^0.2.3",
-    "eslint": "^10.0.2",
+    "eslint": "^10.4.0",
+    "husky": "^9.1.7",
     "jest": "^30.1.1",
-    "prettier": "^3.6.2",
+    "lint-staged": "^17.0.5",
+    "mikey-pro": "^10.3.4",
+    "prettier": "^3.8.3",
     "ts-jest": "^29.4.1",
     "ts-node": "^10.9.2",
-    "typescript": "^5.9.2",
-    "typescript-eslint": "^8.56.1"
+    "typescript": "^5.9.2"
   },
-  "files": [
-    "dist/**/*",
-    "README.md",
-    "LICENSE",
-    "package.json"
-  ],
+  "files": ["dist/**/*", "README.md", "LICENSE", "package.json"],
   "publishConfig": {
     "access": "public"
   }

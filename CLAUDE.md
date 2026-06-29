@@ -27,7 +27,7 @@ CLI tool for automated dependency cleanup with environmental impact reporting. S
 npm run build          # tsc + chmod +x dist/index.js
 npm run validate       # type-check + lint + test:coverage:check (full CI)
 npm run precommit      # lint + test:unit (quick check)
-npm test               # jest (excludes utils.test.ts)
+npm test               # jest (all test files including utils.test.ts)
 npm run lint           # eslint src/**/*.ts
 npm run dev            # tsc --watch
 npm run dev:run        # build + run
@@ -64,5 +64,5 @@ npm run dev:run        # build + run
 ## Testing
 - **Framework:** Jest 30 + ts-jest
 - **Location:** `test/__tests__/` (unit, e2e, performance)
-- **Run:** `npm test` (excludes utils.test.ts), `npm run test:unit`, `npm run test:e2e`
+- **Run:** `npm test`, `npm run test:unit`, `npm run test:e2e`
 - **Coverage:** `npm run test:coverage`

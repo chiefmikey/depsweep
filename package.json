@@ -97,7 +97,7 @@
     "@types/cli-progress": "^3.11.6",
     "@types/jest": "^30.0.0",
     "@types/micromatch": "^4.0.9",
-    "@types/node": "^25.3.3",
+    "@types/node": "^26.1.1",
     "@types/shell-escape": "^0.2.3",
     "eslint": "^10.0.2",
     "jest": "^30.1.1",

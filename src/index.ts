@@ -1,59 +1,60 @@
 #!/usr/bin/env node
 
-import { execSync, type ExecSyncOptions } from "node:child_process";
-import { existsSync } from "node:fs";
-import * as fs from "node:fs/promises";
-import os from "node:os";
-import path from "node:path";
-import { stdin as input, stdout as output } from "node:process";
-import * as readline from "node:readline/promises";
-import { fileURLToPath } from "node:url";
+import { execSync, type ExecSyncOptions } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { readFile, rm, writeFile } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { stdin as input, stdout as output } from 'node:process';
+import * as readline from 'node:readline/promises';
+import { fileURLToPath } from 'node:url';
 
-import chalk from "chalk";
-import cliProgress from "cli-progress";
-import CliTable from "cli-table3";
-import { Command } from "commander";
-import { isBinaryFileSync } from "isbinaryfile";
-import ora, { type Ora } from "ora";
+import chalk from 'chalk';
+import cliProgress from 'cli-progress';
+import CliTable from 'cli-table3';
+import { Command } from 'commander';
+import { isBinaryFileSync } from 'isbinaryfile';
+import ora, { type Ora } from 'ora';
 
 import {
   CLI_STRINGS,
   FILE_PATTERNS,
+  isProtectedDependency,
   MESSAGES,
   PACKAGE_MANAGERS,
-  isProtectedDependency,
-} from "./constants.js";
+} from './constants.js';
 import {
-  safeExecSync,
-  detectPackageManager,
-  getParentPackageDownloads,
-  formatSize,
-  formatNumber,
-  customSort,
-} from "./helpers.js";
-export { customSort } from "./helpers.js";
-import {
+  calculateGlobalImpact,
   getPackageMetadata,
   resolveTransitiveSize,
-  calculateGlobalImpact,
-} from "./global-impact.js";
-import type {
-  UnusedDepInfo,
-  GlobalScanResult,
-  GlobalImpact,
-  ScanResult,
-} from "./interfaces.js";
+} from './global-impact.js';
 import {
-  getSourceFiles,
+  customSort,
+  detectPackageManager,
+  formatNumber,
+  formatSize,
+  getParentPackageDownloads,
+  safeExecSync,
+} from './helpers.js';
+import type {
+  GlobalImpact,
+  GlobalScanResult,
+  ScanResult,
+  UnusedDepInfo,
+} from './interfaces.js';
+import {
+  MemoryOptimizer,
+  PerformanceMonitor,
+} from './performance-optimizations.js';
+import {
   findClosestPackageJson,
   getDependencies,
-  getPackageContext,
   getDependencyInfo,
-} from "./utils.js";
-import {
-  PerformanceMonitor,
-  MemoryOptimizer,
-} from "./performance-optimizations.js";
+  getPackageContext,
+  getSourceFiles,
+} from './utils.js';
+
+export { customSort } from './helpers.js';
 
 // Variables for active resources
 let activeSpinner: Ora | null = null;
@@ -71,7 +72,7 @@ function cleanup(): void {
     activeReadline.close();
   }
   // Only exit if not in test environment
-  if (process.env.NODE_ENV !== "test") {
+  if (process.env.NODE_ENV !== 'test') {
     process.exit(0);
   }
 }
@@ -89,12 +90,12 @@ function logNewlines(count = 1): void {
 // Get depsweep's own version from its package.json
 async function getDepsweepVersion(): Promise<string> {
   try {
-    const __dirname = path.dirname(fileURLToPath(import.meta.url));
-    const pkgPath = path.join(__dirname, "..", "package.json");
-    const content = await fs.readFile(pkgPath, "utf8");
-    return JSON.parse(content).version ?? "0.0.0";
+    const __dirname = import.meta.dirname;
+    const packagePath = path.join(__dirname, '..', 'package.json');
+    const content = await readFile(packagePath);
+    return JSON.parse(content).version ?? '0.0.0';
   } catch {
-    return "0.0.0";
+    return '0.0.0';
   }
 }
 
@@ -102,52 +103,54 @@ async function getDepsweepVersion(): Promise<string> {
 async function cloneAndInstall(
   target: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- console override
-  log: (...args: any[]) => void,
+  log: (...arguments_: any[]) => void,
 ): Promise<string> {
   const tmpDir = path.join(
     os.tmpdir(),
-    `depsweep-${target.replace("/", "-")}-${Date.now()}`,
+    `depsweep-${target.replace('/', '-')}-${Date.now()}`,
   );
 
   log(chalk.blue(`Cloning ${target}...`));
-  const execOpts: ExecSyncOptions = { stdio: "pipe", timeout: 120_000 };
+  const execOptions: ExecSyncOptions = { stdio: 'pipe', timeout: 120_000 };
   try {
     execSync(
       `git clone --depth 1 https://github.com/${target}.git ${tmpDir}`,
-      execOpts,
+      execOptions,
     );
   } catch {
-    throw new Error(`Failed to clone ${target}. Check the repository exists and is public.`);
+    throw new Error(
+      `Failed to clone ${target}. Check the repository exists and is public.`,
+    );
   }
 
   // Scrub any auth from remote URL
   try {
     execSync(
       `git -C ${tmpDir} remote set-url origin https://github.com/${target}.git`,
-      execOpts,
+      execOptions,
     );
   } catch {
     // non-critical
   }
 
   // Detect package manager and install
-  log(chalk.blue("Installing dependencies..."));
+  log(chalk.blue('Installing dependencies...'));
   try {
-    if (existsSync(path.join(tmpDir, "pnpm-lock.yaml"))) {
-      execSync("pnpm install --no-frozen-lockfile --ignore-scripts", {
-        ...execOpts,
+    if (existsSync(path.join(tmpDir, 'pnpm-lock.yaml'))) {
+      execSync('pnpm install --no-frozen-lockfile --ignore-scripts', {
+        ...execOptions,
         cwd: tmpDir,
         timeout: 300_000,
       });
-    } else if (existsSync(path.join(tmpDir, "yarn.lock"))) {
-      execSync("yarn install --ignore-scripts", {
-        ...execOpts,
+    } else if (existsSync(path.join(tmpDir, 'yarn.lock'))) {
+      execSync('yarn install --ignore-scripts', {
+        ...execOptions,
         cwd: tmpDir,
         timeout: 300_000,
       });
     } else {
-      execSync("npm install --ignore-scripts", {
-        ...execOpts,
+      execSync('npm install --ignore-scripts', {
+        ...execOptions,
         cwd: tmpDir,
         timeout: 300_000,
       });
@@ -155,13 +158,17 @@ async function cloneAndInstall(
   } catch {
     // Fallback: try npm install without lockfile
     try {
-      execSync("npm install --ignore-scripts", {
-        ...execOpts,
+      execSync('npm install --ignore-scripts', {
+        ...execOptions,
         cwd: tmpDir,
         timeout: 300_000,
       });
     } catch {
-      log(chalk.yellow("Warning: dependency installation failed. Results may be incomplete."));
+      log(
+        chalk.yellow(
+          'Warning: dependency installation failed. Results may be incomplete.',
+        ),
+      );
     }
   }
 
@@ -176,10 +183,10 @@ async function main(): Promise<void> {
   let isolatedCloneDir: string | null = null;
 
   try {
-    performanceMonitor.startTimer("totalExecution");
+    performanceMonitor.startTimer('totalExecution');
     // Add signal handlers at the start of main
-    process.on("SIGINT", cleanup);
-    process.on("SIGTERM", cleanup);
+    process.on('SIGINT', cleanup);
+    process.on('SIGTERM', cleanup);
 
     // Set up Commander FIRST to parse arguments before resolving project
     const depsweepVersion = await getDepsweepVersion();
@@ -187,37 +194,46 @@ async function main(): Promise<void> {
 
     // Configure program output and prevent exit
     program.configureOutput({
-      writeOut: (string_) => process.stdout.write(string_),
       writeErr: (string_) => process.stdout.write(string_),
+      writeOut: (string_) => process.stdout.write(string_),
     });
     program.exitOverride();
 
     // Configure the CLI program
     program
       .name(CLI_STRINGS.CLI_NAME)
-      .usage("[options] [owner/repo]")
+      .usage('[options] [owner/repo]')
       .description(CLI_STRINGS.CLI_DESCRIPTION)
-      .argument("[target]", "GitHub owner/repo to scan remotely (e.g., facebook/react)")
+      .argument(
+        '[target]',
+        'GitHub owner/repo to scan remotely (e.g., facebook/react)',
+      )
 
-      .option("-v, --verbose", "display detailed usage information")
-      .option("-a, --aggressive", "allow removal of protected dependencies")
-      .option("-s, --safe <deps>", "dependencies that will not be removed")
-      .option("-i, --ignore <paths>", "patterns to ignore during scanning")
-      .option("-m, --measure-impact", "measure unused dependency impact")
-      .option("-d, --dry-run", "run without making changes")
-      .option("-n, --no-progress", "disable the progress bar")
-      .option("--json", "output results as JSON")
-      .option("-o, --output <file>", "write results to file")
-      .option("--quick-check", "skip transitive dependency size resolution (faster)")
-      .version(depsweepVersion, "--version", "display installed version")
-      .addHelpText("after", "\nExample:\n  $ depsweep -v --measure-impact\n  $ depsweep facebook/react --json --dry-run");
+      .option('-v, --verbose', 'display detailed usage information')
+      .option('-a, --aggressive', 'allow removal of protected dependencies')
+      .option('-s, --safe <deps>', 'dependencies that will not be removed')
+      .option('-i, --ignore <paths>', 'patterns to ignore during scanning')
+      .option('-m, --measure-impact', 'measure unused dependency impact')
+      .option('-d, --dry-run', 'run without making changes')
+      .option('-n, --no-progress', 'disable the progress bar')
+      .option('--json', 'output results as JSON')
+      .option('-o, --output <file>', 'write results to file')
+      .option(
+        '--quick-check',
+        'skip transitive dependency size resolution (faster)',
+      )
+      .version(depsweepVersion, '--version', 'display installed version')
+      .addHelpText(
+        'after',
+        '\nExample:\n  $ depsweep -v --measure-impact\n  $ depsweep facebook/react --json --dry-run',
+      );
 
     program.exitOverride(() => {
       // Don't throw or exit - just let the help display
     });
 
     // Show help immediately if --help flag is present
-    if (process.argv.includes("--help")) {
+    if (process.argv.includes('--help')) {
       const helpText = program.helpInformation();
       process.stdout.write(`${helpText}\n`);
       process.exit(0); // Exit after displaying help
@@ -241,7 +257,7 @@ async function main(): Promise<void> {
 
     // Determine project directory: remote (owner/repo) or local
     const target = program.args[0];
-    const isRemote = target && /^[a-zA-Z0-9._-]+\/[a-zA-Z0-9._-]+$/.test(target);
+    const isRemote = target && /^[\w.-]+\/[\w.-]+$/.test(target);
 
     let packageJsonPath: string;
     let projectDirectory: string;
@@ -249,7 +265,7 @@ async function main(): Promise<void> {
     if (isRemote) {
       // Isolated mode: clone, install, scan
       isolatedCloneDir = await cloneAndInstall(target, console.log);
-      packageJsonPath = path.join(isolatedCloneDir, "package.json");
+      packageJsonPath = path.join(isolatedCloneDir, 'package.json');
       projectDirectory = isolatedCloneDir;
       options.dryRun = true; // Always dry-run for remote repos
     } else {
@@ -260,20 +276,19 @@ async function main(): Promise<void> {
     const context = await getPackageContext(packageJsonPath);
     const packageManager = await detectPackageManager(projectDirectory);
 
-    const packageJsonString =
-      (await fs.readFile(packageJsonPath, "utf8")) || "{}";
+    const packageJsonString = (await readFile(packageJsonPath, 'utf8')) || '{}';
     const packageJson = JSON.parse(packageJsonString);
 
     console.log(chalk.cyan(MESSAGES.title));
     logNewlines();
     console.log(chalk.blue(`Package.json found at: ${packageJsonPath}`));
 
-    process.on("uncaughtException", (error: Error): void => {
+    process.on('uncaughtException', (error: Error): void => {
       console.error(chalk.red(MESSAGES.fatalError), error);
       process.exit(1);
     });
 
-    process.on("unhandledRejection", (error: Error): void => {
+    process.on('unhandledRejection', (error: Error): void => {
       console.error(chalk.red(MESSAGES.fatalError), error);
       process.exit(1);
     });
@@ -284,23 +299,23 @@ async function main(): Promise<void> {
     // Early exit for JSON mode with 0 dependencies (e.g., monorepo root)
     if (dependencies.length === 0 && options.json) {
       const scanResult: ScanResult = {
-        project: packageJson.name || path.basename(projectDirectory),
         packageManager,
-        totalDependencies: 0,
-        unusedDependencies: [],
+        project: packageJson.name || path.basename(projectDirectory),
         protectedDependencies: [],
         timestamp: new Date().toISOString(),
-        version: "1.0.0",
+        totalDependencies: 0,
+        unusedDependencies: [],
+        version: '1.0.0',
       };
       const json = JSON.stringify(scanResult, null, 2);
       if (savedConsoleLog) {
         console.log = savedConsoleLog;
       }
       if (options.output) {
-        await fs.writeFile(options.output, json, "utf8");
+        await writeFile(options.output, json, 'utf8');
         console.log(chalk.green(`Report written to ${options.output}`));
       } else {
-        process.stdout.write(json + "\n");
+        process.stdout.write(`${json}\n`);
       }
       return;
     }
@@ -328,9 +343,9 @@ async function main(): Promise<void> {
     if (options.safe) {
       // Parse comma-separated safe dependencies
       const safeDeps =
-        typeof options.safe === "string"
+        typeof options.safe === 'string'
           ? options.safe
-              .split(",")
+              .split(',')
               .map((dep) => dep.trim())
               .filter((dep) => dep.length > 0)
           : Array.isArray(options.safe)
@@ -351,19 +366,19 @@ async function main(): Promise<void> {
     let progressBar: cliProgress.SingleBar | null = null;
     if (options.progress) {
       progressBar = new cliProgress.SingleBar({
-        format: CLI_STRINGS.PROGRESS_FORMAT,
         barCompleteChar: CLI_STRINGS.BAR_COMPLETE,
         barIncompleteChar: CLI_STRINGS.BAR_INCOMPLETE,
-        hideCursor: true,
         clearOnComplete: false,
         forceRedraw: true,
+        format: CLI_STRINGS.PROGRESS_FORMAT,
+        hideCursor: true,
         linewrap: false,
       });
       activeProgressBar = progressBar;
       progressBar.start(100, 0, {
         currentDeps: 0,
+        dep: '',
         totalDeps: dependencies.length,
-        dep: "",
       });
     }
 
@@ -385,8 +400,8 @@ async function main(): Promise<void> {
           (analysisStepsProcessed / totalAnalysisSteps) * 100,
           {
             currentDeps: totalDepsProcessed,
-            totalDeps: dependencies.length,
             dep: currentDependency,
+            totalDeps: dependencies.length,
           },
         );
       }
@@ -399,7 +414,7 @@ async function main(): Promise<void> {
     >();
 
     // Create a variable to store the current dependency name
-    let currentDependency = "";
+    let currentDependency = '';
 
     // Analyze all dependencies
     for (const dep of dependencies) {
@@ -426,8 +441,8 @@ async function main(): Promise<void> {
     if (progressBar) {
       progressBar.update(100, {
         currentDeps: dependencies.length,
+        dep: chalk.green('✓'),
         totalDeps: dependencies.length,
-        dep: chalk.green("✓"),
       });
       progressBar.stop();
     }
@@ -492,13 +507,13 @@ async function main(): Promise<void> {
     // === JSON OUTPUT MODE ===
     if (options.json) {
       const scanResult: ScanResult = {
-        project: packageJson.name || path.basename(projectDirectory),
         packageManager,
-        totalDependencies: dependencies.length,
-        unusedDependencies: [...unusedDependencies],
+        project: packageJson.name || path.basename(projectDirectory),
         protectedDependencies: [...protectedUnused],
         timestamp: new Date().toISOString(),
-        version: "1.0.0",
+        totalDependencies: dependencies.length,
+        unusedDependencies: [...unusedDependencies],
+        version: '1.0.0',
       };
 
       if (unusedDependencies.length > 0 && options.measureImpact) {
@@ -514,36 +529,44 @@ async function main(): Promise<void> {
           unusedDependencies.map((dep) => getPackageMetadata(dep)),
         );
 
-        for (let i = 0; i < unusedDependencies.length; i++) {
-          const dep = unusedDependencies[i];
-          const category: "dependency" | "devDependency" = depSet.has(dep) ? "dependency" : "devDependency";
-          const metadata = metadataResults[i];
+        for (const [index, dep] of unusedDependencies.entries()) {
+          const category: 'dependency' | 'devDependency' = depSet.has(dep)
+            ? 'dependency'
+            : 'devDependency';
+          const metadata = metadataResults[index];
           const unpackedSize = metadata?.unpackedSize ?? 0;
 
           let impact: GlobalImpact | null = null;
-          if (category === "dependency" && parentDownloads > 0 && unpackedSize > 0) {
+          if (
+            category === 'dependency' &&
+            parentDownloads > 0 &&
+            unpackedSize > 0
+          ) {
             const transitiveDepsSize = metadata
-              ? await resolveTransitiveSize(metadata.dependencies, !!options.quickCheck)
+              ? await resolveTransitiveSize(
+                  metadata.dependencies,
+                  !!options.quickCheck,
+                )
               : 0;
             impact = calculateGlobalImpact({
               monthlyDownloads: parentDownloads,
-              unpackedSize,
               transitiveDepsSize,
+              unpackedSize,
             });
           }
 
-          unusedDepInfos.push({ name: dep, category, unpackedSize, impact });
+          unusedDepInfos.push({ category, impact, name: dep, unpackedSize });
         }
 
         const globalResult: GlobalScanResult = {
-          project: packageJson.name || path.basename(projectDirectory),
           packageManager,
+          parentDownloads: parentDownloads > 0 ? parentDownloads : null,
+          project: packageJson.name || path.basename(projectDirectory),
+          protectedDependencies: [...protectedUnused],
+          timestamp: new Date().toISOString(),
           totalDependencies: dependencies.length,
           unusedDependencies: unusedDepInfos,
-          protectedDependencies: [...protectedUnused],
-          parentDownloads: parentDownloads > 0 ? parentDownloads : null,
-          timestamp: new Date().toISOString(),
-          version: "1.0.0",
+          version: '1.0.0',
         };
 
         const json = JSON.stringify(globalResult, null, 2);
@@ -551,10 +574,10 @@ async function main(): Promise<void> {
           console.log = savedConsoleLog;
         }
         if (options.output) {
-          await fs.writeFile(options.output, json, "utf8");
+          await writeFile(options.output, json, 'utf8');
           console.log(chalk.green(`Report written to ${options.output}`));
         } else {
-          process.stdout.write(json + "\n");
+          process.stdout.write(`${json}\n`);
         }
         return;
       }
@@ -564,10 +587,10 @@ async function main(): Promise<void> {
         console.log = savedConsoleLog;
       }
       if (options.output) {
-        await fs.writeFile(options.output, json, "utf8");
+        await writeFile(options.output, json, 'utf8');
         console.log(chalk.green(`Report written to ${options.output}`));
       } else {
-        process.stdout.write(json + "\n");
+        process.stdout.write(`${json}\n`);
       }
       return;
     }
@@ -580,7 +603,7 @@ async function main(): Promise<void> {
       for (const dep of safeUnused) {
         const isSafeListed = options.safe?.includes(dep);
         console.log(
-          chalk.blue(`- ${dep} [${isSafeListed ? "safe" : "protected"}]`),
+          chalk.blue(`- ${dep} [${isSafeListed ? 'safe' : 'protected'}]`),
         );
       }
       logNewlines(2); // replaces console.log('\n\n')
@@ -593,7 +616,7 @@ async function main(): Promise<void> {
       for (const dep of safeUnused) {
         const isSafeListed = options.safe?.includes(dep);
         console.log(
-          chalk.blue(`- ${dep} [${isSafeListed ? "safe" : "protected"}]`),
+          chalk.blue(`- ${dep} [${isSafeListed ? 'safe' : 'protected'}]`),
         );
       }
       logNewlines();
@@ -601,10 +624,10 @@ async function main(): Promise<void> {
       // Display verbose output if requested
       if (options.verbose) {
         const table = new CliTable({
-          head: ["Dependency", "Direct Usage", "Required By"],
-          wordWrap: true,
           colWidths: [25, 35, 20],
-          style: { head: ["cyan"], border: ["grey"] },
+          head: ['Dependency', 'Direct Usage', 'Required By'],
+          style: { border: ['grey'], head: ['cyan'] },
+          wordWrap: true,
         });
 
         const sortedDependencies = [...dependencies].sort(customSort);
@@ -614,19 +637,19 @@ async function main(): Promise<void> {
             info.usedInFiles.length > 0
               ? info.usedInFiles
                   .map((f) => path.relative(projectDirectory, f))
-                  .join("\n")
-              : chalk.gray("-");
+                  .join('\n')
+              : chalk.gray('-');
 
           const requiredBy =
             info.requiredByPackages.size > 0
               ? [...info.requiredByPackages]
                   .map((requestDep) =>
                     unusedDependencies.includes(requestDep)
-                      ? `${requestDep} ${chalk.blue("(unused)")}`
+                      ? `${requestDep} ${chalk.blue('(unused)')}`
                       : requestDep,
                   )
-                  .join(", ")
-              : chalk.gray("-");
+                  .join(', ')
+              : chalk.gray('-');
 
           table.push([dep, fileUsage, requiredBy]);
         }
@@ -638,12 +661,15 @@ async function main(): Promise<void> {
       // Measure impact if requested
       if (options.measureImpact) {
         const measureSpinner = ora({
+          spinner: 'dots',
           text: MESSAGES.measuringImpact,
-          spinner: "dots",
         }).start();
         activeSpinner = measureSpinner;
 
-        const parentInfo = await getParentPackageDownloads(packageJsonPath, options.verbose);
+        const parentInfo = await getParentPackageDownloads(
+          packageJsonPath,
+          options.verbose,
+        );
         const parentDownloads = parentInfo?.downloads ?? 0;
 
         // Categorize each unused dep as dependency vs devDependency
@@ -658,91 +684,169 @@ async function main(): Promise<void> {
         const totalPackages = unusedDependencies.length;
         for (let index = 0; index < totalPackages; index++) {
           const dep = unusedDependencies[index];
-          const category: "dependency" | "devDependency" = depSet.has(dep) ? "dependency" : "devDependency";
+          const category: 'dependency' | 'devDependency' = depSet.has(dep)
+            ? 'dependency'
+            : 'devDependency';
           const metadata = metadataResults[index];
           const unpackedSize = metadata?.unpackedSize ?? 0;
 
           let impact: GlobalImpact | null = null;
-          if (category === "dependency" && parentDownloads > 0 && unpackedSize > 0) {
+          if (
+            category === 'dependency' &&
+            parentDownloads > 0 &&
+            unpackedSize > 0
+          ) {
             const transitiveDepsSize = metadata
-              ? await resolveTransitiveSize(metadata.dependencies, !!options.quickCheck)
+              ? await resolveTransitiveSize(
+                  metadata.dependencies,
+                  !!options.quickCheck,
+                )
               : 0;
             impact = calculateGlobalImpact({
               monthlyDownloads: parentDownloads,
-              unpackedSize,
               transitiveDepsSize,
+              unpackedSize,
             });
           }
 
-          unusedDepInfos.push({ name: dep, category, unpackedSize, impact });
+          unusedDepInfos.push({ category, impact, name: dep, unpackedSize });
 
           measureSpinner.text = `${MESSAGES.measuringImpact} [${index + 1}/${totalPackages}] ${dep}`;
         }
 
         measureSpinner.stop();
         console.log(
-          `${MESSAGES.measuringImpact} [${totalPackages}/${totalPackages}] ${chalk.green("done")}`,
+          `${MESSAGES.measuringImpact} [${totalPackages}/${totalPackages}] ${chalk.green('done')}`,
         );
 
         // Display global impact for dependencies
-        const depsWithImpact = unusedDepInfos.filter(d => d.impact !== null);
-        const devDeps = unusedDepInfos.filter(d => d.category === "devDependency");
+        const depsWithImpact = unusedDepInfos.filter((d) => d.impact !== null);
+        const developmentDeps = unusedDepInfos.filter(
+          (d) => d.category === 'devDependency',
+        );
 
         if (depsWithImpact.length > 0) {
           logNewlines();
-          console.log(chalk.green.bold("Global Environmental Impact"));
-          console.log(chalk.dim("  All data from npm APIs and published research. Zero assumptions.\n"));
+          console.log(chalk.green.bold('Global Environmental Impact'));
+          console.log(
+            chalk.dim(
+              '  All data from npm APIs and published research. Zero assumptions.\n',
+            ),
+          );
 
           for (const dep of depsWithImpact) {
             const impact = dep.impact!;
-            console.log(chalk.bold(`  ${dep.name}`) + chalk.dim(` (dependency) -- ${formatSize(dep.unpackedSize)} unpacked`));
-            console.log(`    Monthly installs:    ${chalk.yellow(formatNumber(impact.monthlyDownloads))} ${chalk.dim("(npm)")}`);
-            console.log(`    Data footprint:      ${chalk.yellow(formatSize(impact.monthlyDownloads * impact.totalSizeGB * 1024 * 1024 * 1024))}${chalk.dim("/month")}`);
-            console.log(`    Energy waste:        ${chalk.red(impact.energyWasteKwh.toFixed(1) + " kWh/month")}`);
-            console.log(`    Carbon waste:        ${chalk.red(impact.carbonWasteKg.toFixed(1) + " kg CO2e/month")}`);
-            console.log(`    Water waste:         ${chalk.red(impact.waterWasteLiters.toFixed(1) + " L/month")}`);
-            console.log(`    Equivalent to:       ${chalk.yellow(impact.carMilesEquivalent.toFixed(0) + " miles driven")}`);
+            console.log(
+              chalk.bold(`  ${dep.name}`) +
+                chalk.dim(
+                  ` (dependency) -- ${formatSize(dep.unpackedSize)} unpacked`,
+                ),
+            );
+            console.log(
+              `    Monthly installs:    ${chalk.yellow(formatNumber(impact.monthlyDownloads))} ${chalk.dim('(npm)')}`,
+            );
+            console.log(
+              `    Data footprint:      ${chalk.yellow(formatSize(impact.monthlyDownloads * impact.totalSizeGB * 1024 * 1024 * 1024))}${chalk.dim('/month')}`,
+            );
+            console.log(
+              `    Energy waste:        ${chalk.red(`${impact.energyWasteKwh.toFixed(1)} kWh/month`)}`,
+            );
+            console.log(
+              `    Carbon waste:        ${chalk.red(`${impact.carbonWasteKg.toFixed(1)} kg CO2e/month`)}`,
+            );
+            console.log(
+              `    Water waste:         ${chalk.red(`${impact.waterWasteLiters.toFixed(1)} L/month`)}`,
+            );
+            console.log(
+              `    Equivalent to:       ${chalk.yellow(`${impact.carMilesEquivalent.toFixed(0)} miles driven`)}`,
+            );
             console.log();
           }
 
-          console.log(chalk.dim("  Sources:"));
+          console.log(chalk.dim('  Sources:'));
           const firstImpact = depsWithImpact[0].impact!;
-          console.log(chalk.dim(`    Downloads:   ${firstImpact.sources.downloads}`));
-          console.log(chalk.dim(`    Pkg size:    ${firstImpact.sources.packageSize}`));
-          console.log(chalk.dim(`    Energy:      ${firstImpact.sources.energyIntensity}`));
-          console.log(chalk.dim(`    Carbon:      ${firstImpact.sources.carbonIntensity}`));
+          console.log(
+            chalk.dim(`    Downloads:   ${firstImpact.sources.downloads}`),
+          );
+          console.log(
+            chalk.dim(`    Pkg size:    ${firstImpact.sources.packageSize}`),
+          );
+          console.log(
+            chalk.dim(
+              `    Energy:      ${firstImpact.sources.energyIntensity}`,
+            ),
+          );
+          console.log(
+            chalk.dim(
+              `    Carbon:      ${firstImpact.sources.carbonIntensity}`,
+            ),
+          );
 
           if (options.verbose) {
             logNewlines();
-            console.log(chalk.dim("  Formula:"));
-            console.log(chalk.dim("    totalSizeGB     = (unpackedSize + transitiveDepsSize) / 1024^3"));
-            console.log(chalk.dim("    energyWaste     = monthlyDownloads * totalSizeGB * 0.06 kWh/GB [IEA/LBNL 2024]"));
-            console.log(chalk.dim("    carbonWaste     = energyWaste * regionalCarbonIntensity [EIA/Ember]"));
-            console.log(chalk.dim("    waterWaste      = energyWaste * 1.8 L/kWh [Uptime Institute]"));
-            console.log(chalk.dim("    treesEquivalent = carbonWaste * 0.045 trees/kg [USDA Forest Service]"));
-            console.log(chalk.dim("    carMiles        = carbonWaste / 0.4 kg/mile [EPA]"));
+            console.log(chalk.dim('  Formula:'));
+            console.log(
+              chalk.dim(
+                '    totalSizeGB     = (unpackedSize + transitiveDepsSize) / 1024^3',
+              ),
+            );
+            console.log(
+              chalk.dim(
+                '    energyWaste     = monthlyDownloads * totalSizeGB * 0.06 kWh/GB [IEA/LBNL 2024]',
+              ),
+            );
+            console.log(
+              chalk.dim(
+                '    carbonWaste     = energyWaste * regionalCarbonIntensity [EIA/Ember]',
+              ),
+            );
+            console.log(
+              chalk.dim(
+                '    waterWaste      = energyWaste * 1.8 L/kWh [Uptime Institute]',
+              ),
+            );
+            console.log(
+              chalk.dim(
+                '    treesEquivalent = carbonWaste * 0.045 trees/kg [USDA Forest Service]',
+              ),
+            );
+            console.log(
+              chalk.dim(
+                '    carMiles        = carbonWaste / 0.4 kg/mile [EPA]',
+              ),
+            );
           }
         }
 
-        if (devDeps.length > 0) {
+        if (developmentDeps.length > 0) {
           logNewlines();
-          console.log(chalk.blue.bold("Unused Dev Dependencies (no global impact):"));
-          for (const dep of devDeps) {
-            console.log(`  ${dep.name}` + chalk.dim(` -- ${formatSize(dep.unpackedSize)} unpacked`));
+          console.log(
+            chalk.blue.bold('Unused Dev Dependencies (no global impact):'),
+          );
+          for (const dep of developmentDeps) {
+            console.log(
+              `  ${dep.name}${chalk.dim(` -- ${formatSize(dep.unpackedSize)} unpacked`)}`,
+            );
           }
-          console.log(chalk.dim("  devDependencies are not installed by consumers."));
+          console.log(
+            chalk.dim('  devDependencies are not installed by consumers.'),
+          );
         }
 
-        if (depsWithImpact.length === 0 && devDeps.length === 0) {
+        if (depsWithImpact.length === 0 && developmentDeps.length === 0) {
           logNewlines();
-          console.log(chalk.yellow("No impact data available (package may not be published to npm)"));
+          console.log(
+            chalk.yellow(
+              'No impact data available (package may not be published to npm)',
+            ),
+          );
         }
       }
 
       if (!options.measureImpact) {
         console.log(
           chalk.blue(
-            "Run with the -m, --measure-impact flag to output a detailed impact analysis report",
+            'Run with the -m, --measure-impact flag to output a detailed impact analysis report',
           ),
         );
       }
@@ -760,20 +864,20 @@ async function main(): Promise<void> {
       activeReadline = rl;
 
       const answer = await rl.question(chalk.blue(MESSAGES.promptRemove));
-      if (answer.toLowerCase() === "y") {
+      if (answer.toLowerCase() === 'y') {
         // Build uninstall command
-        let uninstallCommand = "";
+        let uninstallCommand = '';
         switch (packageManager) {
           case PACKAGE_MANAGERS.NPM: {
-            uninstallCommand = `npm uninstall ${unusedDependencies.join(" ")}`;
+            uninstallCommand = `npm uninstall ${unusedDependencies.join(' ')}`;
             break;
           }
           case PACKAGE_MANAGERS.YARN: {
-            uninstallCommand = `yarn remove ${unusedDependencies.join(" ")}`;
+            uninstallCommand = `yarn remove ${unusedDependencies.join(' ')}`;
             break;
           }
           case PACKAGE_MANAGERS.PNPM: {
-            uninstallCommand = `pnpm remove ${unusedDependencies.join(" ")}`;
+            uninstallCommand = `pnpm remove ${unusedDependencies.join(' ')}`;
             break;
           }
           default: {
@@ -792,13 +896,13 @@ async function main(): Promise<void> {
 
         if (unusedDependencies.length > 0) {
           try {
-            safeExecSync(uninstallCommand.split(" "), {
-              stdio: "inherit",
+            safeExecSync(uninstallCommand.split(' '), {
               cwd: projectDirectory,
+              stdio: 'inherit',
               timeout: 300_000,
             });
           } catch (error) {
-            console.error(chalk.red("Failed to uninstall packages:"), error);
+            console.error(chalk.red('Failed to uninstall packages:'), error);
             process.exit(1);
           }
         }
@@ -810,12 +914,12 @@ async function main(): Promise<void> {
     }
 
     // End total execution timer
-    performanceMonitor.endTimer("totalExecution");
+    performanceMonitor.endTimer('totalExecution');
 
     // Log final performance summary
     if (options.verbose) {
       const totalTime =
-        performanceMonitor.getMetrics().get("totalExecution")?.totalTime || 0;
+        performanceMonitor.getMetrics().get('totalExecution')?.totalTime || 0;
       console.log(
         chalk.blue(`\nTotal execution time: ${totalTime.toFixed(2)}ms`),
       );
@@ -831,7 +935,7 @@ async function main(): Promise<void> {
     // Clean up isolated clone directory
     if (isolatedCloneDir) {
       try {
-        await fs.rm(isolatedCloneDir, { recursive: true, force: true });
+        await rm(isolatedCloneDir, { force: true, recursive: true });
       } catch {
         // Best-effort cleanup
       }
@@ -844,18 +948,18 @@ async function init(): Promise<void> {
   try {
     // Handle exit signals at the top level
     const exitHandler = (signal: string): void => {
-      console.log(MESSAGES.signalCleanup.replace("{0}", signal));
+      console.log(MESSAGES.signalCleanup.replace('{0}', signal));
       cleanup();
       // Exit without error since this is an intentional exit
       process.exit(0);
     };
 
     // Handle both SIGINT (Ctrl+C) and SIGTERM
-    process.on("SIGINT", () => {
-      exitHandler("SIGINT");
+    process.on('SIGINT', () => {
+      exitHandler('SIGINT');
     });
-    process.on("SIGTERM", () => {
-      exitHandler("SIGTERM");
+    process.on('SIGTERM', () => {
+      exitHandler('SIGTERM');
     });
 
     await main();
@@ -867,7 +971,7 @@ async function init(): Promise<void> {
 }
 
 // Only run init when this file is executed directly (not imported)
-if (process.argv[1] && process.argv[1].endsWith("index.js")) {
+if (process.argv[1] && process.argv[1].endsWith('index.js')) {
   init().catch((error) => {
     console.error(chalk.red(MESSAGES.fatalError), error);
     process.exit(1);

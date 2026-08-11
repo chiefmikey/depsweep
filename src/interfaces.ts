@@ -47,7 +47,7 @@ export interface ScanResult {
   version: string;
 }
 
-export type DepCategory = "dependency" | "devDependency";
+export type DepCategory = 'dependency' | 'devDependency';
 
 export interface GlobalImpact {
   // Real data from npm

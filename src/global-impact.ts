@@ -1,5 +1,5 @@
-import { ENVIRONMENTAL_CONSTANTS } from "./constants.js";
-import type { GlobalImpact } from "./interfaces.js";
+import { ENVIRONMENTAL_CONSTANTS } from './constants.js';
+import type { GlobalImpact } from './interfaces.js';
 
 export interface PackageMetadata {
   unpackedSize: number;
@@ -23,7 +23,7 @@ async function fetchWithRetry(
 ): Promise<Response | null> {
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 10000);
+    const timeout = setTimeout(() => controller.abort(), 10_000);
     let response: Response | undefined;
     try {
       response = await fetch(url, { signal: controller.signal });
@@ -34,7 +34,9 @@ async function fetchWithRetry(
     }
 
     if (response !== undefined) {
-      if (response.ok) return response;
+      if (response.ok) {
+        return response;
+      }
 
       // Don't retry on client errors (except 429)
       if (
@@ -48,7 +50,7 @@ async function fetchWithRetry(
 
     // Retry on 429, 5xx, network errors, or timeouts
     if (attempt < maxRetries) {
-      const delay = Math.pow(2, attempt) * retryDelayMs;
+      const delay = 2 ** attempt * retryDelayMs;
       await new Promise((resolve) => setTimeout(resolve, delay));
     }
   }
@@ -73,7 +75,9 @@ export async function getPackageMetadata(
       : `https://registry.npmjs.org/${encodeURIComponent(packageName)}/latest`;
 
     const response = await fetchWithRetry(url, 3, retryDelayMs);
-    if (!response) return null;
+    if (!response) {
+      return null;
+    }
 
     const data = (await response.json()) as {
       dist?: { unpackedSize?: number };
@@ -82,14 +86,16 @@ export async function getPackageMetadata(
 
     const rawSize = data.dist?.unpackedSize;
     // NaN is typeof "number" but not finite — reject it along with missing/negative values
-    if (!Number.isFinite(rawSize) || (rawSize as number) < 0) return null;
-    const unpackedSize = rawSize as number;
+    if (!Number.isFinite(rawSize) || rawSize! < 0) {
+      return null;
+    }
+    const unpackedSize = rawSize!;
 
     const dependencies = data.dependencies
       ? Object.keys(data.dependencies)
       : [];
 
-    return { unpackedSize, dependencies };
+    return { dependencies, unpackedSize };
   } catch {
     return null;
   }
@@ -108,7 +114,9 @@ export async function resolveTransitiveSize(
   dependencies: string[],
   quickCheck: boolean,
 ): Promise<number> {
-  if (quickCheck || dependencies.length === 0) return 0;
+  if (quickCheck || dependencies.length === 0) {
+    return 0;
+  }
 
   const visited = new Set<string>();
   let totalSize = 0;
@@ -125,7 +133,9 @@ export async function resolveTransitiveSize(
       }
     }
 
-    if (batch.length === 0) break;
+    if (batch.length === 0) {
+      break;
+    }
 
     // Fetch all in parallel
     const results = await Promise.all(
@@ -133,9 +143,14 @@ export async function resolveTransitiveSize(
     );
 
     for (const metadata of results) {
-      if (!metadata) continue;
+      if (!metadata) {
+        continue;
+      }
       // Guard: only accumulate finite, non-negative sizes — NaN/Infinity must never enter the sum
-      if (Number.isFinite(metadata.unpackedSize) && metadata.unpackedSize >= 0) {
+      if (
+        Number.isFinite(metadata.unpackedSize) &&
+        metadata.unpackedSize >= 0
+      ) {
         totalSize += metadata.unpackedSize;
       }
       for (const dep of metadata.dependencies) {
@@ -152,21 +167,29 @@ export async function resolveTransitiveSize(
 /**
  * Detects the user's region from timezone for carbon intensity selection.
  */
-function detectRegion(): "NA" | "EU" | "AP" | "GLOBAL" {
+function detectRegion(): 'AP' | 'EU' | 'GLOBAL' | 'NA' {
   try {
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    if (tz.includes("America/") || tz.includes("US/") || tz.includes("Canada/"))
-      return "NA";
-    if (tz.includes("Europe/") || tz.includes("Africa/")) return "EU";
     if (
-      tz.includes("Asia/") ||
-      tz.includes("Australia/") ||
-      tz.includes("Pacific/")
-    )
-      return "AP";
-    return "GLOBAL";
+      tz.includes('America/') ||
+      tz.includes('US/') ||
+      tz.includes('Canada/')
+    ) {
+      return 'NA';
+    }
+    if (tz.includes('Europe/') || tz.includes('Africa/')) {
+      return 'EU';
+    }
+    if (
+      tz.includes('Asia/') ||
+      tz.includes('Australia/') ||
+      tz.includes('Pacific/')
+    ) {
+      return 'AP';
+    }
+    return 'GLOBAL';
   } catch {
-    return "NA";
+    return 'NA';
   }
 }
 
@@ -176,14 +199,18 @@ function detectRegion(): "NA" | "EU" | "AP" | "GLOBAL" {
  */
 function getRegionalCarbonIntensity(region: string): number {
   switch (region) {
-    case "NA":
+    case 'NA': {
       return ENVIRONMENTAL_CONSTANTS.CARBON_INTENSITY_NA;
-    case "EU":
+    }
+    case 'EU': {
       return ENVIRONMENTAL_CONSTANTS.CARBON_INTENSITY_EU;
-    case "AP":
+    }
+    case 'AP': {
       return ENVIRONMENTAL_CONSTANTS.CARBON_INTENSITY_AP;
-    default:
+    }
+    default: {
       return ENVIRONMENTAL_CONSTANTS.CARBON_INTENSITY;
+    }
   }
 }
 
@@ -192,14 +219,18 @@ function getRegionalCarbonIntensity(region: string): number {
  */
 function getCarbonIntensitySource(region: string): string {
   switch (region) {
-    case "NA":
-      return "EIA 2023 (US avg 0.37 kg CO2/kWh)";
-    case "EU":
-      return "Ember European Electricity Review 2025 (EU avg 0.213 kg CO2/kWh)";
-    case "AP":
-      return "Ember 2024 country-level data (weighted avg 0.555 kg CO2/kWh)";
-    default:
-      return "IEA Electricity 2025 (global avg 0.445 kg CO2/kWh)";
+    case 'NA': {
+      return 'EIA 2023 (US avg 0.37 kg CO2/kWh)';
+    }
+    case 'EU': {
+      return 'Ember European Electricity Review 2025 (EU avg 0.213 kg CO2/kWh)';
+    }
+    case 'AP': {
+      return 'Ember 2024 country-level data (weighted avg 0.555 kg CO2/kWh)';
+    }
+    default: {
+      return 'IEA Electricity 2025 (global avg 0.445 kg CO2/kWh)';
+    }
   }
 }
 
@@ -218,7 +249,7 @@ export function calculateGlobalImpact(options: {
   monthlyDownloads: number;
   unpackedSize: number;
   transitiveDepsSize: number;
-  region?: "NA" | "EU" | "AP" | "GLOBAL";
+  region?: 'AP' | 'EU' | 'GLOBAL' | 'NA';
 }): GlobalImpact {
   const region = options.region || detectRegion();
   const carbonIntensity = getRegionalCarbonIntensity(region);
@@ -254,22 +285,22 @@ export function calculateGlobalImpact(options: {
     carbonWasteKg / ENVIRONMENTAL_CONSTANTS.CO2_PER_CAR_MILE;
 
   return {
-    monthlyDownloads: safeDownloads,
-    unpackedSize: safeUnpackedSize,
-    transitiveDepsSize: safeTransitiveDepsSize,
-    totalSizeGB,
-    energyWasteKwh,
-    carbonWasteKg,
-    waterWasteLiters,
-    treesEquivalent,
-    carMilesEquivalent,
-    region,
     carbonIntensity,
+    carbonWasteKg,
+    carMilesEquivalent,
+    energyWasteKwh,
+    monthlyDownloads: safeDownloads,
+    region,
     sources: {
-      downloads: "npm downloads API",
-      packageSize: "npm registry API",
-      energyIntensity: "IEA/LBNL 2024 (0.06 kWh/GB)",
       carbonIntensity: getCarbonIntensitySource(region),
+      downloads: 'npm downloads API',
+      energyIntensity: 'IEA/LBNL 2024 (0.06 kWh/GB)',
+      packageSize: 'npm registry API',
     },
+    totalSizeGB,
+    transitiveDepsSize: safeTransitiveDepsSize,
+    treesEquivalent,
+    unpackedSize: safeUnpackedSize,
+    waterWasteLiters,
   };
 }

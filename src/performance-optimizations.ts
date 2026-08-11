@@ -5,10 +5,11 @@
  * to improve the overall performance and efficiency of the dependency analysis.
  */
 
-import type { Stats } from "node:fs";
-import * as fs from "node:fs/promises";
-import * as path from "node:path";
-import { LRUCache } from "lru-cache";
+import type { Stats } from 'node:fs';
+import { readdir, readFile, stat } from 'node:fs/promises';
+import { join } from 'node:path';
+
+import { LRUCache } from 'lru-cache';
 
 // Enhanced caching with TTL and size limits
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- cache stores any non-nullish value
@@ -17,13 +18,13 @@ export class OptimizedCache<T extends {}> {
   private hitCount = 0;
   private missCount = 0;
 
-  constructor(maxSize = 1000, ttl = 300000) {
+  constructor(maxSize = 1000, ttl = 300_000) {
     // 5 minutes TTL
     this.cache = new LRUCache<string, T>({
-      max: maxSize,
-      ttl: ttl,
-      updateAgeOnGet: true,
       allowStale: false,
+      max: maxSize,
+      ttl,
+      updateAgeOnGet: true,
     });
   }
 
@@ -52,8 +53,8 @@ export class OptimizedCache<T extends {}> {
   getStats() {
     const total = this.hitCount + this.missCount;
     return {
-      hitRate: total > 0 ? this.hitCount / total : 0,
       hitCount: this.hitCount,
+      hitRate: total > 0 ? this.hitCount / total : 0,
       missCount: this.missCount,
       size: this.cache.size,
     };
@@ -63,12 +64,12 @@ export class OptimizedCache<T extends {}> {
 // Optimized file reading with intelligent batching
 export class OptimizedFileReader {
   private static instance: OptimizedFileReader;
-  private fileCache = new OptimizedCache<string>(500, 60000); // 1 minute TTL
-  private readQueue: Array<{
+  private fileCache = new OptimizedCache<string>(500, 60_000); // 1 minute TTL
+  private readQueue: {
     path: string;
     resolve: (content: string) => void;
     reject: (error: Error) => void;
-  }> = [];
+  }[] = [];
   private isProcessing = false;
   private readonly BATCH_SIZE = 50;
   private readonly MAX_CONCURRENT_READS = 10;
@@ -89,7 +90,7 @@ export class OptimizedFileReader {
 
     // Add to queue for batch processing
     return new Promise((resolve, reject) => {
-      this.readQueue.push({ path: filePath, resolve, reject });
+      this.readQueue.push({ path: filePath, reject, resolve });
       this.processQueue();
     });
   }
@@ -109,9 +110,9 @@ export class OptimizedFileReader {
 
       for (const chunk of chunks) {
         await Promise.allSettled(
-          chunk.map(async ({ path: filePath, resolve, reject }) => {
+          chunk.map(async ({ path: filePath, reject, resolve }) => {
             try {
-              const content = await fs.readFile(filePath, "utf8");
+              const content = await readFile(filePath, 'utf8');
               this.fileCache.set(filePath, content);
               resolve(content);
             } catch (error) {
@@ -127,8 +128,8 @@ export class OptimizedFileReader {
 
   private chunkArray<T>(array: T[], chunkSize: number): T[][] {
     const chunks: T[][] = [];
-    for (let i = 0; i < array.length; i += chunkSize) {
-      chunks.push(array.slice(i, i + chunkSize));
+    for (let index = 0; index < array.length; index += chunkSize) {
+      chunks.push(array.slice(index, index + chunkSize));
     }
     return chunks;
   }
@@ -145,12 +146,12 @@ export class OptimizedFileReader {
 // Optimized dependency analysis with early exit strategies
 export class OptimizedDependencyAnalyzer {
   private static instance: OptimizedDependencyAnalyzer;
-  private analysisCache = new OptimizedCache<boolean>(2000, 300000); // 5 minutes TTL
+  private analysisCache = new OptimizedCache<boolean>(2000, 300_000); // 5 minutes TTL
   private dependencyGraphCache = new OptimizedCache<Map<string, Set<string>>>(
     100,
-    600000,
+    600_000,
   ); // 10 minutes TTL
-  private filePatternCache = new OptimizedCache<RegExp[]>(500, 300000); // 5 minutes TTL
+  private filePatternCache = new OptimizedCache<RegExp[]>(500, 300_000); // 5 minutes TTL
 
   static getInstance(): OptimizedDependencyAnalyzer {
     if (!OptimizedDependencyAnalyzer.instance) {
@@ -167,40 +168,22 @@ export class OptimizedDependencyAnalyzer {
       return cached;
     }
 
-    const escaped = dependency.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const escaped = dependency.replaceAll(
+      /[$()*+.?[\\\]^{|}]/g,
+      String.raw`\$&`,
+    );
     const patterns = [
       new RegExp(
-        `(?:^|[\\s'"` + "`" + `({[,])${escaped}(?:$|[\\s'"` + "`" + `)}\\],;/])`,
-        "gm",
+        `${String.raw`(?:^|[\s'"`}\`${String.raw`({[,])${escaped}(?:$|[\s'"`}\`${String.raw`)}\],;/])`}`,
+        'gm',
       ),
-      new RegExp(
-        `from\\s+['"]${escaped}['"]`,
-        "g",
-      ),
-      new RegExp(
-        `import\\s+.*\\s+from\\s+['"]${escaped}['"]`,
-        "g",
-      ),
-      new RegExp(
-        `require\\(['"]${escaped}['"]\\)`,
-        "g",
-      ),
-      new RegExp(
-        `import\\s+['"]${escaped}['"]`,
-        "g",
-      ),
-      new RegExp(
-        `import\\s*\\(\\s*['"]${escaped}['"]`,
-        "g",
-      ),
-      new RegExp(
-        `(?:require|import)\\s*\\(?\\s*['"]${escaped}!`,
-        "g",
-      ),
-      new RegExp(
-        `node_modules/${escaped}/`,
-        "g",
-      ),
+      new RegExp(String.raw`from\s+['"]${escaped}['"]`, 'g'),
+      new RegExp(String.raw`import\s+.*\s+from\s+['"]${escaped}['"]`, 'g'),
+      new RegExp(String.raw`require\(['"]${escaped}['"]\)`, 'g'),
+      new RegExp(String.raw`import\s+['"]${escaped}['"]`, 'g'),
+      new RegExp(String.raw`import\s*\(\s*['"]${escaped}['"]`, 'g'),
+      new RegExp(String.raw`(?:require|import)\s*\(?\s*['"]${escaped}!`, 'g'),
+      new RegExp(`node_modules/${escaped}/`, 'g'),
     ];
 
     this.filePatternCache.set(cacheKey, patterns);
@@ -268,8 +251,8 @@ export class OptimizedDependencyAnalyzer {
       Math.max(10, Math.floor(files.length / 10)),
     );
 
-    for (let i = 0; i < files.length; i += batchSize) {
-      const batch = files.slice(i, i + batchSize);
+    for (let index = 0; index < files.length; index += batchSize) {
+      const batch = files.slice(index, index + batchSize);
 
       // Process batch in parallel
       const batchPromises = batch.map(async (file) => {
@@ -285,12 +268,12 @@ export class OptimizedDependencyAnalyzer {
 
       // Collect results
       for (const result of batchResults) {
-        if (result.status === "fulfilled" && result.value) {
+        if (result.status === 'fulfilled' && result.value) {
           results.push(result.value);
         }
       }
 
-      onProgress?.(Math.min(i + batchSize, files.length), files.length);
+      onProgress?.(Math.min(index + batchSize, files.length), files.length);
     }
 
     return results;
@@ -316,11 +299,13 @@ export class StringOptimizer {
   private static readonly STRING_POOL = new Map<string, string>();
   private static readonly MAX_POOL_SIZE = 1000;
 
-  static intern(str: string): string {
-    if (str.length < 3) return str; // Don't pool very short strings
+  static intern(string_: string): string {
+    if (string_.length < 3) {
+      return string_;
+    } // Don't pool very short strings
 
-    if (StringOptimizer.STRING_POOL.has(str)) {
-      return StringOptimizer.STRING_POOL.get(str)!;
+    if (StringOptimizer.STRING_POOL.has(string_)) {
+      return StringOptimizer.STRING_POOL.get(string_)!;
     }
 
     if (StringOptimizer.STRING_POOL.size >= StringOptimizer.MAX_POOL_SIZE) {
@@ -333,8 +318,8 @@ export class StringOptimizer {
       toRemove.forEach(([key]) => StringOptimizer.STRING_POOL.delete(key));
     }
 
-    StringOptimizer.STRING_POOL.set(str, str);
-    return str;
+    StringOptimizer.STRING_POOL.set(string_, string_);
+    return string_;
   }
 
   static clearPool(): void {
@@ -343,8 +328,8 @@ export class StringOptimizer {
 
   static getPoolStats() {
     return {
-      size: StringOptimizer.STRING_POOL.size,
       maxSize: StringOptimizer.MAX_POOL_SIZE,
+      size: StringOptimizer.STRING_POOL.size,
     };
   }
 }
@@ -352,8 +337,8 @@ export class StringOptimizer {
 // Optimized file system operations
 export class OptimizedFileSystem {
   private static instance: OptimizedFileSystem;
-  private dirCache = new OptimizedCache<string[]>(100, 60000); // 1 minute TTL
-  private statCache = new OptimizedCache<Stats>(500, 30000); // 30 seconds TTL
+  private dirCache = new OptimizedCache<string[]>(100, 60_000); // 1 minute TTL
+  private statCache = new OptimizedCache<Stats>(500, 30_000); // 30 seconds TTL
 
   static getInstance(): OptimizedFileSystem {
     if (!OptimizedFileSystem.instance) {
@@ -369,10 +354,10 @@ export class OptimizedFileSystem {
     }
 
     try {
-      const entries = await fs.readdir(dirPath, { withFileTypes: true });
+      const entries = await readdir(dirPath, { withFileTypes: true });
       const files = entries
         .filter((entry) => entry.isFile())
-        .map((entry) => path.join(dirPath, entry.name));
+        .map((entry) => join(dirPath, entry.name));
 
       this.dirCache.set(dirPath, files);
       return files;
@@ -389,7 +374,7 @@ export class OptimizedFileSystem {
     }
 
     try {
-      const stats = await fs.stat(filePath);
+      const stats = await stat(filePath);
       this.statCache.set(filePath, stats);
       return stats;
     } catch {
@@ -432,7 +417,9 @@ export class PerformanceMonitor {
 
   endTimer(operation: string): number {
     const startTime = this.startTimes.get(operation);
-    if (!startTime) return 0;
+    if (!startTime) {
+      return 0;
+    }
 
     const duration = performance.now() - startTime;
     this.startTimes.delete(operation);
@@ -444,9 +431,9 @@ export class PerformanceMonitor {
       existing.avgTime = existing.totalTime / existing.count;
     } else {
       this.metrics.set(operation, {
+        avgTime: duration,
         count: 1,
         totalTime: duration,
-        avgTime: duration,
       });
     }
 
@@ -466,15 +453,15 @@ export class PerformanceMonitor {
   }
 
   logSummary(): void {
-    console.log("\nPerformance Metrics:");
-    console.log("========================");
+    console.log('\nPerformance Metrics:');
+    console.log('========================');
 
     for (const [operation, stats] of this.metrics.entries()) {
       console.log(`${operation}:`);
       console.log(`  Count: ${stats.count}`);
       console.log(`  Total Time: ${stats.totalTime.toFixed(2)}ms`);
       console.log(`  Average Time: ${stats.avgTime.toFixed(2)}ms`);
-      console.log("");
+      console.log('');
     }
   }
 }
@@ -484,7 +471,7 @@ export class MemoryOptimizer {
   private static instance: MemoryOptimizer;
   private gcThreshold = 100 * 1024 * 1024; // 100MB
   private lastGcTime = 0;
-  private readonly GC_INTERVAL = 30000; // 30 seconds
+  private readonly GC_INTERVAL = 30_000; // 30 seconds
 
   static getInstance(): MemoryOptimizer {
     if (!MemoryOptimizer.instance) {
@@ -504,12 +491,12 @@ export class MemoryOptimizer {
 
     if (shouldGC) {
       this.lastGcTime = now;
-      if (global.gc) {
-        global.gc();
+      if (globalThis.gc) {
+        globalThis.gc();
       }
     }
 
-    return { used, total, shouldGC };
+    return { shouldGC, total, used };
   }
 
   optimizeForLargeProjects(): void {
@@ -520,22 +507,22 @@ export class MemoryOptimizer {
   getMemoryStats() {
     const usage = process.memoryUsage();
     return {
-      heapUsed: usage.heapUsed,
-      heapTotal: usage.heapTotal,
-      external: usage.external,
-      rss: usage.rss,
       arrayBuffers: usage.arrayBuffers,
+      external: usage.external,
+      heapTotal: usage.heapTotal,
+      heapUsed: usage.heapUsed,
+      rss: usage.rss,
     };
   }
 }
 
 // Export all optimizations
 export const optimizations = {
+  MemoryOptimizer,
   OptimizedCache,
-  OptimizedFileReader,
   OptimizedDependencyAnalyzer,
-  StringOptimizer,
+  OptimizedFileReader,
   OptimizedFileSystem,
   PerformanceMonitor,
-  MemoryOptimizer,
+  StringOptimizer,
 };

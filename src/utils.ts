@@ -681,7 +681,7 @@ export async function getDependencyInfo(
 export async function getTSConfig(projectRoot: string): Promise<any> {
   try {
     const tsConfigPath = path.join(projectRoot, 'tsconfig.json');
-    const content = await readFile(tsConfigPath);
+    const content = await readFile(tsConfigPath, 'utf8');
     return JSON.parse(content);
   } catch {
     return null;

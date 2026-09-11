@@ -194,8 +194,9 @@ export class OptimizedDependencyAnalyzer {
   public async isDependencyUsedInFile(
     dependency: string,
     filePath: string,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- API compatibility
-    _context: any,
+    // context is accepted but unused here — kept for call-site API compatibility
+    // with the real isDependencyUsedInFile in helpers.ts, which does use it.
+    _context: unknown,
   ): Promise<boolean> {
     const cacheKey = `usage:${dependency}:${filePath}`;
     const cached = this.analysisCache.get(cacheKey);
@@ -239,8 +240,9 @@ export class OptimizedDependencyAnalyzer {
   public async processFilesInBatches(
     files: string[],
     dependency: string,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- API compatibility
-    context: any,
+    // passed through to isDependencyUsedInFile, which also ignores it
+    // (kept for call-site API compatibility with helpers.ts's real version)
+    context: unknown,
     onProgress?: (processed: number, total: number) => void,
   ): Promise<string[]> {
     const results: string[] = [];

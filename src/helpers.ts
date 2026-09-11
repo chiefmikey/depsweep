@@ -530,7 +530,7 @@ async function rateLimitedFetch(
       npmApiRateLimiter.minInterval - timeSinceLastCall,
     );
 
-    const executeFetch = async () => {
+    const executeFetch = async (): Promise<void> => {
       npmApiRateLimiter.lastCallTime = Date.now();
 
       const controller = new AbortController();

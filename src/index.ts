@@ -393,7 +393,7 @@ async function main(): Promise<void> {
       _filePath: string,
       _sIndex?: number,
       _sCount?: number,
-    ) => {
+    ): void => {
       analysisStepsProcessed++;
       if (progressBar) {
         progressBar.update(

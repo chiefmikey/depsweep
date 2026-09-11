@@ -660,6 +660,7 @@ export async function getParentPackageDownloads(
       packageJson = JSON.parse(packageJsonString);
     } catch {
       if (verbose) {
+          // eslint-disable-next-line no-console -- verbose user feedback path
         console.error(chalk.red('Invalid package.json format'));
       }
       return null;
@@ -680,6 +681,7 @@ export async function getParentPackageDownloads(
     const downloads = await getDownloadStatsFromNpm(name);
     if (!downloads && downloads !== 0) {
       if (verbose) {
+        // eslint-disable-next-line no-console -- verbose user feedback path
         console.log(
           chalk.yellow(`\nUnable to find download stats for '${name}'`),
         );

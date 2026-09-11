@@ -98,6 +98,7 @@ export class OptimizedFileReader {
     // Add to queue for batch processing
     return new Promise((resolve, reject) => {
       this.readQueue.push({ path: filePath, reject, resolve });
+      // eslint-disable-next-line @typescript-eslint/no-floating-promises -- fire-and-forget queue draining; errors are handled inside processQueue
       this.processQueue();
     });
   }
@@ -129,6 +130,7 @@ export class OptimizedFileReader {
       const chunks = this.chunkArray(batch, this.MAX_CONCURRENT_READS);
 
       for (const chunk of chunks) {
+        // eslint-disable-next-line no-await-in-loop -- sequential chunk processing for concurrency control
         await Promise.allSettled(
           chunk.map(async ({ path: filePath, reject, resolve }) => {
             try {
@@ -136,7 +138,7 @@ export class OptimizedFileReader {
               this.fileCache.set(filePath, content);
               resolve(content);
             } catch (error) {
-              reject(error as Error);
+              reject(error instanceof Error ? error : new Error(String(error)));
             }
           }),
         );
@@ -181,21 +183,31 @@ export class OptimizedDependencyAnalyzer {
     }
 
     const escaped = dependency.replaceAll(
-      /[$()*+.?[\\\]^{|}]/g,
+      /[$()*+.?[\\\]^{|}]/gu,
       String.raw`\$&`,
     );
+    // Pre-compute boundary strings to avoid nested template literals
+    // (sonarjs/no-nested-template-literals) and to keep Unicode-safe character classes.
+    // \[ and \] are valid identity escapes in Unicode regex; \s is the whitespace class.
+    const startBoundary = '(?:^|[\\s\'"`({\\[,])';
+    const endBoundary = '(?:$|[\\s\'"`)}\\],;/])';
     const patterns = [
-      new RegExp(
-        `${String.raw`(?:^|[\s'"`}\`${String.raw`({[,])${escaped}(?:$|[\s'"`}\`${String.raw`)}\],;/])`}`,
-        'gm',
-      ),
+      // eslint-disable-next-line security/detect-non-literal-regexp -- pattern from controlled dependency analysis
+      new RegExp(`${startBoundary}${escaped}${endBoundary}`, 'gmu'),
+      // eslint-disable-next-line security/detect-non-literal-regexp -- pattern from controlled dependency analysis
       new RegExp(String.raw`from\s+['"]${escaped}['"]`, 'gu'),
-      new RegExp(String.raw`import\s+.*\s+from\s+['"]${escaped}['"]`, 'g'),
-      new RegExp(String.raw`require\(['"]${escaped}['"]\)`, 'g'),
-      new RegExp(String.raw`import\s+['"]${escaped}['"]`, 'g'),
-      new RegExp(String.raw`import\s*\(\s*['"]${escaped}['"]`, 'g'),
-      new RegExp(String.raw`(?:require|import)\s*\(?\s*['"]${escaped}!`, 'g'),
-      new RegExp(`node_modules/${escaped}/`, 'g'),
+      // eslint-disable-next-line security/detect-non-literal-regexp -- pattern from controlled dependency analysis
+      new RegExp(String.raw`import\s+.*\s+from\s+['"]${escaped}['"]`, 'gu'),
+      // eslint-disable-next-line security/detect-non-literal-regexp -- pattern from controlled dependency analysis
+      new RegExp(String.raw`require\(['"]${escaped}['"]\)`, 'gu'),
+      // eslint-disable-next-line security/detect-non-literal-regexp -- pattern from controlled dependency analysis
+      new RegExp(String.raw`import\s+['"]${escaped}['"]`, 'gu'),
+      // eslint-disable-next-line security/detect-non-literal-regexp -- pattern from controlled dependency analysis
+      new RegExp(String.raw`import\s*\(\s*['"]${escaped}['"]`, 'gu'),
+      // eslint-disable-next-line security/detect-non-literal-regexp -- pattern from controlled dependency analysis
+      new RegExp(String.raw`(?:require|import)\s*\(?\s*['"]${escaped}!`, 'gu'),
+      // eslint-disable-next-line security/detect-non-literal-regexp -- pattern from controlled dependency analysis
+      new RegExp(`node_modules/${escaped}/`, 'gu'),
     ];
 
     this.filePatternCache.set(cacheKey, patterns);
@@ -208,6 +220,7 @@ export class OptimizedDependencyAnalyzer {
     filePath: string,
     // context is accepted but unused here — kept for call-site API compatibility
     // with the real isDependencyUsedInFile in helpers.ts, which does use it.
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars -- intentionally unused parameter
     _context: unknown,
   ): Promise<boolean> {
     const cacheKey = `usage:${dependency}:${filePath}`;
@@ -278,11 +291,12 @@ export class OptimizedDependencyAnalyzer {
         return isUsed ? file : null;
       });
 
+      // eslint-disable-next-line no-await-in-loop -- sequential batch processing by design; batches are independent but ordered for progress reporting
       const batchResults = await Promise.allSettled(batchPromises);
 
       // Collect results
       for (const result of batchResults) {
-        if (result.status === 'fulfilled' && result.value) {
+        if (result.status === 'fulfilled' && result.value !== null) {
           results.push(result.value);
         }
       }
@@ -328,6 +342,7 @@ export class OptimizedDependencyAnalyzer {
 }
 
 // Memory-optimized string operations
+// eslint-disable-next-line @typescript-eslint/no-extraneous-class -- static factory pattern; preserved for API compatibility with optimizations export
 export class StringOptimizer {
   public static intern(string_: string): string {
     if (string_.length < 3) {
@@ -346,7 +361,9 @@ export class StringOptimizer {
         0,
         Math.floor(StringOptimizer.MAX_POOL_SIZE / 4),
       );
-      toRemove.forEach(([key]) => StringOptimizer.STRING_POOL.delete(key));
+      toRemove.forEach(([key]) => {
+        StringOptimizer.STRING_POOL.delete(key);
+      });
     }
 
     StringOptimizer.STRING_POOL.set(string_, string_);
@@ -381,29 +398,29 @@ export class OptimizedFileSystem {
   private dirCache = new OptimizedCache<string[]>(100, 60_000); // 1 minute TTL
   private statCache = new OptimizedCache<Stats>(500, 30_000); // 30 seconds TTL
 
-  public async readDirectory(dirPath: string): Promise<string[]> {
-    const cached = this.dirCache.get(dirPath);
-    if (cached) {
+  public async readDirectory(directoryPath: string): Promise<string[]> {
+    const cached = this.dirCache.get(directoryPath);
+    if (cached !== undefined) {
       return cached;
     }
 
     try {
-      const entries = await readdir(dirPath, { withFileTypes: true });
+      const entries = await readdir(directoryPath, { withFileTypes: true });
       const files = entries
         .filter((entry) => entry.isFile())
-        .map((entry) => join(dirPath, entry.name));
+        .map((entry) => join(directoryPath, entry.name));
 
-      this.dirCache.set(dirPath, files);
+      this.dirCache.set(directoryPath, files);
       return files;
     } catch {
-      this.dirCache.set(dirPath, []);
+      this.dirCache.set(directoryPath, []);
       return [];
     }
   }
 
   public async getFileStats(filePath: string): Promise<Stats | null> {
     const cached = this.statCache.get(filePath);
-    if (cached) {
+    if (cached !== undefined) {
       return cached;
     }
 
@@ -459,29 +476,31 @@ export class PerformanceMonitor {
   private startTimes = new Map<string, number>();
 
   public startTimer(operation: string): void {
+    // eslint-disable-next-line compat/compat -- Node.js only, not a browser app
     this.startTimes.set(operation, performance.now());
   }
 
   public endTimer(operation: string): number {
     const startTime = this.startTimes.get(operation);
-    if (!startTime) {
+    if (startTime === undefined) {
       return 0;
     }
 
+    // eslint-disable-next-line compat/compat -- Node.js only, not a browser app
     const duration = performance.now() - startTime;
     this.startTimes.delete(operation);
 
     const existing = this.metrics.get(operation);
-    if (existing) {
-      existing.count++;
-      existing.totalTime += duration;
-      existing.avgTime = existing.totalTime / existing.count;
-    } else {
+    if (existing === undefined) {
       this.metrics.set(operation, {
         avgTime: duration,
         count: 1,
         totalTime: duration,
       });
+    } else {
+      existing.count++;
+      existing.totalTime += duration;
+      existing.avgTime = existing.totalTime / existing.count;
     }
 
     return duration;
@@ -549,7 +568,7 @@ export class MemoryOptimizer {
 
     if (shouldGC) {
       this.lastGcTime = now;
-      if (globalThis.gc) {
+      if (globalThis.gc !== undefined) {
         globalThis.gc();
       }
     }

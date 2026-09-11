@@ -304,7 +304,8 @@ export function isProtectedDependency(dependency: string): boolean {
     // Pattern matching for wildcards
     if (protectedDep.includes('*')) {
       const pattern = protectedDep.replaceAll('*', '.*');
-      return new RegExp(`^${pattern}$`).test(dependency);
+      // eslint-disable-next-line security/detect-non-literal-regexp -- pattern is from controlled PROTECTED_DEPENDENCIES
+      return new RegExp(`^${pattern}$`, 'u').test(dependency);
     }
 
     return false;
@@ -321,7 +322,8 @@ export function getProtectionReason(dependency: string): string | null {
         }
         if (dep.includes('*')) {
           const pattern = dep.replaceAll('*', '.*');
-          return new RegExp(`^${pattern}$`).test(dependency);
+          // eslint-disable-next-line security/detect-non-literal-regexp -- controlled pattern
+          return new RegExp(`^${pattern}$`, 'u').test(dependency);
         }
         return false;
       })
@@ -369,10 +371,10 @@ export const DEPENDENCY_PATTERNS = {
 };
 
 export const FILE_PATTERNS = {
-  CONFIG_REGEX: /\.(config|rc)(\.|\b)/,
+  CONFIG_REGEX: /\.(config|rc)(\.|\b)/u,
   NODE_MODULES: 'node_modules',
   PACKAGE_JSON: 'package.json',
-  PACKAGE_NAME_REGEX: /^[\w./@-]+$/,
+  PACKAGE_NAME_REGEX: /^[\w./@-]+$/u,
   PNPM_LOCK: 'pnpm-lock.yaml',
   YARN_LOCK: 'yarn.lock',
 };

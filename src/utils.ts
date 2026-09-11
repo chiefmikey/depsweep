@@ -732,6 +732,7 @@ export async function findClosestPackageJson(
     cwd: startDirectory,
   });
   if (!packageJsonPath) {
+    // eslint-disable-next-line no-console -- fatal CLI error; process.exit follows
     console.error(chalk.red(MESSAGES.noPackageJson));
     process.exit(1);
   }
@@ -753,6 +754,7 @@ export async function findClosestPackageJson(
         workspaces?: string[];
       };
       if (rootPackage.workspaces) {
+        // eslint-disable-next-line no-console -- informational CLI output for monorepo detection
         console.log(chalk.yellow(MESSAGES.monorepoDetected));
         return potentialRootPackageJson;
       }
@@ -771,7 +773,9 @@ export async function findClosestPackageJson(
       );
 
       if (isWorkspacePackage) {
+        // eslint-disable-next-line no-console -- informational CLI output for monorepo detection
         console.log(chalk.yellow('\nMonorepo workspace package detected.'));
+        // eslint-disable-next-line no-console -- informational CLI output for monorepo detection
         console.log(chalk.yellow(`Root: ${workspaceInfo.root}`));
         return packageJsonPath; // Analyze the workspace package
       }
@@ -817,6 +821,7 @@ function validatePackageJson(packageJson: any): {
           typeof depName !== 'string' ||
           !FILE_PATTERNS.PACKAGE_NAME_REGEX.test(depName)
         ) {
+          // eslint-disable-next-line no-console -- real warning surfacing invalid package.json content
           console.warn(
             chalk.yellow(
               `Skipping invalid dependency name in ${field}: ${depName}`,
@@ -843,6 +848,7 @@ export async function getDependencies(
     try {
       packageJson = JSON.parse(packageJsonString);
     } catch {
+      // eslint-disable-next-line no-console -- real error surfacing malformed package.json to user
       console.error(
         chalk.red(`Invalid JSON in package.json: ${packageJsonPath}`),
       );
@@ -852,6 +858,7 @@ export async function getDependencies(
     // Validate package.json structure
     const validation = validatePackageJson(packageJson);
     if (!validation.valid) {
+      // eslint-disable-next-line no-console -- real error surfacing invalid package.json to user
       console.error(chalk.red(`Invalid package.json: ${validation.error}`));
       return [];
     }
@@ -898,6 +905,7 @@ export async function getDependencies(
 
     return uniqueDependencies;
   } catch {
+    // eslint-disable-next-line no-console -- real error surfacing package.json read failure
     console.error(chalk.red(`Error reading package.json: ${packageJsonPath}`));
     return [];
   }
@@ -1052,6 +1060,7 @@ export async function processFilesInParallel(
   performanceMonitor.endTimer('processFilesInParallel');
 
   if (totalErrors > 0) {
+    // eslint-disable-next-line no-console -- real warning surfacing file processing failures to user
     console.warn(
       chalk.yellow(`\nWarning: ${totalErrors} files had processing errors`),
     );

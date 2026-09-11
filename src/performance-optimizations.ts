@@ -463,14 +463,21 @@ export class PerformanceMonitor {
   }
 
   public logSummary(): void {
+    // eslint-disable-next-line no-console -- logSummary's entire purpose is to print perf metrics
     console.log('\nPerformance Metrics:');
+    // eslint-disable-next-line no-console -- logSummary's entire purpose is to print perf metrics
     console.log('========================');
 
     for (const [operation, stats] of this.metrics.entries()) {
+      // eslint-disable-next-line no-console -- logSummary's entire purpose is to print perf metrics
       console.log(`${operation}:`);
+      // eslint-disable-next-line no-console -- logSummary's entire purpose is to print perf metrics
       console.log(`  Count: ${stats.count}`);
+      // eslint-disable-next-line no-console -- logSummary's entire purpose is to print perf metrics
       console.log(`  Total Time: ${stats.totalTime.toFixed(2)}ms`);
+      // eslint-disable-next-line no-console -- logSummary's entire purpose is to print perf metrics
       console.log(`  Average Time: ${stats.avgTime.toFixed(2)}ms`);
+      // eslint-disable-next-line no-console -- logSummary's entire purpose is to print perf metrics
       console.log('');
     }
   }

@@ -1,3 +1,4 @@
+/* eslint-disable unicorn/filename-case -- existing public name; rename deferred to separate PR */
 import { ENVIRONMENTAL_CONSTANTS } from './constants.js';
 import type { GlobalImpact } from './interfaces.js';
 
@@ -16,6 +17,7 @@ export interface PackageMetadata {
  * The AbortController timeout is always cleared in a finally block so the
  * timer never leaks — whether the fetch succeeds, fails, or is aborted.
  */
+// eslint-disable-next-line sonarjs/cognitive-complexity -- retry/backoff logic requires branching; acceptable complexity here
 async function fetchWithRetry(
   url: string,
   maxRetries = 3,
@@ -26,6 +28,7 @@ async function fetchWithRetry(
     const timeout = setTimeout(() => controller.abort(), 10_000);
     let response: Response | undefined;
     try {
+      // eslint-disable-next-line no-await-in-loop -- intentional sequential retry; parallel attempts would defeat backoff
       response = await fetch(url, { signal: controller.signal });
     } catch {
       // Network error or AbortError (timeout) — fall through to retry logic
@@ -51,7 +54,9 @@ async function fetchWithRetry(
     // Retry on 429, 5xx, network errors, or timeouts
     if (attempt < maxRetries) {
       const delay = 2 ** attempt * retryDelayMs;
-      await new Promise((resolve) => setTimeout(resolve, delay));
+
+      // eslint-disable-next-line no-await-in-loop, no-promise-executor-return, @typescript-eslint/strict-void-return -- intentional: sequential backoff via setTimeout side-effect
+      await new Promise<void>((resolve) => setTimeout(resolve, delay));
     }
   }
   return null;
@@ -70,15 +75,19 @@ export async function getPackageMetadata(
   retryDelayMs = 1000,
 ): Promise<PackageMetadata | null> {
   try {
-    const url = version
-      ? `https://registry.npmjs.org/${encodeURIComponent(packageName)}/${version}`
-      : `https://registry.npmjs.org/${encodeURIComponent(packageName)}/latest`;
+    // Empty string must route to /latest — preserve falsy-string semantics explicitly
+    const url =
+      version !== undefined && version.length > 0
+        ? `https://registry.npmjs.org/${encodeURIComponent(packageName)}/${version}`
+        : `https://registry.npmjs.org/${encodeURIComponent(packageName)}/latest`;
 
     const response = await fetchWithRetry(url, 3, retryDelayMs);
-    if (!response) {
+    if (response === null) {
       return null;
     }
 
+    // response.json() returns unknown; assertion is safe — shape is dictated by the npm registry API
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- npm registry API shape is documented; runtime check follows
     const data = (await response.json()) as {
       dist?: { unpackedSize?: number };
       dependencies?: Record<string, string>;
@@ -86,14 +95,14 @@ export async function getPackageMetadata(
 
     const rawSize = data.dist?.unpackedSize;
     // NaN is typeof "number" but not finite — reject it along with missing/negative values
-    if (!Number.isFinite(rawSize) || rawSize! < 0) {
+    if (!Number.isFinite(rawSize) || rawSize === undefined || rawSize < 0) {
       return null;
     }
-    const unpackedSize = rawSize!;
+    // rawSize is narrowed to number by the isFinite + undefined checks above
+    const unpackedSize = rawSize;
 
-    const dependencies = data.dependencies
-      ? Object.keys(data.dependencies)
-      : [];
+    const dependencies =
+      data.dependencies === undefined ? [] : Object.keys(data.dependencies);
 
     return { dependencies, unpackedSize };
   } catch {
@@ -110,6 +119,7 @@ export async function getPackageMetadata(
  *
  * Handles circular dependencies via a visited set.
  */
+// eslint-disable-next-line sonarjs/cognitive-complexity -- transitive BFS with batching and rate-limit awareness; decomposition deferred
 export async function resolveTransitiveSize(
   dependencies: string[],
   quickCheck: boolean,
@@ -126,8 +136,9 @@ export async function resolveTransitiveSize(
     // Take up to 5 items from the queue that haven't been visited
     const batch: string[] = [];
     while (batch.length < 5 && queue.length > 0) {
-      const dep = queue.shift()!;
-      if (!visited.has(dep)) {
+      // queue.length > 0 is guaranteed by the enclosing while condition
+      const dep = queue.shift();
+      if (dep !== undefined && !visited.has(dep)) {
         visited.add(dep);
         batch.push(dep);
       }
@@ -138,14 +149,14 @@ export async function resolveTransitiveSize(
     }
 
     // Fetch all in parallel
+    // eslint-disable-next-line no-await-in-loop -- intentional sequential batches for rate-limit compliance; each batch is parallel internally
     const results = await Promise.all(
       batch.map((dep) => getPackageMetadata(dep)),
     );
 
-    for (const metadata of results) {
-      if (!metadata) {
-        continue;
-      }
+    for (const metadata of results.filter(
+      (m): m is PackageMetadata => m !== null,
+    )) {
       // Guard: only accumulate finite, non-negative sizes — NaN/Infinity must never enter the sum
       if (
         Number.isFinite(metadata.unpackedSize) &&
@@ -153,11 +164,8 @@ export async function resolveTransitiveSize(
       ) {
         totalSize += metadata.unpackedSize;
       }
-      for (const dep of metadata.dependencies) {
-        if (!visited.has(dep)) {
-          queue.push(dep);
-        }
-      }
+      // Push unvisited transitive deps into the queue for the next batch
+      queue.push(...metadata.dependencies.filter((dep) => !visited.has(dep)));
     }
   }
 
@@ -251,7 +259,7 @@ export function calculateGlobalImpact(options: {
   transitiveDepsSize: number;
   region?: 'AP' | 'EU' | 'GLOBAL' | 'NA';
 }): GlobalImpact {
-  const region = options.region || detectRegion();
+  const region = options.region ?? detectRegion();
   const carbonIntensity = getRegionalCarbonIntensity(region);
 
   // Clamp all API-sourced numeric inputs to finite, non-negative values before

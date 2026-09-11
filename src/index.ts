@@ -535,6 +535,7 @@ async function main(): Promise<void> {
           const category: 'dependency' | 'devDependency' = depSet.has(dep)
             ? 'dependency'
             : 'devDependency';
+          // eslint-disable-next-line security/detect-object-injection -- index is a numeric loop counter from .entries()
           const metadata = metadataResults[index];
           const unpackedSize = metadata?.unpackedSize ?? 0;
 
@@ -687,10 +688,12 @@ async function main(): Promise<void> {
 
         const totalPackages = unusedDependencies.length;
         for (let index = 0; index < totalPackages; index++) {
+          // eslint-disable-next-line security/detect-object-injection -- index is a numeric for-loop counter
           const dep = unusedDependencies[index];
           const category: 'dependency' | 'devDependency' = depSet.has(dep)
             ? 'dependency'
             : 'devDependency';
+          // eslint-disable-next-line security/detect-object-injection -- index is a numeric for-loop counter
           const metadata = metadataResults[index];
           const unpackedSize = metadata?.unpackedSize ?? 0;
 

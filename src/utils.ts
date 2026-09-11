@@ -306,7 +306,9 @@ export async function getDependencyInfo(
 
     // Check each known config field.
     for (const field of CONFIG_FIELDS) {
+      // eslint-disable-next-line security/detect-object-injection -- field is from CONFIG_FIELDS, a compile-time const string literal array
       if (packageJsonConfig[field] !== undefined) {
+        // eslint-disable-next-line security/detect-object-injection -- field is from CONFIG_FIELDS, a compile-time const string literal array
         const fieldValue = packageJsonConfig[field];
         // For string values, do a direct includes check; for objects/arrays
         // delegate to the existing recursive scanForDependency utility.
@@ -325,6 +327,7 @@ export async function getDependencyInfo(
     // (e.g., a "commitlint" dep may have a top-level "commitlint" config key).
     if (
       !foundInConfig &&
+      // eslint-disable-next-line security/detect-object-injection -- key is a validated npm package name from our own dependency list
       packageJsonConfig[dependency] !== undefined &&
       !STANDARD_PKG_FIELDS.has(dependency)
     ) {
@@ -805,9 +808,12 @@ function validatePackageJson(packageJson: any): {
     'optionalDependencies',
   ];
   for (const field of dependencyFields) {
+    // eslint-disable-next-line security/detect-object-injection -- field is from a local const string literal array
     if (packageJson[field] !== undefined) {
       if (
+        // eslint-disable-next-line security/detect-object-injection -- field is from a local const string literal array
         typeof packageJson[field] !== 'object' ||
+        // eslint-disable-next-line security/detect-object-injection -- field is from a local const string literal array
         Array.isArray(packageJson[field])
       ) {
         return { error: `${field} must be an object`, valid: false };
@@ -816,6 +822,7 @@ function validatePackageJson(packageJson: any): {
       // Log warnings for invalid dependency names but don't abort the entire scan.
       // Yarn workspace protocol links (e.g., "$repo-utils": "link:./scripts") use
       // non-standard names that fail PACKAGE_NAME_REGEX but don't invalidate the file.
+      // eslint-disable-next-line security/detect-object-injection -- field is from a local const string literal array
       for (const depName of Object.keys(packageJson[field])) {
         if (
           typeof depName !== 'string' ||
@@ -864,8 +871,10 @@ export async function getDependencies(
     }
 
     // Filter helper: valid package name AND not an npm: alias (structural deps, not imported)
+     
     const isValidDep = (dep: string, field: Record<string, string>): boolean =>
       FILE_PATTERNS.PACKAGE_NAME_REGEX.test(dep) &&
+      // eslint-disable-next-line security/detect-object-injection -- dep is a key from Object.keys(field)
       !(typeof field[dep] === 'string' && field[dep].startsWith('npm:'));
 
     const dependencies =
@@ -935,6 +944,7 @@ export async function getPackageContext(
     if (file && isConfigFile(file)) {
       const relativePath = path.relative(projectDirectory, file);
       try {
+        // eslint-disable-next-line security/detect-object-injection -- relativePath is a path.relative result from the user's own project tree
         configs[relativePath] = await parseConfigFile(file);
       } catch {
         // Ignore parse errors

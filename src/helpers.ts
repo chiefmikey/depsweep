@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- comprehensive AST-based dependency detection requires all helpers in one module */
 import { execSync } from 'node:child_process';
 import { access, readFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -114,15 +115,14 @@ export function generatePatternMatcher(dependency: string): RegExp[] {
     String.raw`\$&`,
   );
 
+  /* eslint-disable security/detect-non-literal-regexp -- escapedDep comes from our own controlled package name analysis */
   for (const pattern of COMMON_PATTERNS) {
     switch (pattern.type) {
       case 'exact': {
-        // eslint-disable-next-line security/detect-non-literal-regexp -- dependency comes from our own analysis
         patterns.push(new RegExp(`^${escapedDep}$`, 'u'));
         break;
       }
       case 'prefix': {
-        // eslint-disable-next-line security/detect-non-literal-regexp -- dependency comes from our own analysis
         patterns.push(new RegExp(`^${pattern.match}${escapedDep}(/.*)?$`, 'u'));
         break;
       }
@@ -151,7 +151,6 @@ export function generatePatternMatcher(dependency: string): RegExp[] {
           patterns.push(
             new RegExp(
               `^${escapedDep}${pattern.match.source}`,
-              // Add 'u' flag if not already present
               pattern.match.flags.includes('u')
                 ? pattern.match.flags
                 : `${pattern.match.flags}u`,
@@ -160,8 +159,12 @@ export function generatePatternMatcher(dependency: string): RegExp[] {
         }
         break;
       }
+      default: {
+        break;
+      }
     }
   }
+  /* eslint-enable security/detect-non-literal-regexp */
 
   return patterns;
 }
@@ -252,7 +255,7 @@ export function scanForDependency(
   return false;
 }
 
-// eslint-disable-next-line complexity, sonarjs/cognitive-complexity -- multiple detection strategies required for comprehensive dependency analysis
+// eslint-disable-next-line complexity, sonarjs/cognitive-complexity, max-lines-per-function -- multiple detection strategies required; decomposition would break the 9-layer pipeline flow
 export async function isDependencyUsedInFile(
   dependency: string,
   filePath: string,
@@ -266,7 +269,7 @@ export async function isDependencyUsedInFile(
 
   const configKey = path.relative(path.dirname(filePath), filePath);
 
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- config is an optional key value that could be any type
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, security/detect-object-injection -- configKey is path.relative output from our own controlled filePath; not user input
   const config = context.configs?.[configKey];
   // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions -- config may be falsy or falsey
   if (config) {
@@ -299,7 +302,7 @@ export async function isDependencyUsedInFile(
     // eslint-disable-next-line security/detect-non-literal-regexp -- dependency is from our own package analysis, safe
     const dynamicImportRegex = new RegExp(
       `${DEPENDENCY_PATTERNS.DYNAMIC_IMPORT_BASE}${dependency.replaceAll(
-        /[/@-]/g,
+        /[/@-]/gu,
         '[/@-]',
       )}${DEPENDENCY_PATTERNS.DYNAMIC_IMPORT_END}`,
       'iu',
@@ -365,6 +368,7 @@ export async function isDependencyUsedInFile(
         return true;
       }
 
+      /* eslint-disable max-depth -- RAW_CONTENT_PATTERNS detection is a deliberate nested-scan pipeline */
       for (const [base, patterns] of RAW_CONTENT_PATTERNS.entries()) {
         if (
           dependency.startsWith(base) &&
@@ -382,10 +386,12 @@ export async function isDependencyUsedInFile(
           }
         }
       }
+      /* eslint-enable max-depth */
     } catch {
       // Ignore parse errors
     }
 
+    /* eslint-disable max-depth -- RAW_CONTENT_PATTERNS detection nested scan */
     for (const [base, patterns] of RAW_CONTENT_PATTERNS.entries()) {
       if (
         dependency.startsWith(base) &&
@@ -403,6 +409,7 @@ export async function isDependencyUsedInFile(
         }
       }
     }
+    /* eslint-enable max-depth */
   } catch {
     // Ignore file read errors
   }
@@ -410,6 +417,7 @@ export async function isDependencyUsedInFile(
   return false;
 }
 
+// eslint-disable-next-line sonarjs/cognitive-complexity -- multi-path type package detection; decomposition would fragment the intentional fallback chain
 export async function isTypePackageUsed(
   dependency: string,
   installedPackages: string[],
@@ -435,6 +443,7 @@ export async function isTypePackageUsed(
 
   if (supportedPackage !== undefined) {
     for (const file of sourceFiles) {
+      // eslint-disable-next-line no-await-in-loop -- sequential scan required: stop at first positive match; parallel would prevent early exit
       if (await isDependencyUsedInFile(supportedPackage, file, context)) {
         return { isUsed: true, supportedPackage };
       }
@@ -447,12 +456,14 @@ export async function isTypePackageUsed(
       const packageJsonPath = require.resolve(`${package_}/package.json`, {
         paths: [process.cwd()],
       });
+      // eslint-disable-next-line no-await-in-loop -- sequential peer-dep file reads; parallel would require all results before any early-exit can fire
       const packageJsonBuffer = await readFile(packageJsonPath);
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- JSON.parse from local node_modules package.json, narrow to expected shape
       const packageJson = JSON.parse(packageJsonBuffer.toString('utf8')) as {
         peerDependencies?: Record<string, string>;
       };
       // eslint-disable-next-line security/detect-object-injection -- key is a validated npm package name from our own dependency list
-      if (packageJson.peerDependencies?.[dependency]) {
+      if (packageJson.peerDependencies?.[dependency] !== undefined) {
         return { isUsed: true, supportedPackage: package_ };
       }
     } catch {
@@ -507,13 +518,12 @@ export function safeExecSync(
     execSync(shellEscape(command), {
       cwd: options.cwd,
       encoding: 'utf8',
-      stdio: options.stdio || 'inherit',
+      stdio: options.stdio ?? 'inherit',
       timeout: options.timeout ?? 300_000,
     });
   } catch (error) {
-    throw new Error(`Command execution failed: ${(error as Error).message}`, {
-      cause: error,
-    });
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Command execution failed: ${message}`, { cause: error });
   }
 }
 
@@ -574,13 +584,13 @@ async function rateLimitedFetch(
         resolve(response);
       } catch (error) {
         clearTimeout(timeoutId);
-        reject(error);
+        reject(error instanceof Error ? error : new Error(String(error)));
       }
     };
 
     if (waitTime === 0 && !npmApiRateLimiter.processing) {
       npmApiRateLimiter.processing = true;
-      // eslint-disable-next-line no-void -- floating promises must be explicitly marked as ignored
+      // eslint-disable-next-line no-void, promise/prefer-await-to-then -- fire-and-forget rate-limiter; cannot use await here (non-async callback context)
       void executeFetch().finally(() => {
         npmApiRateLimiter.processing = false;
         if (npmApiRateLimiter.queue.length > 0) {
@@ -594,7 +604,7 @@ async function rateLimitedFetch(
     } else {
       npmApiRateLimiter.queue.push(() => {
         npmApiRateLimiter.processing = true;
-        // eslint-disable-next-line no-void -- floating promises must be explicitly marked as ignored
+        // eslint-disable-next-line no-void, promise/prefer-await-to-then -- fire-and-forget rate-limiter queue callback; non-async context
         void executeFetch().finally(() => {
           npmApiRateLimiter.processing = false;
           if (npmApiRateLimiter.queue.length > 0) {
@@ -622,13 +632,15 @@ async function rateLimitedFetch(
   });
 }
 
+// eslint-disable-next-line complexity -- retry/validation/rate-limit paths required for robust npm API access
 export async function getDownloadStatsFromNpm(
   packageName: string,
 ): Promise<number | null> {
   // Validate package name to prevent injection
 
   if (
-    packageName == null ||
+    packageName === null ||
+    packageName === undefined ||
     packageName === '' ||
     typeof packageName !== 'string' ||
     !/^[\w./@-]+$/u.test(packageName)
@@ -647,7 +659,9 @@ export async function getDownloadStatsFromNpm(
       // Handle rate limiting (429) and other errors gracefully
       if (response.status === 429) {
         // Rate limited - wait longer before retry
-        await new Promise((resolve) => setTimeout(resolve, 2000));
+        await new Promise<void>((resolve) => {
+          setTimeout(resolve, 2000);
+        });
         return null;
       }
       return null;
@@ -676,6 +690,7 @@ export async function getDownloadStatsFromNpm(
   }
 }
 
+// eslint-disable-next-line complexity -- package.json validation + npm API fallback paths inherently branchy
 export async function getParentPackageDownloads(
   packageJsonPath: string,
   verbose = false,
@@ -703,7 +718,11 @@ export async function getParentPackageDownloads(
 
     // Validate package.json structure
 
-    if (packageJson == null || typeof packageJson !== 'object') {
+    if (
+      packageJson === null ||
+      packageJson === undefined ||
+      typeof packageJson !== 'object'
+    ) {
       return null;
     }
 
@@ -716,7 +735,8 @@ export async function getParentPackageDownloads(
     // Validate name field
 
     if (
-      name == null ||
+      name === null ||
+      name === undefined ||
       name === '' ||
       typeof name !== 'string' ||
       !/^[\w./@-]+$/u.test(name)
@@ -726,7 +746,8 @@ export async function getParentPackageDownloads(
 
     const downloads = await getDownloadStatsFromNpm(name);
 
-    if (downloads == null && downloads !== 0) {
+    // downloads is null on error, 0+ is a valid value
+    if (downloads === null || downloads === undefined) {
       if (verbose) {
         // eslint-disable-next-line no-console -- verbose user feedback path
         console.log(
@@ -746,7 +767,8 @@ export async function getParentPackageDownloads(
         repository !== null &&
         'url' in repository &&
         typeof (repository as Record<string, unknown>).url === 'string'
-          ? (repository as { url: string })
+          ? // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- narrowed above
+            (repository as { url: string })
           : undefined,
     };
   } catch {

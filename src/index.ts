@@ -92,7 +92,7 @@ async function getDepsweepVersion(): Promise<string> {
   try {
     const __dirname = import.meta.dirname;
     const packagePath = path.join(__dirname, '..', 'package.json');
-    const content = await readFile(packagePath);
+    const content = await readFile(packagePath, 'utf8');
     return JSON.parse(content).version ?? '0.0.0';
   } catch {
     return '0.0.0';

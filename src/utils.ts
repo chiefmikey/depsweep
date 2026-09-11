@@ -503,9 +503,10 @@ export async function getDependencyInfo(
         const shortName = dependency.slice(conv.prefix.length);
 
         // Check config files for short name
-        if (conv.configPattern) {
+        const { configPattern } = conv;
+        if (configPattern) {
           const configFiles = sourceFiles.filter((f) =>
-            conv.configPattern!.test(path.basename(f)),
+            configPattern.test(path.basename(f)),
           );
           for (const configFile of configFiles) {
             const content =
@@ -1064,7 +1065,6 @@ export function findSubDependencies(
   context: DependencyContext,
 ): string[] {
   // Retrieve sub-dependencies from the dependencyGraph
-  return context.dependencyGraph?.get(dependency)
-    ? [...context.dependencyGraph.get(dependency)!]
-    : [];
+  const subdeps = context.dependencyGraph?.get(dependency);
+  return subdeps === undefined ? [] : [...subdeps];
 }

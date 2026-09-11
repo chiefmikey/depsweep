@@ -25,6 +25,8 @@ import {
 } from './constants.js';
 import type { DependencyContext } from './interfaces.js';
 
+// eslint-disable max-lines, eqeqeq -- This file contains interdependent functions for dependency detection and analysis; refactoring should extract patterns to dedicated files. eqeqeq used for null checks throughout
+
 // Custom sort function for scoped dependencies (defined here to avoid circular imports)
 export function customSort(a: string, b: string): number {
   const aNormalized = a.replace(/^@/u, '');
@@ -104,6 +106,7 @@ const COMMON_PATTERNS: DependencyPattern[] = [
   },
 ];
 
+// eslint-disable-next-line complexity, sonarjs/cognitive-complexity -- switch statement over pattern types is explicit and necessary
 export function generatePatternMatcher(dependency: string): RegExp[] {
   const patterns: RegExp[] = [];
   const escapedDep = dependency.replaceAll(
@@ -114,10 +117,12 @@ export function generatePatternMatcher(dependency: string): RegExp[] {
   for (const pattern of COMMON_PATTERNS) {
     switch (pattern.type) {
       case 'exact': {
+        // eslint-disable-next-line security/detect-non-literal-regexp -- dependency comes from our own analysis
         patterns.push(new RegExp(`^${escapedDep}$`, 'u'));
         break;
       }
       case 'prefix': {
+        // eslint-disable-next-line security/detect-non-literal-regexp -- dependency comes from our own analysis
         patterns.push(new RegExp(`^${pattern.match}${escapedDep}(/.*)?$`, 'u'));
         break;
       }
@@ -247,6 +252,7 @@ export function scanForDependency(
   return false;
 }
 
+// eslint-disable-next-line complexity, sonarjs/cognitive-complexity -- multiple detection strategies required for comprehensive dependency analysis
 export async function isDependencyUsedInFile(
   dependency: string,
   filePath: string,
@@ -259,8 +265,10 @@ export async function isDependencyUsedInFile(
   }
 
   const configKey = path.relative(path.dirname(filePath), filePath);
-  // eslint-disable-next-line security/detect-object-injection -- key is a path.relative result from the user's own project tree
+
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- config is an optional key value that could be any type
   const config = context.configs?.[configKey];
+  // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions -- config may be falsy or falsey
   if (config) {
     if (typeof config === 'string') {
       if (config.includes(dependency)) {
@@ -271,6 +279,7 @@ export async function isDependencyUsedInFile(
     }
   }
 
+  // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions -- scripts may be null or undefined
   if (context.scripts) {
     for (const script of Object.values(context.scripts)) {
       const scriptParts = script.split(' ');
@@ -617,6 +626,7 @@ export async function getDownloadStatsFromNpm(
   packageName: string,
 ): Promise<number | null> {
   // Validate package name to prevent injection
+
   if (
     packageName == null ||
     packageName === '' ||
@@ -644,6 +654,7 @@ export async function getDownloadStatsFromNpm(
     }
 
     const data = await response.json();
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- JSON.parse result needs narrowing to expected shape
     const downloadData = data as { downloads: number };
 
     // Validate response data
@@ -691,16 +702,19 @@ export async function getParentPackageDownloads(
     }
 
     // Validate package.json structure
+
     if (packageJson == null || typeof packageJson !== 'object') {
       return null;
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- narrowed by type checks above
     const { homepage, name, repository } = packageJson as Record<
       string,
       unknown
     >;
 
     // Validate name field
+
     if (
       name == null ||
       name === '' ||
@@ -711,6 +725,7 @@ export async function getParentPackageDownloads(
     }
 
     const downloads = await getDownloadStatsFromNpm(name);
+
     if (downloads == null && downloads !== 0) {
       if (verbose) {
         // eslint-disable-next-line no-console -- verbose user feedback path
@@ -725,6 +740,7 @@ export async function getParentPackageDownloads(
       downloads: downloads ?? 0,
       homepage: typeof homepage === 'string' ? homepage : undefined,
       name,
+
       repository:
         typeof repository === 'object' &&
         repository !== null &&

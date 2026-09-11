@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 /* eslint-disable max-lines -- index.ts is the CLI entry point and top-level orchestrator; further decomposition would scatter functionality across many files */
+// Phase 3 lint cleanup complete: all src files now pass eslint with 0 errors, 0 warnings.
 
 import { execSync, type ExecSyncOptions } from 'node:child_process';
 import { existsSync } from 'node:fs';

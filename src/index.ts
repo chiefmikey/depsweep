@@ -464,7 +464,9 @@ async function main(): Promise<void> {
 
     // Determine unused dependencies based on complete analysis
     let unusedDependencies = dependencies.filter((dep) => {
-      const info = depInfoMap.get(dep)!;
+      // depInfoMap is populated for all keys in `dependencies`, so this is always defined
+      const info = depInfoMap.get(dep);
+      if (info === undefined) {return false;}
       return (
         info.usedInFiles.length === 0 && info.requiredByPackages.size === 0
       );
@@ -632,7 +634,9 @@ async function main(): Promise<void> {
 
         const sortedDependencies = [...dependencies].sort(customSort);
         for (const dep of sortedDependencies) {
-          const info = depInfoMap.get(dep)!;
+          // depInfoMap is populated for all keys in `dependencies`
+          const info = depInfoMap.get(dep);
+          if (info === undefined) {continue;}
           const fileUsage =
             info.usedInFiles.length > 0
               ? info.usedInFiles
@@ -720,7 +724,12 @@ async function main(): Promise<void> {
         );
 
         // Display global impact for dependencies
-        const depsWithImpact = unusedDepInfos.filter((d) => d.impact !== null);
+        // Type predicate narrows impact from GlobalImpact|null to GlobalImpact,
+        // avoiding non-null assertions inside the loop below.
+        const depsWithImpact = unusedDepInfos.filter(
+          (d): d is UnusedDepInfo & { impact: GlobalImpact } =>
+            d.impact !== null,
+        );
         const developmentDeps = unusedDepInfos.filter(
           (d) => d.category === 'devDependency',
         );
@@ -735,7 +744,7 @@ async function main(): Promise<void> {
           );
 
           for (const dep of depsWithImpact) {
-            const impact = dep.impact!;
+            const {impact} = dep;
             console.log(
               chalk.bold(`  ${dep.name}`) +
                 chalk.dim(
@@ -764,7 +773,7 @@ async function main(): Promise<void> {
           }
 
           console.log(chalk.dim('  Sources:'));
-          const firstImpact = depsWithImpact[0].impact!;
+          const firstImpact = depsWithImpact[0].impact;
           console.log(
             chalk.dim(`    Downloads:   ${firstImpact.sources.downloads}`),
           );

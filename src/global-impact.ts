@@ -86,10 +86,11 @@ export async function getPackageMetadata(
 
     const rawSize = data.dist?.unpackedSize;
     // NaN is typeof "number" but not finite — reject it along with missing/negative values
-    if (!Number.isFinite(rawSize) || rawSize! < 0) {
+    if (!Number.isFinite(rawSize) || rawSize === undefined || rawSize < 0) {
       return null;
     }
-    const unpackedSize = rawSize!;
+    // rawSize is narrowed to number by the isFinite + undefined checks above
+    const unpackedSize = rawSize;
 
     const dependencies = data.dependencies
       ? Object.keys(data.dependencies)
@@ -126,8 +127,9 @@ export async function resolveTransitiveSize(
     // Take up to 5 items from the queue that haven't been visited
     const batch: string[] = [];
     while (batch.length < 5 && queue.length > 0) {
-      const dep = queue.shift()!;
-      if (!visited.has(dep)) {
+      // queue.length > 0 is guaranteed by the enclosing while condition
+      const dep = queue.shift();
+      if (dep !== undefined && !visited.has(dep)) {
         visited.add(dep);
         batch.push(dep);
       }

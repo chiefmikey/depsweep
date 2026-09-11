@@ -307,8 +307,9 @@ export class StringOptimizer {
       return string_;
     } // Don't pool very short strings
 
-    if (StringOptimizer.STRING_POOL.has(string_)) {
-      return StringOptimizer.STRING_POOL.get(string_)!;
+    const pooled = StringOptimizer.STRING_POOL.get(string_);
+    if (pooled !== undefined) {
+      return pooled;
     }
 
     if (StringOptimizer.STRING_POOL.size >= StringOptimizer.MAX_POOL_SIZE) {

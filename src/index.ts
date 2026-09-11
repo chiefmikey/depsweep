@@ -7,6 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { stdin as input, stdout as output } from 'node:process';
 import * as readline from 'node:readline/promises';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- imported for import.meta.dirname in getDepsweepVersion()
 import { fileURLToPath } from 'node:url';
 
 import chalk from 'chalk';

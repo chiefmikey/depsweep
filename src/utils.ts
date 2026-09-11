@@ -856,7 +856,7 @@ export async function getDependencies(
     }
 
     // Filter helper: valid package name AND not an npm: alias (structural deps, not imported)
-    const isValidDep = (dep: string, field: Record<string, string>) =>
+    const isValidDep = (dep: string, field: Record<string, string>): boolean =>
       FILE_PATTERNS.PACKAGE_NAME_REGEX.test(dep) &&
       !(typeof field[dep] === 'string' && field[dep].startsWith('npm:'));
 
@@ -988,8 +988,10 @@ export async function getSourceFiles(
   return files.filter((file) => !isBinaryFileSync(file));
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- recursively scans arbitrary config structures
-export function scanForDependency(config: any, dependency: string): boolean {
+export function scanForDependency(
+  config: unknown,
+  dependency: string,
+): boolean {
   if (!config) {
     return false;
   }

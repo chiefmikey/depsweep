@@ -1,3 +1,4 @@
+/* eslint-disable unicorn/filename-case, max-classes-per-file -- optimization utilities class collection -- existing public name; rename deferred */
 /**
  * Performance Optimizations for DepSweep
  *
@@ -7,6 +8,7 @@
 
 import type { Stats } from 'node:fs';
 import { readdir, readFile, stat } from 'node:fs/promises';
+// eslint-disable-next-line unicorn/import-style -- namespace import for path is intentional
 import { join } from 'node:path';
 
 import { LRUCache } from 'lru-cache';
@@ -69,7 +71,7 @@ export class OptimizedCache<T extends {}> {
 // Optimized file reading with intelligent batching
 export class OptimizedFileReader {
   public static getInstance(): OptimizedFileReader {
-    if (!OptimizedFileReader.instance) {
+    if (OptimizedFileReader.instance === undefined) {
       OptimizedFileReader.instance = new OptimizedFileReader();
     }
     return OptimizedFileReader.instance;
@@ -156,7 +158,7 @@ export class OptimizedFileReader {
 // Optimized dependency analysis with early exit strategies
 export class OptimizedDependencyAnalyzer {
   public static getInstance(): OptimizedDependencyAnalyzer {
-    if (!OptimizedDependencyAnalyzer.instance) {
+    if (OptimizedDependencyAnalyzer.instance === undefined) {
       OptimizedDependencyAnalyzer.instance = new OptimizedDependencyAnalyzer();
     }
     return OptimizedDependencyAnalyzer.instance;
@@ -174,7 +176,7 @@ export class OptimizedDependencyAnalyzer {
   public getCompiledPatterns(dependency: string): RegExp[] {
     const cacheKey = `patterns:${dependency}`;
     const cached = this.filePatternCache.get(cacheKey);
-    if (cached) {
+    if (cached !== undefined) {
       return cached;
     }
 
@@ -187,7 +189,7 @@ export class OptimizedDependencyAnalyzer {
         `${String.raw`(?:^|[\s'"`}\`${String.raw`({[,])${escaped}(?:$|[\s'"`}\`${String.raw`)}\],;/])`}`,
         'gm',
       ),
-      new RegExp(String.raw`from\s+['"]${escaped}['"]`, 'g'),
+      new RegExp(String.raw`from\s+['"]${escaped}['"]`, 'gu'),
       new RegExp(String.raw`import\s+.*\s+from\s+['"]${escaped}['"]`, 'g'),
       new RegExp(String.raw`require\(['"]${escaped}['"]\)`, 'g'),
       new RegExp(String.raw`import\s+['"]${escaped}['"]`, 'g'),
@@ -225,7 +227,7 @@ export class OptimizedDependencyAnalyzer {
       }
 
       // Quick string search before regex
-      if (!content.includes(dependency)) {
+      if (content.length === 0 || !content.includes(dependency)) {
         this.analysisCache.set(cacheKey, false);
         return false;
       }
@@ -369,7 +371,7 @@ export class StringOptimizer {
 // Optimized file system operations
 export class OptimizedFileSystem {
   public static getInstance(): OptimizedFileSystem {
-    if (!OptimizedFileSystem.instance) {
+    if (OptimizedFileSystem.instance === undefined) {
       OptimizedFileSystem.instance = new OptimizedFileSystem();
     }
     return OptimizedFileSystem.instance;
@@ -443,7 +445,7 @@ export class OptimizedFileSystem {
 // Performance monitoring and metrics
 export class PerformanceMonitor {
   public static getInstance(): PerformanceMonitor {
-    if (!PerformanceMonitor.instance) {
+    if (PerformanceMonitor.instance === undefined) {
       PerformanceMonitor.instance = new PerformanceMonitor();
     }
     return PerformanceMonitor.instance;
@@ -521,7 +523,7 @@ export class PerformanceMonitor {
 // Memory usage optimization
 export class MemoryOptimizer {
   public static getInstance(): MemoryOptimizer {
-    if (!MemoryOptimizer.instance) {
+    if (MemoryOptimizer.instance === undefined) {
       MemoryOptimizer.instance = new MemoryOptimizer();
     }
     return MemoryOptimizer.instance;

@@ -14,10 +14,10 @@ export default [
     },
   },
   {
-    // src/index.ts is the CLI entry point; console output there IS the product
+    // src/index.ts and src/cli-render.ts are CLI output; console output IS the product
     // (scan results, JSON mode, progress reporting). Disabling only here avoids
     // masking stray debug logs in library-ish files.
-    files: ['src/index.ts'],
+    files: ['src/index.ts', 'src/cli-render.ts'],
     rules: {
       'no-console': 'off',
     },

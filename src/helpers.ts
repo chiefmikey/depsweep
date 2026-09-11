@@ -121,6 +121,7 @@ export async function isTypePackageUsed(
       const packageJson = JSON.parse(packageJsonBuffer.toString('utf8')) as {
         peerDependencies?: Record<string, string>;
       };
+      // eslint-disable-next-line security/detect-object-injection -- key is a validated npm package name from our own dependency list
       if (packageJson.peerDependencies?.[dependency]) {
         return { isUsed: true, supportedPackage: package_ };
       }
@@ -166,6 +167,7 @@ export async function isDependencyUsedInFile(
   }
 
   const configKey = path.relative(path.dirname(filePath), filePath);
+  // eslint-disable-next-line security/detect-object-injection -- key is a path.relative result from the user's own project tree
   const config = context.configs?.[configKey];
   if (config) {
     if (typeof config === 'string') {

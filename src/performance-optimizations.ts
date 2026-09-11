@@ -28,7 +28,7 @@ export class OptimizedCache<T extends {}> {
     });
   }
 
-  get(key: string): T | undefined {
+  public get(key: string): T | undefined {
     const value = this.cache.get(key);
     if (value !== undefined) {
       this.hitCount++;
@@ -38,19 +38,19 @@ export class OptimizedCache<T extends {}> {
     return undefined;
   }
 
-  set(key: string, value: T): void {
+  public set(key: string, value: T): void {
     this.cache.set(key, value);
   }
 
-  has(key: string): boolean {
+  public has(key: string): boolean {
     return this.cache.has(key);
   }
 
-  clear(): void {
+  public clear(): void {
     this.cache.clear();
   }
 
-  getStats() {
+  public getStats(): { hitCount: number; hitRate: number; missCount: number; size: number } {
     const total = this.hitCount + this.missCount;
     return {
       hitCount: this.hitCount,
@@ -63,6 +63,13 @@ export class OptimizedCache<T extends {}> {
 
 // Optimized file reading with intelligent batching
 export class OptimizedFileReader {
+  public static getInstance(): OptimizedFileReader {
+    if (!OptimizedFileReader.instance) {
+      OptimizedFileReader.instance = new OptimizedFileReader();
+    }
+    return OptimizedFileReader.instance;
+  }
+
   private static instance: OptimizedFileReader;
   private fileCache = new OptimizedCache<string>(500, 60_000); // 1 minute TTL
   private readQueue: {
@@ -74,14 +81,7 @@ export class OptimizedFileReader {
   private readonly BATCH_SIZE = 50;
   private readonly MAX_CONCURRENT_READS = 10;
 
-  static getInstance(): OptimizedFileReader {
-    if (!OptimizedFileReader.instance) {
-      OptimizedFileReader.instance = new OptimizedFileReader();
-    }
-    return OptimizedFileReader.instance;
-  }
-
-  async readFile(filePath: string): Promise<string> {
+  public async readFile(filePath: string): Promise<string> {
     // Check cache first
     const cached = this.fileCache.get(filePath);
     if (cached !== undefined) {
@@ -93,6 +93,14 @@ export class OptimizedFileReader {
       this.readQueue.push({ path: filePath, reject, resolve });
       this.processQueue();
     });
+  }
+
+  public clearCache(): void {
+    this.fileCache.clear();
+  }
+
+  public getCacheStats(): { hitCount: number; hitRate: number; missCount: number; size: number } {
+    return this.fileCache.getStats();
   }
 
   private async processQueue(): Promise<void> {
@@ -133,18 +141,17 @@ export class OptimizedFileReader {
     }
     return chunks;
   }
-
-  clearCache(): void {
-    this.fileCache.clear();
-  }
-
-  getCacheStats() {
-    return this.fileCache.getStats();
-  }
 }
 
 // Optimized dependency analysis with early exit strategies
 export class OptimizedDependencyAnalyzer {
+  public static getInstance(): OptimizedDependencyAnalyzer {
+    if (!OptimizedDependencyAnalyzer.instance) {
+      OptimizedDependencyAnalyzer.instance = new OptimizedDependencyAnalyzer();
+    }
+    return OptimizedDependencyAnalyzer.instance;
+  }
+
   private static instance: OptimizedDependencyAnalyzer;
   private analysisCache = new OptimizedCache<boolean>(2000, 300_000); // 5 minutes TTL
   private dependencyGraphCache = new OptimizedCache<Map<string, Set<string>>>(
@@ -153,15 +160,8 @@ export class OptimizedDependencyAnalyzer {
   ); // 10 minutes TTL
   private filePatternCache = new OptimizedCache<RegExp[]>(500, 300_000); // 5 minutes TTL
 
-  static getInstance(): OptimizedDependencyAnalyzer {
-    if (!OptimizedDependencyAnalyzer.instance) {
-      OptimizedDependencyAnalyzer.instance = new OptimizedDependencyAnalyzer();
-    }
-    return OptimizedDependencyAnalyzer.instance;
-  }
-
   // Optimized pattern matching with compiled regex caching
-  getCompiledPatterns(dependency: string): RegExp[] {
+  public getCompiledPatterns(dependency: string): RegExp[] {
     const cacheKey = `patterns:${dependency}`;
     const cached = this.filePatternCache.get(cacheKey);
     if (cached) {
@@ -191,7 +191,7 @@ export class OptimizedDependencyAnalyzer {
   }
 
   // Optimized dependency usage detection with early exit
-  async isDependencyUsedInFile(
+  public async isDependencyUsedInFile(
     dependency: string,
     filePath: string,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- API compatibility
@@ -236,7 +236,7 @@ export class OptimizedDependencyAnalyzer {
   }
 
   // Optimized batch processing with intelligent batching
-  async processFilesInBatches(
+  public async processFilesInBatches(
     files: string[],
     dependency: string,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- API compatibility
@@ -279,13 +279,17 @@ export class OptimizedDependencyAnalyzer {
     return results;
   }
 
-  clearCaches(): void {
+  public clearCaches(): void {
     this.analysisCache.clear();
     this.dependencyGraphCache.clear();
     this.filePatternCache.clear();
   }
 
-  getCacheStats() {
+  public getCacheStats(): {
+    analysis: { hitCount: number; hitRate: number; missCount: number; size: number };
+    dependencyGraph: { hitCount: number; hitRate: number; missCount: number; size: number };
+    filePatterns: { hitCount: number; hitRate: number; missCount: number; size: number };
+  } {
     return {
       analysis: this.analysisCache.getStats(),
       dependencyGraph: this.dependencyGraphCache.getStats(),
@@ -296,10 +300,7 @@ export class OptimizedDependencyAnalyzer {
 
 // Memory-optimized string operations
 export class StringOptimizer {
-  private static readonly STRING_POOL = new Map<string, string>();
-  private static readonly MAX_POOL_SIZE = 1000;
-
-  static intern(string_: string): string {
+  public static intern(string_: string): string {
     if (string_.length < 3) {
       return string_;
     } // Don't pool very short strings
@@ -322,32 +323,35 @@ export class StringOptimizer {
     return string_;
   }
 
-  static clearPool(): void {
+  public static clearPool(): void {
     StringOptimizer.STRING_POOL.clear();
   }
 
-  static getPoolStats() {
+  public static getPoolStats(): { maxSize: number; size: number } {
     return {
       maxSize: StringOptimizer.MAX_POOL_SIZE,
       size: StringOptimizer.STRING_POOL.size,
     };
   }
+
+  private static readonly STRING_POOL = new Map<string, string>();
+  private static readonly MAX_POOL_SIZE = 1000;
 }
 
 // Optimized file system operations
 export class OptimizedFileSystem {
-  private static instance: OptimizedFileSystem;
-  private dirCache = new OptimizedCache<string[]>(100, 60_000); // 1 minute TTL
-  private statCache = new OptimizedCache<Stats>(500, 30_000); // 30 seconds TTL
-
-  static getInstance(): OptimizedFileSystem {
+  public static getInstance(): OptimizedFileSystem {
     if (!OptimizedFileSystem.instance) {
       OptimizedFileSystem.instance = new OptimizedFileSystem();
     }
     return OptimizedFileSystem.instance;
   }
 
-  async readDirectory(dirPath: string): Promise<string[]> {
+  private static instance: OptimizedFileSystem;
+  private dirCache = new OptimizedCache<string[]>(100, 60_000); // 1 minute TTL
+  private statCache = new OptimizedCache<Stats>(500, 30_000); // 30 seconds TTL
+
+  public async readDirectory(dirPath: string): Promise<string[]> {
     const cached = this.dirCache.get(dirPath);
     if (cached) {
       return cached;
@@ -367,7 +371,7 @@ export class OptimizedFileSystem {
     }
   }
 
-  async getFileStats(filePath: string): Promise<Stats | null> {
+  public async getFileStats(filePath: string): Promise<Stats | null> {
     const cached = this.statCache.get(filePath);
     if (cached) {
       return cached;
@@ -382,12 +386,15 @@ export class OptimizedFileSystem {
     }
   }
 
-  clearCaches(): void {
+  public clearCaches(): void {
     this.dirCache.clear();
     this.statCache.clear();
   }
 
-  getCacheStats() {
+  public getCacheStats(): {
+    directories: { hitCount: number; hitRate: number; missCount: number; size: number };
+    stats: { hitCount: number; hitRate: number; missCount: number; size: number };
+  } {
     return {
       directories: this.dirCache.getStats(),
       stats: this.statCache.getStats(),
@@ -397,6 +404,13 @@ export class OptimizedFileSystem {
 
 // Performance monitoring and metrics
 export class PerformanceMonitor {
+  public static getInstance(): PerformanceMonitor {
+    if (!PerformanceMonitor.instance) {
+      PerformanceMonitor.instance = new PerformanceMonitor();
+    }
+    return PerformanceMonitor.instance;
+  }
+
   private static instance: PerformanceMonitor;
   private metrics = new Map<
     string,
@@ -404,18 +418,11 @@ export class PerformanceMonitor {
   >();
   private startTimes = new Map<string, number>();
 
-  static getInstance(): PerformanceMonitor {
-    if (!PerformanceMonitor.instance) {
-      PerformanceMonitor.instance = new PerformanceMonitor();
-    }
-    return PerformanceMonitor.instance;
-  }
-
-  startTimer(operation: string): void {
+  public startTimer(operation: string): void {
     this.startTimes.set(operation, performance.now());
   }
 
-  endTimer(operation: string): number {
+  public endTimer(operation: string): number {
     const startTime = this.startTimes.get(operation);
     if (!startTime) {
       return 0;
@@ -440,19 +447,19 @@ export class PerformanceMonitor {
     return duration;
   }
 
-  getMetrics(): Map<
+  public getMetrics(): Map<
     string,
     { count: number; totalTime: number; avgTime: number }
   > {
     return new Map(this.metrics);
   }
 
-  reset(): void {
+  public reset(): void {
     this.metrics.clear();
     this.startTimes.clear();
   }
 
-  logSummary(): void {
+  public logSummary(): void {
     console.log('\nPerformance Metrics:');
     console.log('========================');
 
@@ -468,19 +475,19 @@ export class PerformanceMonitor {
 
 // Memory usage optimization
 export class MemoryOptimizer {
-  private static instance: MemoryOptimizer;
-  private gcThreshold = 100 * 1024 * 1024; // 100MB
-  private lastGcTime = 0;
-  private readonly GC_INTERVAL = 30_000; // 30 seconds
-
-  static getInstance(): MemoryOptimizer {
+  public static getInstance(): MemoryOptimizer {
     if (!MemoryOptimizer.instance) {
       MemoryOptimizer.instance = new MemoryOptimizer();
     }
     return MemoryOptimizer.instance;
   }
 
-  checkMemoryUsage(): { used: number; total: number; shouldGC: boolean } {
+  private static instance: MemoryOptimizer;
+  private gcThreshold = 100 * 1024 * 1024; // 100MB
+  private lastGcTime = 0;
+  private readonly GC_INTERVAL = 30_000; // 30 seconds
+
+  public checkMemoryUsage(): { used: number; total: number; shouldGC: boolean } {
     const usage = process.memoryUsage();
     const used = usage.heapUsed;
     const total = usage.heapTotal;
@@ -499,12 +506,18 @@ export class MemoryOptimizer {
     return { shouldGC, total, used };
   }
 
-  optimizeForLargeProjects(): void {
+  public optimizeForLargeProjects(): void {
     // Increase GC threshold for large projects
     this.gcThreshold = 200 * 1024 * 1024; // 200MB
   }
 
-  getMemoryStats() {
+  public getMemoryStats(): {
+    arrayBuffers: number;
+    external: number;
+    heapTotal: number;
+    heapUsed: number;
+    rss: number;
+  } {
     const usage = process.memoryUsage();
     return {
       arrayBuffers: usage.arrayBuffers,

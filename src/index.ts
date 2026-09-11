@@ -348,9 +348,9 @@ async function main(): Promise<void> {
               .split(',')
               .map((dep) => dep.trim())
               .filter((dep) => dep.length > 0)
-          : (Array.isArray(options.safe)
+          : Array.isArray(options.safe)
             ? options.safe
-            : []);
+            : [];
 
       for (const safeDep of safeDeps) {
         if (!safeUnused.includes(safeDep)) {
@@ -466,7 +466,9 @@ async function main(): Promise<void> {
     let unusedDependencies = dependencies.filter((dep) => {
       // depInfoMap is populated for all keys in `dependencies`, so this is always defined
       const info = depInfoMap.get(dep);
-      if (info === undefined) {return false;}
+      if (info === undefined) {
+        return false;
+      }
       return (
         info.usedInFiles.length === 0 && info.requiredByPackages.size === 0
       );
@@ -637,7 +639,9 @@ async function main(): Promise<void> {
         for (const dep of sortedDependencies) {
           // depInfoMap is populated for all keys in `dependencies`
           const info = depInfoMap.get(dep);
-          if (info === undefined) {continue;}
+          if (info === undefined) {
+            continue;
+          }
           const fileUsage =
             info.usedInFiles.length > 0
               ? info.usedInFiles
@@ -747,7 +751,7 @@ async function main(): Promise<void> {
           );
 
           for (const dep of depsWithImpact) {
-            const {impact} = dep;
+            const { impact } = dep;
             console.log(
               chalk.bold(`  ${dep.name}`) +
                 chalk.dim(

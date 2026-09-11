@@ -22,4 +22,14 @@ export default [
       'no-console': 'off',
     },
   },
+  {
+    // mikey-pro@10.3.4 hard-codes parser:'babel' in the prettier/prettier rule
+    // for all files, causing "Parsing error" on TypeScript-specific syntax (import
+    // type, satisfies, etc.). Fixed in mikey-pro@10.3.5; bump this override once
+    // that version is published (npm view mikey-pro versions).
+    files: ['src/**/*.ts'],
+    rules: {
+      'prettier/prettier': ['warn', { parser: 'typescript' }],
+    },
+  },
 ];

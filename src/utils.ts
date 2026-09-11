@@ -871,7 +871,7 @@ export async function getDependencies(
     }
 
     // Filter helper: valid package name AND not an npm: alias (structural deps, not imported)
-     
+
     const isValidDep = (dep: string, field: Record<string, string>): boolean =>
       FILE_PATTERNS.PACKAGE_NAME_REGEX.test(dep) &&
       // eslint-disable-next-line security/detect-object-injection -- dep is a key from Object.keys(field)

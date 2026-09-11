@@ -662,7 +662,7 @@ export async function getParentPackageDownloads(
       packageJson = JSON.parse(packageJsonString);
     } catch {
       if (verbose) {
-          // eslint-disable-next-line no-console -- verbose user feedback path
+        // eslint-disable-next-line no-console -- verbose user feedback path
         console.error(chalk.red('Invalid package.json format'));
       }
       return null;

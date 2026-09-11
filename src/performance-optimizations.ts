@@ -50,7 +50,12 @@ export class OptimizedCache<T extends {}> {
     this.cache.clear();
   }
 
-  public getStats(): { hitCount: number; hitRate: number; missCount: number; size: number } {
+  public getStats(): {
+    hitCount: number;
+    hitRate: number;
+    missCount: number;
+    size: number;
+  } {
     const total = this.hitCount + this.missCount;
     return {
       hitCount: this.hitCount,
@@ -99,7 +104,12 @@ export class OptimizedFileReader {
     this.fileCache.clear();
   }
 
-  public getCacheStats(): { hitCount: number; hitRate: number; missCount: number; size: number } {
+  public getCacheStats(): {
+    hitCount: number;
+    hitRate: number;
+    missCount: number;
+    size: number;
+  } {
     return this.fileCache.getStats();
   }
 
@@ -288,9 +298,24 @@ export class OptimizedDependencyAnalyzer {
   }
 
   public getCacheStats(): {
-    analysis: { hitCount: number; hitRate: number; missCount: number; size: number };
-    dependencyGraph: { hitCount: number; hitRate: number; missCount: number; size: number };
-    filePatterns: { hitCount: number; hitRate: number; missCount: number; size: number };
+    analysis: {
+      hitCount: number;
+      hitRate: number;
+      missCount: number;
+      size: number;
+    };
+    dependencyGraph: {
+      hitCount: number;
+      hitRate: number;
+      missCount: number;
+      size: number;
+    };
+    filePatterns: {
+      hitCount: number;
+      hitRate: number;
+      missCount: number;
+      size: number;
+    };
   } {
     return {
       analysis: this.analysisCache.getStats(),
@@ -395,8 +420,18 @@ export class OptimizedFileSystem {
   }
 
   public getCacheStats(): {
-    directories: { hitCount: number; hitRate: number; missCount: number; size: number };
-    stats: { hitCount: number; hitRate: number; missCount: number; size: number };
+    directories: {
+      hitCount: number;
+      hitRate: number;
+      missCount: number;
+      size: number;
+    };
+    stats: {
+      hitCount: number;
+      hitRate: number;
+      missCount: number;
+      size: number;
+    };
   } {
     return {
       directories: this.dirCache.getStats(),
@@ -497,7 +532,11 @@ export class MemoryOptimizer {
   private lastGcTime = 0;
   private readonly GC_INTERVAL = 30_000; // 30 seconds
 
-  public checkMemoryUsage(): { used: number; total: number; shouldGC: boolean } {
+  public checkMemoryUsage(): {
+    used: number;
+    total: number;
+    shouldGC: boolean;
+  } {
     const usage = process.memoryUsage();
     const used = usage.heapUsed;
     const total = usage.heapTotal;

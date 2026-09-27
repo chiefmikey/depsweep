@@ -93,4 +93,3 @@ export interface GlobalScanResult {
   timestamp: string;
   version: string;
 }
-// trivial verification comment

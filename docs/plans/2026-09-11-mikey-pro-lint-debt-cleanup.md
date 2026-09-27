@@ -6,8 +6,8 @@
 
 **Tech Stack:** TypeScript (ESM, strict), ESLint 10 flat config (`mikey-pro/eslint`), Jest 30, Husky + lint-staged.
 
-_Status: IN PROGRESS (Phase 2 starting)_
-_LastCompletedStep: 1_
+_Status: COMPLETE_
+_LastCompletedStep: 5_
 _TotalSteps: 5_
 _Created: 2026-09-11_
 _Updated: 2026-09-27_
@@ -15,12 +15,14 @@ _Updated: 2026-09-27_
 ## Completed work (2026-09-27)
 
 **Phase 0: Config decisions (COMPLETE)**
+
 - Disabled `security/detect-non-literal-fs-filename` in eslint.config.js for `src/**/*.ts` (no applicable threat model for local CLI).
 - Disabled `no-console` for `src/index.ts` only (CLI entry point; other files get case-by-case triage).
 - Committed: `cc409c5`.
 - Result: 658 → 577 problems (61w resolved from index.ts console rules, 20e resolved from fs-filename rule).
 
 **Phase 1: Auto-fix sweep (COMPLETE)**
+
 - Ran `npx eslint src --fix` on Phase 0 baseline.
 - Identified and fixed fatal import-merge bug in `helpers.ts` (auto-fixer incorrectly merged `import fetch, type { Response }` syntax).
 - Verified with `npx tsc --noEmit` (clean), `npm run build` (green), `npm test` (541 passing, 1 skipped).
@@ -29,12 +31,33 @@ _Updated: 2026-09-27_
 
 ## Status & next steps
 
-**Current debt: 572 problems (411 errors, 161 warnings), from 658 baseline (12% reduction).**
-- Phase 0 & 1 complete and verified green (build, tsc, full test suite).
-- Phase 2 & 3 (mechanical + judgment fixes for remaining 572) are scoped but not yet executed.
-- Highest-value remaining work: `strict-boolean-expressions` (118), `max-depth` (45), `no-unsafe-*` family (99), `no-console` triage (18 in lib files, 7 after index.ts).
+**Phase 2 and Phase 3 complete (2026-09-27). Final debt: 0 problems (0 errors, 0 warnings), from 658 baseline (100% reduction).**
 
-**Phase 2/3 entry point:** See "Phase 2: Mechanical pattern fixes" and "Phase 3: Judgment refactors" sections below. Start with Phase 2's rule-by-rule batches (expect ~1-2 days for full completion).
+**Phase 2: Mechanical pattern fixes (COMPLETE)**
+
+- `explicit-member-accessibility` + `member-ordering` (43 issues) — commit `c98ab92`.
+- `explicit-function-return-type` + `explicit-module-boundary-types` (18 issues) — commit `2f02380`.
+- `no-non-null-assertion` (10 issues, real null checks/narrowing guards added) — commit `3f5fff6`.
+- `no-console` triage (18 remaining occurrences: deleted stray debug, gated behind `--verbose`, or targeted disable with justification) — commit `9139bc0`.
+- `security/detect-object-injection` triage (15 occurrences: safe-access refactors or targeted disables) — commit `e81559c`.
+
+**Phase 3: Judgment refactors (COMPLETE)**
+
+- `constants.ts`, `global-impact.ts` judgment fixes — commits `ec8ab25`, `760f4e4`.
+- `prettier/prettier` parser fix (mikey-pro hard-codes babel parser, causing false positives on TS syntax; overridden to `typescript` parser pending mikey-pro@10.3.5) — commit `30f6793`.
+- `performance-optimizations.ts`, `helpers.ts` (unsafe-* type-guard refactors, no-await-in-loop resolution, complexity decomposition) — commits `e43f89d`, `53d7479`, `20aae89`, `ce659a2`, `84b9fd0`, `9aaf71c`.
+- `index.ts`, `cli-render.ts` (module extracted for complexity reduction; unsafe-* and strict-boolean-expressions fixes) — commits `2006076`, `5a48c28`.
+- Completion marker — commit `80a3811`.
+
+**Final verification (Phase 4, done in this session):**
+
+- `npx eslint src`: 0 problems (0 errors, 0 warnings).
+- `npx tsc --noEmit`: clean.
+- `npm run build`: clean, dist generated.
+- `npm test`: 541 passing, 1 skipped, 17/17 suites green.
+- Husky `pre-commit` hook verified to pass cleanly on a real staged commit (no `--no-verify`) — commit `f9196cf`, reverted in `4e76c25` since it was a throwaway verification edit.
+
+No remaining lint debt. All five phases of this plan are done.
 
 ---
 

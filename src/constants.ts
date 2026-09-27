@@ -437,4 +437,3 @@ export const ENVIRONMENTAL_CONSTANTS = {
   // https://dgtlinfra.com/data-center-water-usage/
   WATER_PER_KWH: 1.8,
 };
-// trivial comment for pre-commit smoke test

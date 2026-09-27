@@ -348,9 +348,9 @@ async function main(): Promise<void> {
               .split(',')
               .map((dep) => dep.trim())
               .filter((dep) => dep.length > 0)
-          : Array.isArray(options.safe)
+          : (Array.isArray(options.safe)
             ? options.safe
-            : [];
+            : []);
 
       for (const safeDep of safeDeps) {
         if (!safeUnused.includes(safeDep)) {

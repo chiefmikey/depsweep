@@ -13,8 +13,7 @@ import type {
 import chalk from 'chalk';
 import { isBinaryFileSync } from 'isbinaryfile';
 import micromatch from 'micromatch';
-import fetch from 'node-fetch';
-import type { Response } from 'node-fetch';
+import fetch, { type Response } from 'node-fetch';
 import shellEscape from 'shell-escape';
 
 import {

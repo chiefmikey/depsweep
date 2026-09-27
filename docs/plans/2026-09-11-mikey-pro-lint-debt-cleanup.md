@@ -25,7 +25,16 @@ _Updated: 2026-09-27_
 - Identified and fixed fatal import-merge bug in `helpers.ts` (auto-fixer incorrectly merged `import fetch, type { Response }` syntax).
 - Verified with `npx tsc --noEmit` (clean), `npm run build` (green), `npm test` (541 passing, 1 skipped).
 - Committed: `597c41a`.
-- Result: 577 → 572 problems (411e/161w). Auto-fix covered ~4.3% of remaining debt; remaining 572 issues require hand-triage (68e require judgment, 161w need rule-by-rule assessment).
+- Result: 577 → 572 problems (411e/161w). Auto-fix covered ~4.3% of remaining debt; remaining 572 issues require hand-triage.
+
+## Status & next steps
+
+**Current debt: 572 problems (411 errors, 161 warnings), from 658 baseline (12% reduction).**
+- Phase 0 & 1 complete and verified green (build, tsc, full test suite).
+- Phase 2 & 3 (mechanical + judgment fixes for remaining 572) are scoped but not yet executed.
+- Highest-value remaining work: `strict-boolean-expressions` (118), `max-depth` (45), `no-unsafe-*` family (99), `no-console` triage (18 in lib files, 7 after index.ts).
+
+**Phase 2/3 entry point:** See "Phase 2: Mechanical pattern fixes" and "Phase 3: Judgment refactors" sections below. Start with Phase 2's rule-by-rule batches (expect ~1-2 days for full completion).
 
 ---
 

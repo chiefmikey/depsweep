@@ -6,10 +6,26 @@
 
 **Tech Stack:** TypeScript (ESM, strict), ESLint 10 flat config (`mikey-pro/eslint`), Jest 30, Husky + lint-staged.
 
-_Status: PENDING_
-_LastCompletedStep: 0_
+_Status: IN PROGRESS (Phase 2 starting)_
+_LastCompletedStep: 1_
 _TotalSteps: 5_
 _Created: 2026-09-11_
+_Updated: 2026-09-27_
+
+## Completed work (2026-09-27)
+
+**Phase 0: Config decisions (COMPLETE)**
+- Disabled `security/detect-non-literal-fs-filename` in eslint.config.js for `src/**/*.ts` (no applicable threat model for local CLI).
+- Disabled `no-console` for `src/index.ts` only (CLI entry point; other files get case-by-case triage).
+- Committed: `cc409c5`.
+- Result: 658 → 577 problems (61w resolved from index.ts console rules, 20e resolved from fs-filename rule).
+
+**Phase 1: Auto-fix sweep (COMPLETE)**
+- Ran `npx eslint src --fix` on Phase 0 baseline.
+- Identified and fixed fatal import-merge bug in `helpers.ts` (auto-fixer incorrectly merged `import fetch, type { Response }` syntax).
+- Verified with `npx tsc --noEmit` (clean), `npm run build` (green), `npm test` (541 passing, 1 skipped).
+- Committed: `597c41a`.
+- Result: 577 → 572 problems (411e/161w). Auto-fix covered ~4.3% of remaining debt; remaining 572 issues require hand-triage (68e require judgment, 161w need rule-by-rule assessment).
 
 ---
 

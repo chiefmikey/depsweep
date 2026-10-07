@@ -29,7 +29,7 @@ jest.mock("isbinaryfile", () => ({
   isBinaryFileSync: jest.fn(),
 }));
 
-jest.mock("micromatch", () => ({
+jest.mock("picomatch", () => ({
   isMatch: jest.fn(),
 }));
 
@@ -37,7 +37,7 @@ jest.mock("node-fetch", () => jest.fn());
 
 jest.mock("shell-escape", () => jest.fn());
 
-jest.mock("globby", () => ({
+jest.mock("../../src/glob.js", () => ({
   globby: jest.fn(),
 }));
 
@@ -92,7 +92,7 @@ import {
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { findUp } from "find-up";
-import { globby } from "globby";
+import { globby } from "../../src/glob.js";
 
 const mockFs = fs as jest.Mocked<typeof fs>;
 const mockPath = path as jest.Mocked<typeof path>;

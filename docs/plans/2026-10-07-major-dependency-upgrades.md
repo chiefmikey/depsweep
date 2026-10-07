@@ -27,6 +27,5 @@ Baseline: 17 suites, 541 passed / 1 skipped.
 5. TypeScript 6 (drop baseUrl), then 7 when ts-jest/typescript-eslint peer ranges allow.
 6. Actions majors in one CI PR.
 
-## Note on the remaining audit finding
-`braces <= 3.0.3` (GHSA-vfj7-8cjw-p6xm, high, published 2026-09-18) has no patched release (`first_patched_version: null`; 3.0.3 is the latest). It is pulled in only via globby -> fast-glob/micromatch. No update or override can fix it; revisit when braces ships a fix. `npm audit fix --force` proposes a bogus globby downgrade and must not be accepted. Replacing globby (we rely on its `gitignore` option) was judged too invasive for a dependency sweep.
-Side note: `src/helpers.ts` imports `micromatch` directly but it is not declared in package.json (only `@types/micromatch` is); it resolves through globby's dependency. Declare it or switch to picomatch.
+## Resolved: braces advisory (globby removal)
+`braces <= 3.0.3` (GHSA-vfj7-8cjw-p6xm, high, published 2026-09-18) has no patched release (`first_patched_version: null`; 3.0.3 is latest), so no update or override could fix it. It was reachable only via globby -> fast-glob/micromatch. Resolved by removing that chain: globby is replaced by `src/glob.ts` (tinyglobby + `ignore` for nested/parent .gitignore handling) and micromatch by an explicit `picomatch` dependency (`npm ls braces` is empty). Node floor note: tinyglobby/picomatch/ignore are all fine on the repo's Node >=20.19, but the major upgrades above raise the floor (Node >= 22 for chalk 6/commander 15/Babel 8, >= 24 for isbinaryfile 6).

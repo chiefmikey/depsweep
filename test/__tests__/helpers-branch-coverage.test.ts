@@ -14,7 +14,7 @@ import {
 } from "../../src/helpers";
 import * as fs from "node:fs/promises";
 import { isBinaryFileSync } from "isbinaryfile";
-import micromatch from "micromatch";
+import picomatch from "picomatch";
 import shellEscape from "shell-escape";
 import { execSync } from "node:child_process";
 
@@ -23,7 +23,7 @@ jest.mock("node:fs/promises");
 jest.mock("@babel/parser");
 jest.mock("@babel/traverse");
 jest.mock("isbinaryfile");
-jest.mock("micromatch");
+jest.mock("picomatch");
 jest.mock("node-fetch");
 jest.mock("shell-escape");
 jest.mock("node:child_process");
@@ -130,7 +130,7 @@ describe("isTypePackageUsed — normalizedPackage branch coverage", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (isBinaryFileSync as jest.Mock).mockReturnValue(false);
-    (micromatch.isMatch as jest.Mock).mockReturnValue(false);
+    (picomatch.isMatch as jest.Mock).mockReturnValue(false);
   });
 
   it("FALSE branch: @types/lodash -> normalizedPackage='lodash' (no slash, not installed)", async () => {
@@ -239,7 +239,7 @@ describe("isDependencyUsedInFile — binary file guard (line 194)", () => {
   it("enters try block and reads file when isBinaryFileSync returns false", async () => {
     (isBinaryFileSync as jest.Mock).mockReturnValue(false);
     (fs.readFile as jest.Mock).mockResolvedValue("const x = 1;");
-    (micromatch.isMatch as jest.Mock).mockReturnValue(false);
+    (picomatch.isMatch as jest.Mock).mockReturnValue(false);
 
     const mockParse = jest.spyOn(require("@babel/parser"), "parse");
     mockParse.mockReturnValue({ type: "File", program: { body: [] } });

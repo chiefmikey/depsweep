@@ -13,7 +13,7 @@ import type {
 import chalk from "chalk";
 
 import { isBinaryFileSync } from "isbinaryfile";
-import micromatch from "micromatch";
+import picomatch from "picomatch";
 import fetch from "node-fetch";
 import type { Response } from "node-fetch";
 import shellEscape from "shell-escape";
@@ -268,7 +268,7 @@ export async function isDependencyUsedInFile(
         if (
           dependency.startsWith(base) &&
           patterns.some((pattern: string) =>
-            micromatch.isMatch(dependency, pattern)
+            picomatch.isMatch(dependency, pattern)
           )
         ) {
           const searchPattern = new RegExp(
@@ -288,7 +288,7 @@ export async function isDependencyUsedInFile(
       if (
         dependency.startsWith(base) &&
         patterns.some((pattern: string) =>
-          micromatch.isMatch(dependency, pattern)
+          picomatch.isMatch(dependency, pattern)
         )
       ) {
         const searchPattern = new RegExp(

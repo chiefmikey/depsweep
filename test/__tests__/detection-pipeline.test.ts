@@ -25,7 +25,7 @@ jest.mock("../../src/helpers.js", () => ({
 }));
 
 // Mock globby and other external deps that getDependencyInfo's module (utils) imports
-jest.mock("globby", () => ({
+jest.mock("../../src/glob.js", () => ({
   globby: jest.fn(() => Promise.resolve([])),
 }));
 

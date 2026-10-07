@@ -12,7 +12,7 @@ jest.mock("node:fs/promises", () => ({
   readFile: jest.fn(),
 }));
 
-jest.mock("globby", () => ({
+jest.mock("../../src/glob.js", () => ({
   globby: jest.fn(),
 }));
 
@@ -91,7 +91,7 @@ jest.mock("../../src/performance-optimizations.js", () => {
 // ---- IMPORTS (after mocks) ----
 
 import * as fs from "node:fs/promises";
-import { globby } from "globby";
+import { globby } from "../../src/glob.js";
 import { findUp } from "find-up";
 
 import {

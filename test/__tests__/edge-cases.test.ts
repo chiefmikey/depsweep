@@ -21,10 +21,10 @@ jest.mock("node:path");
 jest.mock("@babel/parser");
 jest.mock("@babel/traverse");
 jest.mock("isbinaryfile");
-jest.mock("micromatch");
+jest.mock("picomatch");
 jest.mock("node-fetch");
 jest.mock("shell-escape");
-jest.mock("globby");
+jest.mock("../../src/glob.js");
 jest.mock("find-up");
 
 // Mock path module properly
@@ -169,7 +169,7 @@ describe("Edge Cases and Error Conditions", () => {
         { length: 10000 },
         (_, i) => `file${i}.js`
       );
-      const mockGlobby = jest.spyOn(require("globby"), "globby");
+      const mockGlobby = jest.spyOn(require("../../src/glob.js"), "globby");
       mockGlobby.mockResolvedValue(largeFileList);
 
       const startTime = Date.now();

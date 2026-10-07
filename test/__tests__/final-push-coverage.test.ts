@@ -23,7 +23,7 @@ jest.mock("find-up", () => ({
   findUp: jest.fn(),
 }));
 
-jest.mock("globby", () => ({
+jest.mock("../../src/glob.js", () => ({
   globby: jest.fn(),
 }));
 
@@ -93,7 +93,7 @@ import type { DependencyContext } from "../../src/interfaces.js";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { findUp } from "find-up";
-import { globby } from "globby";
+import { globby } from "../../src/glob.js";
 
 const mockFs = fs as jest.Mocked<typeof fs>;
 const mockPath = path as jest.Mocked<typeof path>;

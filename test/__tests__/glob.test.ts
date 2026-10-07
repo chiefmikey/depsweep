@@ -107,6 +107,87 @@ describe("globby replacement (tinyglobby + ignore)", () => {
   });
 });
 
+describe("globby replacement: git semantics and pruning", () => {
+  let root: string;
+
+  beforeEach(() => {
+    root = fs.realpathSync(
+      fs.mkdtempSync(path.join(os.tmpdir(), "depsweep-glob2-")),
+    );
+  });
+
+  afterEach(() => {
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  it("does not re-include files inside an ancestor-ignored directory", async () => {
+    write(root, ".gitignore", "dist/\n");
+    write(root, "nest/.gitignore", "!file.js\n");
+    write(root, "nest/dist/file.js");
+    write(root, "nest/dist/other.js");
+    write(root, "nest/keep.js");
+    const files = await globby(["**/*.js"], {
+      cwd: root,
+      gitignore: true,
+      absolute: true,
+    });
+    expect(files.map((f) => path.relative(root, f))).toEqual(["nest/keep.js"]);
+  });
+
+  it("prunes gitignored directories (trailing-slash pattern) entirely", async () => {
+    write(root, ".gitignore", ".next/\nvendor\n");
+    write(root, ".next/deep/a.js");
+    write(root, ".next/.gitignore", "!a.js\n");
+    write(root, "vendor/b.js");
+    write(root, "src/c.js");
+    const files = await globby(["**/*"], {
+      cwd: root,
+      gitignore: true,
+      dot: true,
+    });
+    expect(files.sort()).toEqual([".gitignore", "src/c.js"]);
+  });
+
+  it("does not walk symlinks to outside directories for .gitignore scopes", async () => {
+    const outside = fs.realpathSync(
+      fs.mkdtempSync(path.join(os.tmpdir(), "depsweep-outside-")),
+    );
+    try {
+      write(outside, ".gitignore", "*.js\n");
+      write(outside, "x.js");
+      fs.symlinkSync(outside, path.join(root, "link"), "dir");
+      write(root, "a.js");
+      const files = await globby(["**/*.js"], {
+        cwd: root,
+        gitignore: true,
+        followSymbolicLinks: false,
+      });
+      // The outside .gitignore must not have been loaded as a scope, and the
+      // symlinked tree is not followed.
+      expect(files).toEqual(["a.js"]);
+      const followed = await globby(["link/*.js"], {
+        cwd: root,
+        gitignore: true,
+        followSymbolicLinks: true,
+      });
+      expect(followed).toEqual(["link/x.js"]);
+    } finally {
+      fs.rmSync(outside, { recursive: true, force: true });
+    }
+  });
+
+  it('returns "." for cwd itself when workspaces is ["."]', async () => {
+    write(root, "package.json", "{}");
+    const dirs = await globby(["."], {
+      cwd: root,
+      onlyDirectories: true,
+      expandDirectories: false,
+      ignore: ["node_modules"],
+    });
+    expect(dirs).toEqual(["."]);
+  });
+});
+
 describe("picomatch protected-dependency patterns", () => {
   it.each([
     ["webpack-cli", "webpack-*", true],

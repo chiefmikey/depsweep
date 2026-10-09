@@ -4,10 +4,10 @@ import path from 'node:path';
 
 import chalk from 'chalk';
 import { findUp } from 'find-up';
-import { globby } from './glob.js';
 import { isBinaryFileSync } from 'isbinaryfile';
 
 import { FILE_PATTERNS, MESSAGES } from './constants.js';
+import { globby } from './glob.js';
 import {
   customSort,
   isConfigFile,
@@ -173,7 +173,7 @@ export async function getTSConfig(
     const tsConfigPath = path.join(projectRoot, 'tsconfig.json');
     const content = await readFile(tsConfigPath, 'utf8');
     const parsed: unknown = JSON.parse(content);
-    return isRecord(parsed) ? (parsed as TsConfig) : null;
+    return isRecord(parsed) ? parsed : null;
   } catch {
     return null;
   }

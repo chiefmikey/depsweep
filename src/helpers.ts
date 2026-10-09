@@ -13,8 +13,8 @@ import type {
 } from '@babel/types';
 import chalk from 'chalk';
 import { isBinaryFileSync } from 'isbinaryfile';
-import picomatch from 'picomatch';
 import fetch, { type Response } from 'node-fetch';
+import picomatch from 'picomatch';
 import shellEscape from 'shell-escape';
 
 import {

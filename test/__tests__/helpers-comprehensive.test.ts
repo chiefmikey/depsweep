@@ -18,7 +18,7 @@ import * as path from "node:path";
 import { parse } from "@babel/parser";
 import traverse from "@babel/traverse";
 import { isBinaryFileSync } from "isbinaryfile";
-import micromatch from "micromatch";
+import picomatch from "picomatch";
 import shellEscape from "shell-escape";
 import { execSync } from "node:child_process";
 import chalk from "chalk";
@@ -28,7 +28,7 @@ jest.mock("node:fs/promises");
 jest.mock("@babel/parser");
 jest.mock("@babel/traverse");
 jest.mock("isbinaryfile");
-jest.mock("micromatch");
+jest.mock("picomatch");
 jest.mock("node-fetch");
 jest.mock("shell-escape");
 jest.mock("node:child_process");
@@ -391,7 +391,7 @@ describe("isTypePackageUsed", () => {
     jest.clearAllMocks();
     // Default: not a binary file, no file content
     (isBinaryFileSync as jest.Mock).mockReturnValue(false);
-    (micromatch.isMatch as jest.Mock).mockReturnValue(false);
+    (picomatch.isMatch as jest.Mock).mockReturnValue(false);
   });
 
   it("returns {isUsed:false} for non-@types packages", async () => {
@@ -434,7 +434,7 @@ describe("isTypePackageUsed", () => {
       'import React from "react";'
     );
     (isBinaryFileSync as jest.Mock).mockReturnValue(false);
-    (micromatch.isMatch as jest.Mock).mockReturnValue(false);
+    (picomatch.isMatch as jest.Mock).mockReturnValue(false);
 
     const result = await isTypePackageUsed(
       "@types/react",
@@ -467,7 +467,7 @@ describe("isTypePackageUsed", () => {
       'import traverse from "@babel/traverse";'
     );
     (isBinaryFileSync as jest.Mock).mockReturnValue(false);
-    (micromatch.isMatch as jest.Mock).mockReturnValue(false);
+    (picomatch.isMatch as jest.Mock).mockReturnValue(false);
 
     const mockParse = jest.spyOn(require("@babel/parser"), "parse");
     mockParse.mockReturnValue({ type: "File", program: { body: [] } });
@@ -505,7 +505,7 @@ describe("isDependencyUsedInFile — additional paths", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (isBinaryFileSync as jest.Mock).mockReturnValue(false);
-    (micromatch.isMatch as jest.Mock).mockReturnValue(false);
+    (picomatch.isMatch as jest.Mock).mockReturnValue(false);
   });
 
   it("returns false when filePath basename is package.json", async () => {
@@ -623,7 +623,7 @@ describe("isDependencyUsedInFile — AST visitors", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (isBinaryFileSync as jest.Mock).mockReturnValue(false);
-    (micromatch.isMatch as jest.Mock).mockReturnValue(false);
+    (picomatch.isMatch as jest.Mock).mockReturnValue(false);
     (fs.readFile as jest.Mock).mockResolvedValue('import foo from "dependency";');
   });
 
@@ -775,8 +775,8 @@ describe("isDependencyUsedInFile — RAW_CONTENT_PATTERNS", () => {
     // Use a dep name that startsWith "webpack" and matches a pattern
     const dep = "webpack-bundle-analyzer"; // starts with "webpack", matches "webpack-*"
 
-    // Make micromatch.isMatch return true for the matching pattern
-    (micromatch.isMatch as jest.Mock).mockImplementation(
+    // Make picomatch.isMatch return true for the matching pattern
+    (picomatch.isMatch as jest.Mock).mockImplementation(
       (name: string, pattern: string) => {
         return pattern === "webpack-*" && name === dep;
       }
@@ -805,7 +805,7 @@ describe("isDependencyUsedInFile — RAW_CONTENT_PATTERNS", () => {
   it("returns true for webpack dep via catch-fallback RAW_CONTENT_PATTERNS path when parse throws", async () => {
     const dep = "webpack-bundle-analyzer";
 
-    (micromatch.isMatch as jest.Mock).mockImplementation(
+    (picomatch.isMatch as jest.Mock).mockImplementation(
       (name: string, pattern: string) => {
         return pattern === "webpack-*" && name === dep;
       }

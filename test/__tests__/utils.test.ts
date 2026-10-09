@@ -11,13 +11,18 @@ import {
 } from "../../src/utils";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { globby } from "globby";
+import { globby } from "../../src/glob.js";
 import { findUp } from "find-up";
 
 // Mock fs and path modules
 jest.mock("node:fs/promises");
 jest.mock("node:path");
 jest.mock("glob");
+jest.mock("../../src/glob.js", () => ({
+  globby: jest
+    .fn()
+    .mockResolvedValue(["/fake/path/src/index.ts", "/fake/path/src/utils.ts"]),
+}));
 
 describe("Utility Functions", () => {
   beforeEach(() => {
@@ -460,7 +465,7 @@ describe("Utility Functions", () => {
     });
 
     it("should handle globby errors", async () => {
-      const mockGlobby = jest.spyOn(require("globby"), "globby");
+      const mockGlobby = jest.spyOn(require("../../src/glob.js"), "globby");
       mockGlobby.mockImplementation(() => {
         throw new Error("Globby error");
       });

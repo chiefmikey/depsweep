@@ -13,8 +13,7 @@ import type {
 } from '@babel/types';
 import chalk from 'chalk';
 import { isBinaryFileSync } from 'isbinaryfile';
-// eslint-disable-next-line import-x/no-extraneous-dependencies -- @types/micromatch is available
-import micromatch from 'micromatch';
+import picomatch from 'picomatch';
 import fetch, { type Response } from 'node-fetch';
 import shellEscape from 'shell-escape';
 
@@ -373,7 +372,7 @@ export async function isDependencyUsedInFile(
         if (
           dependency.startsWith(base) &&
           patterns.some((pattern: string) =>
-            micromatch.isMatch(dependency, pattern),
+            picomatch.isMatch(dependency, pattern),
           )
         ) {
           // eslint-disable-next-line security/detect-non-literal-regexp -- dependency is from our own package analysis, safe
@@ -396,7 +395,7 @@ export async function isDependencyUsedInFile(
       if (
         dependency.startsWith(base) &&
         patterns.some((pattern: string) =>
-          micromatch.isMatch(dependency, pattern),
+          picomatch.isMatch(dependency, pattern),
         )
       ) {
         // eslint-disable-next-line security/detect-non-literal-regexp -- dependency is from our own package analysis, safe

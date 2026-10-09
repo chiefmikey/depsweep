@@ -4,7 +4,7 @@ import path from 'node:path';
 
 import chalk from 'chalk';
 import { findUp } from 'find-up';
-import { globby } from 'globby';
+import { globby } from './glob.js';
 import { isBinaryFileSync } from 'isbinaryfile';
 
 import { FILE_PATTERNS, MESSAGES } from './constants.js';

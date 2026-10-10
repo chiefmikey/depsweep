@@ -1,3 +1,4 @@
+/* eslint-disable unicorn/filename-case, max-classes-per-file -- optimization utilities class collection -- existing public name; rename deferred */
 /**
  * Performance Optimizations for DepSweep
  *
@@ -5,10 +6,12 @@
  * to improve the overall performance and efficiency of the dependency analysis.
  */
 
-import type { Stats } from "node:fs";
-import * as fs from "node:fs/promises";
-import * as path from "node:path";
-import { LRUCache } from "lru-cache";
+import type { Stats } from 'node:fs';
+import { readdir, readFile, stat } from 'node:fs/promises';
+// eslint-disable-next-line unicorn/import-style -- namespace import for path is intentional
+import { join } from 'node:path';
+
+import { LRUCache } from 'lru-cache';
 
 // Enhanced caching with TTL and size limits
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- cache stores any non-nullish value
@@ -17,17 +20,17 @@ export class OptimizedCache<T extends {}> {
   private hitCount = 0;
   private missCount = 0;
 
-  constructor(maxSize = 1000, ttl = 300000) {
+  constructor(maxSize = 1000, ttl = 300_000) {
     // 5 minutes TTL
     this.cache = new LRUCache<string, T>({
-      max: maxSize,
-      ttl: ttl,
-      updateAgeOnGet: true,
       allowStale: false,
+      max: maxSize,
+      ttl,
+      updateAgeOnGet: true,
     });
   }
 
-  get(key: string): T | undefined {
+  public get(key: string): T | undefined {
     const value = this.cache.get(key);
     if (value !== undefined) {
       this.hitCount++;
@@ -37,23 +40,28 @@ export class OptimizedCache<T extends {}> {
     return undefined;
   }
 
-  set(key: string, value: T): void {
+  public set(key: string, value: T): void {
     this.cache.set(key, value);
   }
 
-  has(key: string): boolean {
+  public has(key: string): boolean {
     return this.cache.has(key);
   }
 
-  clear(): void {
+  public clear(): void {
     this.cache.clear();
   }
 
-  getStats() {
+  public getStats(): {
+    hitCount: number;
+    hitRate: number;
+    missCount: number;
+    size: number;
+  } {
     const total = this.hitCount + this.missCount;
     return {
-      hitRate: total > 0 ? this.hitCount / total : 0,
       hitCount: this.hitCount,
+      hitRate: total > 0 ? this.hitCount / total : 0,
       missCount: this.missCount,
       size: this.cache.size,
     };
@@ -62,25 +70,25 @@ export class OptimizedCache<T extends {}> {
 
 // Optimized file reading with intelligent batching
 export class OptimizedFileReader {
-  private static instance: OptimizedFileReader;
-  private fileCache = new OptimizedCache<string>(500, 60000); // 1 minute TTL
-  private readQueue: Array<{
-    path: string;
-    resolve: (content: string) => void;
-    reject: (error: Error) => void;
-  }> = [];
-  private isProcessing = false;
-  private readonly BATCH_SIZE = 50;
-  private readonly MAX_CONCURRENT_READS = 10;
-
-  static getInstance(): OptimizedFileReader {
-    if (!OptimizedFileReader.instance) {
+  public static getInstance(): OptimizedFileReader {
+    if (OptimizedFileReader.instance === undefined) {
       OptimizedFileReader.instance = new OptimizedFileReader();
     }
     return OptimizedFileReader.instance;
   }
 
-  async readFile(filePath: string): Promise<string> {
+  private static instance: OptimizedFileReader;
+  private fileCache = new OptimizedCache<string>(500, 60_000); // 1 minute TTL
+  private readQueue: {
+    path: string;
+    resolve: (content: string) => void;
+    reject: (error: Error) => void;
+  }[] = [];
+  private isProcessing = false;
+  private readonly BATCH_SIZE = 50;
+  private readonly MAX_CONCURRENT_READS = 10;
+
+  public async readFile(filePath: string): Promise<string> {
     // Check cache first
     const cached = this.fileCache.get(filePath);
     if (cached !== undefined) {
@@ -89,9 +97,23 @@ export class OptimizedFileReader {
 
     // Add to queue for batch processing
     return new Promise((resolve, reject) => {
-      this.readQueue.push({ path: filePath, resolve, reject });
+      this.readQueue.push({ path: filePath, reject, resolve });
+      // eslint-disable-next-line @typescript-eslint/no-floating-promises -- fire-and-forget queue draining; errors are handled inside processQueue
       this.processQueue();
     });
+  }
+
+  public clearCache(): void {
+    this.fileCache.clear();
+  }
+
+  public getCacheStats(): {
+    hitCount: number;
+    hitRate: number;
+    missCount: number;
+    size: number;
+  } {
+    return this.fileCache.getStats();
   }
 
   private async processQueue(): Promise<void> {
@@ -108,14 +130,15 @@ export class OptimizedFileReader {
       const chunks = this.chunkArray(batch, this.MAX_CONCURRENT_READS);
 
       for (const chunk of chunks) {
+        // eslint-disable-next-line no-await-in-loop -- sequential chunk processing for concurrency control
         await Promise.allSettled(
-          chunk.map(async ({ path: filePath, resolve, reject }) => {
+          chunk.map(async ({ path: filePath, reject, resolve }) => {
             try {
-              const content = await fs.readFile(filePath, "utf8");
+              const content = await readFile(filePath, 'utf8');
               this.fileCache.set(filePath, content);
               resolve(content);
             } catch (error) {
-              reject(error as Error);
+              reject(error instanceof Error ? error : new Error(String(error)));
             }
           }),
         );
@@ -127,80 +150,64 @@ export class OptimizedFileReader {
 
   private chunkArray<T>(array: T[], chunkSize: number): T[][] {
     const chunks: T[][] = [];
-    for (let i = 0; i < array.length; i += chunkSize) {
-      chunks.push(array.slice(i, i + chunkSize));
+    for (let index = 0; index < array.length; index += chunkSize) {
+      chunks.push(array.slice(index, index + chunkSize));
     }
     return chunks;
-  }
-
-  clearCache(): void {
-    this.fileCache.clear();
-  }
-
-  getCacheStats() {
-    return this.fileCache.getStats();
   }
 }
 
 // Optimized dependency analysis with early exit strategies
 export class OptimizedDependencyAnalyzer {
-  private static instance: OptimizedDependencyAnalyzer;
-  private analysisCache = new OptimizedCache<boolean>(2000, 300000); // 5 minutes TTL
-  private dependencyGraphCache = new OptimizedCache<Map<string, Set<string>>>(
-    100,
-    600000,
-  ); // 10 minutes TTL
-  private filePatternCache = new OptimizedCache<RegExp[]>(500, 300000); // 5 minutes TTL
-
-  static getInstance(): OptimizedDependencyAnalyzer {
-    if (!OptimizedDependencyAnalyzer.instance) {
+  public static getInstance(): OptimizedDependencyAnalyzer {
+    if (OptimizedDependencyAnalyzer.instance === undefined) {
       OptimizedDependencyAnalyzer.instance = new OptimizedDependencyAnalyzer();
     }
     return OptimizedDependencyAnalyzer.instance;
   }
 
+  private static instance: OptimizedDependencyAnalyzer;
+  private analysisCache = new OptimizedCache<boolean>(2000, 300_000); // 5 minutes TTL
+  private dependencyGraphCache = new OptimizedCache<Map<string, Set<string>>>(
+    100,
+    600_000,
+  ); // 10 minutes TTL
+  private filePatternCache = new OptimizedCache<RegExp[]>(500, 300_000); // 5 minutes TTL
+
   // Optimized pattern matching with compiled regex caching
-  getCompiledPatterns(dependency: string): RegExp[] {
+  public getCompiledPatterns(dependency: string): RegExp[] {
     const cacheKey = `patterns:${dependency}`;
     const cached = this.filePatternCache.get(cacheKey);
-    if (cached) {
+    if (cached !== undefined) {
       return cached;
     }
 
-    const escaped = dependency.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const escaped = dependency.replaceAll(
+      /[$()*+.?[\\\]^{|}]/gu,
+      String.raw`\$&`,
+    );
+    // Pre-compute boundary strings to avoid nested template literals
+    // (sonarjs/no-nested-template-literals) and to keep Unicode-safe character classes.
+    // \[ and \] are valid identity escapes in Unicode regex; \s is the whitespace class.
+    const startBoundary = '(?:^|[\\s\'"`({\\[,])';
+    const endBoundary = '(?:$|[\\s\'"`)}\\],;/])';
     const patterns = [
-      new RegExp(
-        `(?:^|[\\s'"` + "`" + `({[,])${escaped}(?:$|[\\s'"` + "`" + `)}\\],;/])`,
-        "gm",
-      ),
-      new RegExp(
-        `from\\s+['"]${escaped}['"]`,
-        "g",
-      ),
-      new RegExp(
-        `import\\s+.*\\s+from\\s+['"]${escaped}['"]`,
-        "g",
-      ),
-      new RegExp(
-        `require\\(['"]${escaped}['"]\\)`,
-        "g",
-      ),
-      new RegExp(
-        `import\\s+['"]${escaped}['"]`,
-        "g",
-      ),
-      new RegExp(
-        `import\\s*\\(\\s*['"]${escaped}['"]`,
-        "g",
-      ),
-      new RegExp(
-        `(?:require|import)\\s*\\(?\\s*['"]${escaped}!`,
-        "g",
-      ),
-      new RegExp(
-        `node_modules/${escaped}/`,
-        "g",
-      ),
+      // eslint-disable-next-line security/detect-non-literal-regexp -- pattern from controlled dependency analysis
+      new RegExp(`${startBoundary}${escaped}${endBoundary}`, 'gmu'),
+      // eslint-disable-next-line security/detect-non-literal-regexp -- pattern from controlled dependency analysis
+      new RegExp(String.raw`from\s+['"]${escaped}['"]`, 'gu'),
+      // eslint-disable-next-line security/detect-non-literal-regexp -- pattern from controlled dependency analysis
+      new RegExp(String.raw`import\s+.*\s+from\s+['"]${escaped}['"]`, 'gu'),
+      // eslint-disable-next-line security/detect-non-literal-regexp -- pattern from controlled dependency analysis
+      new RegExp(String.raw`require\(['"]${escaped}['"]\)`, 'gu'),
+      // eslint-disable-next-line security/detect-non-literal-regexp -- pattern from controlled dependency analysis
+      new RegExp(String.raw`import\s+['"]${escaped}['"]`, 'gu'),
+      // eslint-disable-next-line security/detect-non-literal-regexp -- pattern from controlled dependency analysis
+      new RegExp(String.raw`import\s*\(\s*['"]${escaped}['"]`, 'gu'),
+      // eslint-disable-next-line security/detect-non-literal-regexp -- pattern from controlled dependency analysis
+      new RegExp(String.raw`(?:require|import)\s*\(?\s*['"]${escaped}!`, 'gu'),
+      // eslint-disable-next-line security/detect-non-literal-regexp -- pattern from controlled dependency analysis
+      new RegExp(`node_modules/${escaped}/`, 'gu'),
     ];
 
     this.filePatternCache.set(cacheKey, patterns);
@@ -208,11 +215,13 @@ export class OptimizedDependencyAnalyzer {
   }
 
   // Optimized dependency usage detection with early exit
-  async isDependencyUsedInFile(
+  public async isDependencyUsedInFile(
     dependency: string,
     filePath: string,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- API compatibility
-    _context: any,
+    // context is accepted but unused here — kept for call-site API compatibility
+    // with the real isDependencyUsedInFile in helpers.ts, which does use it.
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars -- intentionally unused parameter
+    _context: unknown,
   ): Promise<boolean> {
     const cacheKey = `usage:${dependency}:${filePath}`;
     const cached = this.analysisCache.get(cacheKey);
@@ -231,7 +240,7 @@ export class OptimizedDependencyAnalyzer {
       }
 
       // Quick string search before regex
-      if (!content.includes(dependency)) {
+      if (content.length === 0 || !content.includes(dependency)) {
         this.analysisCache.set(cacheKey, false);
         return false;
       }
@@ -253,11 +262,12 @@ export class OptimizedDependencyAnalyzer {
   }
 
   // Optimized batch processing with intelligent batching
-  async processFilesInBatches(
+  public async processFilesInBatches(
     files: string[],
     dependency: string,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- API compatibility
-    context: any,
+    // passed through to isDependencyUsedInFile, which also ignores it
+    // (kept for call-site API compatibility with helpers.ts's real version)
+    context: unknown,
     onProgress?: (processed: number, total: number) => void,
   ): Promise<string[]> {
     const results: string[] = [];
@@ -268,8 +278,8 @@ export class OptimizedDependencyAnalyzer {
       Math.max(10, Math.floor(files.length / 10)),
     );
 
-    for (let i = 0; i < files.length; i += batchSize) {
-      const batch = files.slice(i, i + batchSize);
+    for (let index = 0; index < files.length; index += batchSize) {
+      const batch = files.slice(index, index + batchSize);
 
       // Process batch in parallel
       const batchPromises = batch.map(async (file) => {
@@ -281,28 +291,48 @@ export class OptimizedDependencyAnalyzer {
         return isUsed ? file : null;
       });
 
+      // eslint-disable-next-line no-await-in-loop -- sequential batch processing by design; batches are independent but ordered for progress reporting
       const batchResults = await Promise.allSettled(batchPromises);
 
       // Collect results
       for (const result of batchResults) {
-        if (result.status === "fulfilled" && result.value) {
+        if (result.status === 'fulfilled' && result.value !== null) {
           results.push(result.value);
         }
       }
 
-      onProgress?.(Math.min(i + batchSize, files.length), files.length);
+      onProgress?.(Math.min(index + batchSize, files.length), files.length);
     }
 
     return results;
   }
 
-  clearCaches(): void {
+  public clearCaches(): void {
     this.analysisCache.clear();
     this.dependencyGraphCache.clear();
     this.filePatternCache.clear();
   }
 
-  getCacheStats() {
+  public getCacheStats(): {
+    analysis: {
+      hitCount: number;
+      hitRate: number;
+      missCount: number;
+      size: number;
+    };
+    dependencyGraph: {
+      hitCount: number;
+      hitRate: number;
+      missCount: number;
+      size: number;
+    };
+    filePatterns: {
+      hitCount: number;
+      hitRate: number;
+      missCount: number;
+      size: number;
+    };
+  } {
     return {
       analysis: this.analysisCache.getStats(),
       dependencyGraph: this.dependencyGraphCache.getStats(),
@@ -312,15 +342,16 @@ export class OptimizedDependencyAnalyzer {
 }
 
 // Memory-optimized string operations
+// eslint-disable-next-line @typescript-eslint/no-extraneous-class -- static factory pattern; preserved for API compatibility with optimizations export
 export class StringOptimizer {
-  private static readonly STRING_POOL = new Map<string, string>();
-  private static readonly MAX_POOL_SIZE = 1000;
+  public static intern(string_: string): string {
+    if (string_.length < 3) {
+      return string_;
+    } // Don't pool very short strings
 
-  static intern(str: string): string {
-    if (str.length < 3) return str; // Don't pool very short strings
-
-    if (StringOptimizer.STRING_POOL.has(str)) {
-      return StringOptimizer.STRING_POOL.get(str)!;
+    const pooled = StringOptimizer.STRING_POOL.get(string_);
+    if (pooled !== undefined) {
+      return pooled;
     }
 
     if (StringOptimizer.STRING_POOL.size >= StringOptimizer.MAX_POOL_SIZE) {
@@ -330,66 +361,71 @@ export class StringOptimizer {
         0,
         Math.floor(StringOptimizer.MAX_POOL_SIZE / 4),
       );
-      toRemove.forEach(([key]) => StringOptimizer.STRING_POOL.delete(key));
+      toRemove.forEach(([key]) => {
+        StringOptimizer.STRING_POOL.delete(key);
+      });
     }
 
-    StringOptimizer.STRING_POOL.set(str, str);
-    return str;
+    StringOptimizer.STRING_POOL.set(string_, string_);
+    return string_;
   }
 
-  static clearPool(): void {
+  public static clearPool(): void {
     StringOptimizer.STRING_POOL.clear();
   }
 
-  static getPoolStats() {
+  public static getPoolStats(): { maxSize: number; size: number } {
     return {
-      size: StringOptimizer.STRING_POOL.size,
       maxSize: StringOptimizer.MAX_POOL_SIZE,
+      size: StringOptimizer.STRING_POOL.size,
     };
   }
+
+  private static readonly STRING_POOL = new Map<string, string>();
+  private static readonly MAX_POOL_SIZE = 1000;
 }
 
 // Optimized file system operations
 export class OptimizedFileSystem {
-  private static instance: OptimizedFileSystem;
-  private dirCache = new OptimizedCache<string[]>(100, 60000); // 1 minute TTL
-  private statCache = new OptimizedCache<Stats>(500, 30000); // 30 seconds TTL
-
-  static getInstance(): OptimizedFileSystem {
-    if (!OptimizedFileSystem.instance) {
+  public static getInstance(): OptimizedFileSystem {
+    if (OptimizedFileSystem.instance === undefined) {
       OptimizedFileSystem.instance = new OptimizedFileSystem();
     }
     return OptimizedFileSystem.instance;
   }
 
-  async readDirectory(dirPath: string): Promise<string[]> {
-    const cached = this.dirCache.get(dirPath);
-    if (cached) {
+  private static instance: OptimizedFileSystem;
+  private dirCache = new OptimizedCache<string[]>(100, 60_000); // 1 minute TTL
+  private statCache = new OptimizedCache<Stats>(500, 30_000); // 30 seconds TTL
+
+  public async readDirectory(directoryPath: string): Promise<string[]> {
+    const cached = this.dirCache.get(directoryPath);
+    if (cached !== undefined) {
       return cached;
     }
 
     try {
-      const entries = await fs.readdir(dirPath, { withFileTypes: true });
+      const entries = await readdir(directoryPath, { withFileTypes: true });
       const files = entries
         .filter((entry) => entry.isFile())
-        .map((entry) => path.join(dirPath, entry.name));
+        .map((entry) => join(directoryPath, entry.name));
 
-      this.dirCache.set(dirPath, files);
+      this.dirCache.set(directoryPath, files);
       return files;
     } catch {
-      this.dirCache.set(dirPath, []);
+      this.dirCache.set(directoryPath, []);
       return [];
     }
   }
 
-  async getFileStats(filePath: string): Promise<Stats | null> {
+  public async getFileStats(filePath: string): Promise<Stats | null> {
     const cached = this.statCache.get(filePath);
-    if (cached) {
+    if (cached !== undefined) {
       return cached;
     }
 
     try {
-      const stats = await fs.stat(filePath);
+      const stats = await stat(filePath);
       this.statCache.set(filePath, stats);
       return stats;
     } catch {
@@ -397,12 +433,25 @@ export class OptimizedFileSystem {
     }
   }
 
-  clearCaches(): void {
+  public clearCaches(): void {
     this.dirCache.clear();
     this.statCache.clear();
   }
 
-  getCacheStats() {
+  public getCacheStats(): {
+    directories: {
+      hitCount: number;
+      hitRate: number;
+      missCount: number;
+      size: number;
+    };
+    stats: {
+      hitCount: number;
+      hitRate: number;
+      missCount: number;
+      size: number;
+    };
+  } {
     return {
       directories: this.dirCache.getStats(),
       stats: this.statCache.getStats(),
@@ -412,6 +461,13 @@ export class OptimizedFileSystem {
 
 // Performance monitoring and metrics
 export class PerformanceMonitor {
+  public static getInstance(): PerformanceMonitor {
+    if (PerformanceMonitor.instance === undefined) {
+      PerformanceMonitor.instance = new PerformanceMonitor();
+    }
+    return PerformanceMonitor.instance;
+  }
+
   private static instance: PerformanceMonitor;
   private metrics = new Map<
     string,
@@ -419,81 +475,89 @@ export class PerformanceMonitor {
   >();
   private startTimes = new Map<string, number>();
 
-  static getInstance(): PerformanceMonitor {
-    if (!PerformanceMonitor.instance) {
-      PerformanceMonitor.instance = new PerformanceMonitor();
-    }
-    return PerformanceMonitor.instance;
-  }
-
-  startTimer(operation: string): void {
+  public startTimer(operation: string): void {
+    // eslint-disable-next-line compat/compat -- Node.js only, not a browser app
     this.startTimes.set(operation, performance.now());
   }
 
-  endTimer(operation: string): number {
+  public endTimer(operation: string): number {
     const startTime = this.startTimes.get(operation);
-    if (!startTime) return 0;
+    if (startTime === undefined) {
+      return 0;
+    }
 
+    // eslint-disable-next-line compat/compat -- Node.js only, not a browser app
     const duration = performance.now() - startTime;
     this.startTimes.delete(operation);
 
     const existing = this.metrics.get(operation);
-    if (existing) {
+    if (existing === undefined) {
+      this.metrics.set(operation, {
+        avgTime: duration,
+        count: 1,
+        totalTime: duration,
+      });
+    } else {
       existing.count++;
       existing.totalTime += duration;
       existing.avgTime = existing.totalTime / existing.count;
-    } else {
-      this.metrics.set(operation, {
-        count: 1,
-        totalTime: duration,
-        avgTime: duration,
-      });
     }
 
     return duration;
   }
 
-  getMetrics(): Map<
+  public getMetrics(): Map<
     string,
     { count: number; totalTime: number; avgTime: number }
   > {
     return new Map(this.metrics);
   }
 
-  reset(): void {
+  public reset(): void {
     this.metrics.clear();
     this.startTimes.clear();
   }
 
-  logSummary(): void {
-    console.log("\nPerformance Metrics:");
-    console.log("========================");
+  public logSummary(): void {
+    // eslint-disable-next-line no-console -- logSummary's entire purpose is to print perf metrics
+    console.log('\nPerformance Metrics:');
+    // eslint-disable-next-line no-console -- logSummary's entire purpose is to print perf metrics
+    console.log('========================');
 
     for (const [operation, stats] of this.metrics.entries()) {
+      // eslint-disable-next-line no-console -- logSummary's entire purpose is to print perf metrics
       console.log(`${operation}:`);
+      // eslint-disable-next-line no-console -- logSummary's entire purpose is to print perf metrics
       console.log(`  Count: ${stats.count}`);
+      // eslint-disable-next-line no-console -- logSummary's entire purpose is to print perf metrics
       console.log(`  Total Time: ${stats.totalTime.toFixed(2)}ms`);
+      // eslint-disable-next-line no-console -- logSummary's entire purpose is to print perf metrics
       console.log(`  Average Time: ${stats.avgTime.toFixed(2)}ms`);
-      console.log("");
+      // eslint-disable-next-line no-console -- logSummary's entire purpose is to print perf metrics
+      console.log('');
     }
   }
 }
 
 // Memory usage optimization
 export class MemoryOptimizer {
-  private static instance: MemoryOptimizer;
-  private gcThreshold = 100 * 1024 * 1024; // 100MB
-  private lastGcTime = 0;
-  private readonly GC_INTERVAL = 30000; // 30 seconds
-
-  static getInstance(): MemoryOptimizer {
-    if (!MemoryOptimizer.instance) {
+  public static getInstance(): MemoryOptimizer {
+    if (MemoryOptimizer.instance === undefined) {
       MemoryOptimizer.instance = new MemoryOptimizer();
     }
     return MemoryOptimizer.instance;
   }
 
-  checkMemoryUsage(): { used: number; total: number; shouldGC: boolean } {
+  private static instance: MemoryOptimizer;
+  private gcThreshold = 100 * 1024 * 1024; // 100MB
+  private lastGcTime = 0;
+  private readonly GC_INTERVAL = 30_000; // 30 seconds
+
+  public checkMemoryUsage(): {
+    used: number;
+    total: number;
+    shouldGC: boolean;
+  } {
     const usage = process.memoryUsage();
     const used = usage.heapUsed;
     const total = usage.heapTotal;
@@ -504,38 +568,44 @@ export class MemoryOptimizer {
 
     if (shouldGC) {
       this.lastGcTime = now;
-      if (global.gc) {
-        global.gc();
+      if (globalThis.gc !== undefined) {
+        globalThis.gc();
       }
     }
 
-    return { used, total, shouldGC };
+    return { shouldGC, total, used };
   }
 
-  optimizeForLargeProjects(): void {
+  public optimizeForLargeProjects(): void {
     // Increase GC threshold for large projects
     this.gcThreshold = 200 * 1024 * 1024; // 200MB
   }
 
-  getMemoryStats() {
+  public getMemoryStats(): {
+    arrayBuffers: number;
+    external: number;
+    heapTotal: number;
+    heapUsed: number;
+    rss: number;
+  } {
     const usage = process.memoryUsage();
     return {
-      heapUsed: usage.heapUsed,
-      heapTotal: usage.heapTotal,
-      external: usage.external,
-      rss: usage.rss,
       arrayBuffers: usage.arrayBuffers,
+      external: usage.external,
+      heapTotal: usage.heapTotal,
+      heapUsed: usage.heapUsed,
+      rss: usage.rss,
     };
   }
 }
 
 // Export all optimizations
 export const optimizations = {
+  MemoryOptimizer,
   OptimizedCache,
-  OptimizedFileReader,
   OptimizedDependencyAnalyzer,
-  StringOptimizer,
+  OptimizedFileReader,
   OptimizedFileSystem,
   PerformanceMonitor,
-  MemoryOptimizer,
+  StringOptimizer,
 };

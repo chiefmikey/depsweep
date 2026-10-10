@@ -1,9 +1,9 @@
-import * as fsSync from "node:fs";
-import * as fsPromises from "node:fs/promises";
-import path from "node:path";
+import { type Dirent, existsSync, readFileSync } from 'node:fs';
+import { readdir } from 'node:fs/promises';
+import path from 'node:path';
 
-import ignore, { type Ignore } from "ignore";
-import { escapePath, glob } from "tinyglobby";
+import ignore, { type Ignore } from 'ignore';
+import { escapePath, glob } from 'tinyglobby';
 
 export interface GlobOptions {
   cwd?: string;
@@ -19,16 +19,16 @@ export interface GlobOptions {
 
 interface IgnoreScope {
   /** Absolute directory the .gitignore lives in. */
-  dir: string;
+  directory: string;
   matcher: Ignore;
 }
 
-const toPosix = (p: string): string => p.split(path.sep).join("/");
+const toPosix = (p: string): string => p.split(path.sep).join('/');
 
-function readScope(dir: string): IgnoreScope | undefined {
+function readScope(directory: string): IgnoreScope | undefined {
   try {
-    const content = fsSync.readFileSync(path.join(dir, ".gitignore"), "utf8");
-    return { dir, matcher: ignore().add(content) };
+    const content = readFileSync(path.join(directory, '.gitignore'), 'utf8');
+    return { directory, matcher: ignore().add(content) };
   } catch {
     return undefined;
   }
@@ -38,18 +38,26 @@ function readScope(dir: string): IgnoreScope | undefined {
 function findGitRoot(cwd: string): string | undefined {
   let current = path.resolve(cwd);
   for (;;) {
-    if (fsSync.existsSync(path.join(current, ".git"))) return current;
+    if (existsSync(path.join(current, '.git'))) {
+      return current;
+    }
     const parent = path.dirname(current);
-    if (parent === current) return undefined;
+    if (parent === current) {
+      return undefined;
+    }
     current = parent;
   }
 }
 
-const ALWAYS_SKIPPED_DIRS = new Set(["node_modules", ".git"]);
+const ALWAYS_SKIPPED_DIRS = new Set(['node_modules', '.git']);
 
-function isInside(dir: string, target: string): string | undefined {
-  const relative = path.relative(dir, target);
-  if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) {
+function isInside(directory: string, target: string): string | undefined {
+  const relative = path.relative(directory, target);
+  if (
+    relative === '' ||
+    relative.startsWith('..') ||
+    path.isAbsolute(relative)
+  ) {
     return undefined;
   }
   return toPosix(relative);
@@ -65,12 +73,16 @@ function isIgnoredBy(
   isDirectory: boolean,
 ): boolean {
   let ignored = false;
-  for (const { dir, matcher } of scopes) {
-    const relative = isInside(dir, target);
-    if (!relative) continue;
-    const result = matcher.test(isDirectory ? `${relative}/` : relative);
-    if (result.ignored) ignored = true;
-    else if (result.unignored) ignored = false;
+  for (const { directory, matcher } of scopes) {
+    const relative = isInside(directory, target);
+    if (relative !== undefined) {
+      const result = matcher.test(isDirectory ? `${relative}/` : relative);
+      if (result.ignored) {
+        ignored = true;
+      } else if (result.unignored) {
+        ignored = false;
+      }
+    }
   }
   return ignored;
 }
@@ -90,55 +102,61 @@ interface GitignoreWalk {
  */
 async function walkGitignore(cwd: string): Promise<GitignoreWalk> {
   const scopes: IgnoreScope[] = [];
-  const prunedDirs: string[] = [];
+  const prunedDirectories: string[] = [];
 
   // Parent .gitignore files up to the git root (shallowest first).
   const gitRoot = findGitRoot(cwd);
-  if (gitRoot) {
+  if (gitRoot !== undefined) {
     const parents: string[] = [];
     let current = cwd;
     while (current !== gitRoot) {
       current = path.dirname(current);
       parents.unshift(current);
     }
-    for (const dir of parents) {
-      const scope = readScope(dir);
-      if (scope) scopes.push(scope);
+    for (const parent of parents) {
+      const scope = readScope(parent);
+      if (scope !== undefined) {
+        scopes.push(scope);
+      }
     }
   }
 
-  async function visit(dir: string, inherited: IgnoreScope[]): Promise<void> {
-    let entries: fsSync.Dirent[];
+  async function visit(
+    directory: string,
+    inherited: IgnoreScope[],
+  ): Promise<void> {
+    let entries: Dirent[];
     try {
-      entries = await fsPromises.readdir(dir, { withFileTypes: true });
+      entries = await readdir(directory, { withFileTypes: true });
     } catch {
       return;
     }
 
     let active = inherited;
-    if (entries.some((entry) => entry.name === ".gitignore")) {
-      const scope = readScope(dir);
-      if (scope) {
+    if (entries.some((entry) => entry.name === '.gitignore')) {
+      const scope = readScope(directory);
+      if (scope !== undefined) {
         scopes.push(scope);
         active = [...inherited, scope];
       }
     }
 
     for (const entry of entries) {
-      if (!entry.isDirectory() || ALWAYS_SKIPPED_DIRS.has(entry.name)) {
-        continue;
-      }
-      const child = path.join(dir, entry.name);
-      if (isIgnoredBy(child, active, true)) {
-        prunedDirs.push(child);
-      } else {
-        await visit(child, active);
+      if (entry.isDirectory() && !ALWAYS_SKIPPED_DIRS.has(entry.name)) {
+        const child = path.join(directory, entry.name);
+        if (isIgnoredBy(child, active, true)) {
+          prunedDirectories.push(child);
+        } else {
+          // Sequential on purpose: scopes must be collected shallow to deep.
+          // eslint-disable-next-line no-await-in-loop
+          await visit(child, active);
+        }
       }
     }
   }
 
   await visit(cwd, [...scopes]);
-  return { scopes, prunedDirs };
+  return { prunedDirs: prunedDirectories, scopes };
 }
 
 /**
@@ -154,27 +172,27 @@ export async function globby(
 
   let walk: GitignoreWalk | undefined;
   let extraIgnore: string[] = [];
-  if (gitignore) {
+  if (gitignore === true) {
     walk = await walkGitignore(cwd);
-    extraIgnore = walk.prunedDirs.flatMap((dir) => {
-      const escaped = escapePath(toPosix(path.relative(cwd, dir)));
+    extraIgnore = walk.prunedDirs.flatMap((directory) => {
+      const escaped = escapePath(toPosix(path.relative(cwd, directory)));
       return [escaped, `${escaped}/**`];
     });
   }
 
   const results = await glob(patterns, {
     ...rest,
-    ignore: [...(rest.ignore ?? []), ...extraIgnore],
-    cwd,
     absolute: true,
+    cwd,
+    ignore: [...(rest.ignore ?? []), ...extraIgnore],
   });
 
   // tinyglobby returns directories with a trailing slash; globby did not.
   let files = results.map((file) =>
-    file.length > 1 && file.endsWith("/") ? file.slice(0, -1) : file,
+    file.length > 1 && file.endsWith('/') ? file.slice(0, -1) : file,
   );
 
-  if (walk && walk.scopes.length > 0) {
+  if (walk !== undefined && walk.scopes.length > 0) {
     const { scopes } = walk;
     files = files.filter(
       (file) =>
@@ -186,7 +204,12 @@ export async function globby(
     );
   }
 
-  if (options.absolute) return files;
+  if (options.absolute === true) {
+    return files;
+  }
   // globby returned "." for cwd itself; path.relative yields "".
-  return files.map((file) => toPosix(path.relative(cwd, file)) || ".");
+  return files.map((file) => {
+    const relative = toPosix(path.relative(cwd, file));
+    return relative === '' ? '.' : relative;
+  });
 }
